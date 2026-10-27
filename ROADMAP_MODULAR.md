@@ -85,3 +85,15 @@
   - Interface híbrida de alta performance unificando mapa ao vivo e menu de ajustes do aparelho (`mobile/App.tsx`).
   - Instruções de compilação de APK instalável via EAS em `mobile/README.md`.
 - **Critério de Conclusão:** Projeto mobile estruturado, configurado com permissões de background no Android/iOS e pronto para geração do APK.
+
+---
+
+## BLOCO 7: Aprimoramento Visual & Experiência Life360 (UI/UX do Mapa e App)
+- [ ] **Status:** PENDENTE (Próximo Passo)
+- **Objetivo:** Transformar a interface visual para replicar fielmente a estética premium do Life360 oficial.
+- **Entregáveis:**
+  - **Estilo de Mapa Estilo Life360:** Migrar de raster escuro básico para mapa vetorial interativo (MapLibre GL JS / CARTO Vector ou Mapbox Clean/Voyager) com tons suaves (pastel, verde/azul sutil para água/parques, ruas bem definidas).
+  - **Avatares Idênticos ao Life360:** Marcador circular com foto/iniciais, anel colorido indicando nível de bateria em degradê, indicador de movimento (carro/parado/a pé) e halo pulsante suave.
+  - **Gaveta Inferior Interativa (Bottom Sheet):** Deslizar suavemente com gestos de toque, lista de membros com status de condução e nível de bateria detalhado.
+  - **Lugares e Cercas Estilizadas:** Ícones ilustrados (Casa 🏠, Trabalho 💼, Escola 🎓) com áreas translúcidas coloridas.
+- **Critério de Conclusão:** Interface web/PWA e mobile visualmente indistinguível da experiência do Life360 original.
