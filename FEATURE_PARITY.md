@@ -6,7 +6,7 @@
 
 **Legenda:** ✅ implementado e funcionando · ⚠️ parcial / simplificado · ❌ ausente · 🚫 depende de terceiro (impossível auto-hospedar)
 
-*Última auditoria: 2026-10-27 — edição de lugares implementada (Bloco 8, etapa 3)*
+*Última auditoria: 2026-10-27 — relatório de direção segmentado por viagens individuais implementado (Bloco 8, etapa 4)*
 
 ---
 
@@ -78,10 +78,10 @@
 | Relatório de direção | ✅ | Recurso Gold liberado |
 | Velocidade máxima | ✅ | |
 | Distância percorrida | ✅ | Haversine |
-| Tempo em movimento | ⚠️ | **Estimado** (pontos × 1,5 min), não medido |
+| Tempo em movimento | ✅ | Calculado com precisão pela soma da duração das viagens individuais |
 | Eventos de excesso de velocidade | ✅ | Acima de 90 km/h |
-| Nota de direção (Excelente/Bom/Atenção) | ⚠️ | Heurística simplificada |
-| **Detalhamento por viagem individual** | ❌ | Não segmenta em viagens |
+| Nota de direção (Excelente/Bom/Atenção) | ✅ | Baseada em excessos e picos de velocidade |
+| **Detalhamento por viagem individual** | ✅ | Segmentação por tempo de parada (>5 min) e deslocamento; cards individuais com horário, duração, trajeto (lugares/endereços), distância, velocidade e replay de trecho (Etapa 8.4) |
 | **Score semanal/mensal histórico** | ❌ | Só o período consultado |
 
 ## Conta, Segurança e Infraestrutura
@@ -104,8 +104,8 @@
 ## Resumo executivo
 
 - **Pronto (pode usar hoje):** mapa ao vivo, cercas, alertas, histórico ilimitado, replay, relatório de direção, SOS, chat, check-in, lugares ilimitados, estilos de mapa.
-- **Lacunas visíveis ao usuário:** endereço do local, push com app fechado, editar lugar, editar perfil, mensagem direta, histórico de SOS, relatório por viagem.
-- **Resolvido nesta etapa:** autenticação com login obrigatório em toda a API e no WebSocket, sessões revogáveis e tela de configuração inicial.
+- **Lacunas visíveis ao usuário:** push com app fechado, editar perfil, mensagem direta (1:1), histórico de SOS gravado.
+- **Resolvido nas últimas etapas:** autenticação com login obrigatório em toda a API e no WebSocket, geocoding reverso com endereço e lugares, edição completa de lugares, e relatório de direção segmentado por viagens individuais (Life360 Gold).
 - **Lacunas de plataforma restantes:** telemetria ainda aberta, sem backup automático, sem log de acessos, sem recuperação de senha.
 - **Impossível sem parceiro comercial:** despacho de emergência, monitoramento 24h, proteção de identidade.
 - **Depende de hardware (app mobile):** detecção de acidente, frenagem brusca.

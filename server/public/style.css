@@ -1176,6 +1176,129 @@ body, html {
 }
 
 /* ==========================================================
+   Viagens Individuais (Life360 Gold - Etapa 8.4)
+   ========================================================== */
+.trips-section {
+  margin-top: 13px;
+  padding-top: 12px;
+  border-top: 1px dashed #BBF7D0;
+}
+
+.trips-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 9px;
+}
+
+.trips-section-title {
+  font-size: 11px;
+  font-weight: 800;
+  color: #166534;
+  letter-spacing: 0.2px;
+}
+
+.trips-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 250px;
+  overflow-y: auto;
+  padding-right: 2px;
+}
+
+.trip-card {
+  background: rgba(255, 255, 255, 0.85);
+  border: 1px solid #D1FAE5;
+  border-radius: 13px;
+  padding: 10px 11px;
+  cursor: pointer;
+  transition: all 0.18s ease;
+}
+
+.trip-card:hover {
+  border-color: var(--accent-green);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.16);
+}
+
+.trip-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
+.trip-time {
+  font-size: 11.5px;
+  font-weight: 800;
+  color: #14532D;
+}
+
+.trip-duration {
+  font-size: 10px;
+  font-weight: 800;
+  color: #15803D;
+  background: #DCFCE7;
+  padding: 2px 8px;
+  border-radius: 9px;
+}
+
+.trip-route {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin-bottom: 7px;
+}
+
+.trip-route-line {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #374151;
+}
+
+.trip-route-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.trip-route-dot.start { background: #3B82F6; }
+.trip-route-dot.end { background: #EF4444; }
+
+.trip-route-text {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.trip-stats-row {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.trip-stat-chip {
+  font-size: 10px;
+  font-weight: 800;
+  color: #166534;
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid #BBF7D0;
+  padding: 3px 8px;
+  border-radius: 8px;
+}
+
+.trip-stat-chip.alert {
+  color: #B91C1C;
+  border-color: #FECACA;
+  background: #FEF2F2;
+}
+
+/* ==========================================================
    Seção de Lugares no Sheet
    ========================================================== */
 .sheet-places-section {

@@ -1,6 +1,7 @@
 import { FastifyInstance } from 'fastify';
 import { prisma } from '../db.js';
 import { calculateDistanceMeters } from '../services/geofence.js';
+import { segmentPointsIntoTrips } from '../services/tripDetection.js';
 
 export async function membersRoutes(fastify: FastifyInstance) {
   // Retorna todos os membros e suas últimas posições conhecidas
@@ -120,6 +121,53 @@ export async function membersRoutes(fastify: FastifyInstance) {
     });
 
     return reply.send(history);
+  });
+
+  // Retorna as viagens individuais segmentadas de um membro (Recurso Life360 Gold - Etapa 8.4)
+  fastify.get('/api/members/:userId/trips', async (request, reply) => {
+    const { userId } = request.params as { userId: string };
+    const { from, to, limit = '1000' } = request.query as { from?: string; to?: string; limit?: string };
+
+    const [devices, places] = await Promise.all([
+      prisma.device.findMany({
+        where: { userId },
+        select: { id: true },
+      }),
+      prisma.place.findMany(),
+    ]);
+
+    const deviceIds = devices.map((d) => d.id);
+    if (deviceIds.length === 0) {
+      return reply.send({
+        trips: [],
+        summary: {
+          totalTrips: 0,
+          totalDistanceKm: 0,
+          totalDurationMinutes: 0,
+          maxSpeedKmH: 0,
+          score: 'Excelente',
+        },
+      });
+    }
+
+    const whereClause: any = {
+      deviceId: { in: deviceIds },
+    };
+
+    if (from || to) {
+      whereClause.recordedAt = {};
+      if (from) whereClause.recordedAt.gte = new Date(from);
+      if (to) whereClause.recordedAt.lte = new Date(to);
+    }
+
+    const records = await prisma.locationRecord.findMany({
+      where: whereClause,
+      orderBy: { recordedAt: 'asc' },
+      take: Math.min(parseInt(limit, 10), 2000),
+    });
+
+    const result = segmentPointsIntoTrips(records, places);
+    return reply.send(result);
   });
 
   // Cadastro de novo membro

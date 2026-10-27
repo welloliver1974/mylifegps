@@ -17,7 +17,7 @@
   <!-- Leaflet CSS -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
 
-  <link rel="stylesheet" href="/style.css?v=9">
+  <link rel="stylesheet" href="/style.css?v=10">
 </head>
 <body>
   <!-- Tela de Autenticação (Login / Configuração Inicial) -->
@@ -290,6 +290,17 @@
                 <span class="d-val" id="dEvents">0</span>
               </div>
             </div>
+
+            <!-- Viagens Individuais Segmentadas (Life360 Gold - Etapa 8.4) -->
+            <div class="trips-section" id="tripsSection">
+              <div class="trips-section-header">
+                <span class="trips-section-title">🛣️ Viagens Individuais</span>
+                <span class="badge-count" id="tripsCount">0</span>
+              </div>
+              <div class="trips-list" id="tripsList">
+                <div class="loading-state" style="padding: 10px 0; font-size: 12px;">Nenhuma viagem registrada.</div>
+              </div>
+            </div>
           </div>
 
           <button class="action-btn secondary" id="btnClearHistory" style="display: none; margin-top: 10px;">
@@ -448,7 +459,7 @@
 
   <!-- Leaflet JS -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
-  <script src="/app.js?v=9"></script>
+  <script src="/app.js?v=10"></script>
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {

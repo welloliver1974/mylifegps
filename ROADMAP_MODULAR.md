@@ -114,7 +114,7 @@
 ---
 
 ## BLOCO 8: Paridade Total & Segurança de Produção
-- [/] **Status:** EM ANDAMENTO (Etapas 8.1, 8.2 e 8.3 concluídas — Próxima: Etapa 8.4)
+- [/] **Status:** EM ANDAMENTO (Etapas 8.1, 8.2, 8.3 e 8.4 concluídas — Próxima: Etapa 8.5)
 - **Objetivo:** Fechar as lacunas de paridade real com o Life360 oficial e tornar o app seguro para produção e uso diário da família.
 - **Referência obrigatória:** [`FEATURE_PARITY.md`](FEATURE_PARITY.md) — auditoria item por item (fonte de verdade).
 
@@ -133,14 +133,15 @@
   - Endpoint `PUT /api/places/:id` com validação de dados no Fastify.
   - Botão de edição (✏️) nos chips de lugares do painel e abertura direta pelo clique na pílula flutuante no mapa.
   - Modal reaproveitado dinamicamente para criação ou alteração (título, campos preenchidos e botão de confirmação).
-  - Recálculo imediato do status de presença dos membros no raio modificado. Cache PWA `life360-v9`.
+  - Recálculo imediato do status de presença dos membros no raio modificado. Cache PWA `life360-v9`. Commit `384beff`.
 
-- [ ] **Etapa 8.4: Relatório de Direção Segmentado por Viagem (Life360 Gold - PRÓXIMA)**
-  - **Objetivo:** Em vez de só um resumo do dia todo, dividir os pontos em viagens individuais (viagem = início em movimento após >10 min parado até parada >10 min).
-  - **Arquivos:** `server/src/services/tripDetection.ts` + aba "Viagens" no painel de direção com horário, distância percorrida, velocidade máxima e eventos.
-  - **Critério de conclusão:** Histórico do dia lista cards individuais clicáveis de cada viagem feita.
+- [x] **Etapa 8.4: Relatório de Direção Segmentado por Viagem (Life360 Gold - CONCLUÍDO)**
+  - Algoritmo de segmentação inteligente em `server/src/services/tripDetection.ts` com corte por paradas (>5 min), filtro de deslocamento mínimo (150 m) e associação de início/fim a lugares cadastrados ou endereços legíveis.
+  - Endpoint `GET /api/members/:userId/trips` com filtros de data (`?from=&to=&limit=`) e sumário com tempo em movimento real, velocidade máxima e nota calibrada (Excelente, Bom, Atenção).
+  - Interface no estilo Life360 Gold: cards individuais de viagens com horário inicial/final, duração, trajeto ilustrado (origem e destino com marcadores), chips de distância, velocidade média/máxima e alertas de excesso.
+  - Clique no card de viagem traça rota destacada no mapa com marcadores de início/fim e carrega o Scrubber de replay. Cache PWA `life360-v10`.
 
-- [ ] **Etapa 8.5: Notificações Push Web (VAPID / Web Push)**
+- [ ] **Etapa 8.5: Notificações Push Web (VAPID / Web Push - PRÓXIMA)**
   - **Objetivo:** Tocar notificação no celular mesmo com o navegador fechado quando alguém chega/sai de um lugar ou aciona SOS.
   - **Arquivos:** `web-push` no servidor + `POST /api/push/subscribe` + `sw.js` ouvindo evento `push` e mostrando notificação nativa do sistema operacional.
   - **Critério de conclusão:** Evento de ENTER/EXIT dispara notificação no celular com o app em segundo plano.

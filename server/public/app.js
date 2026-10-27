@@ -8,6 +8,8 @@ document.addEventListener('DOMContentLoaded', () => {
   let memberMarkers = new Map(); // userId -> { marker, accuracyCircle }
   let placeLayers = new Map();   // placeId -> { circle, labelMarker }
   let historyPolyline = null;
+  let tripStartMarker = null;
+  let tripEndMarker = null;
   let replayMarker = null;
   let replayTimer = null;
   let replayIndex = 0;
@@ -1204,6 +1206,7 @@ document.addEventListener('DOMContentLoaded', () => {
         return;
       }
       loadAndPlayHistoryForMember(selectedMemberId, customDate);
+      loadDriverReportForMember(selectedMemberId, customDate);
     });
 
     document.getElementById('btnClearHistory').addEventListener('click', clearHistoryOverlay);
@@ -1257,51 +1260,160 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  function loadDriverReportForMember(userId) {
-    apiFetch(`/api/members/${userId}/history?limit=200`)
+  // Guarda as viagens carregadas para uso no replay de trecho
+  let memberTrips = [];
+
+  function loadDriverReportForMember(userId, dateStr = null) {
+    let url = `/api/members/${userId}/trips?limit=1500`;
+    if (dateStr) {
+      const from = `${dateStr}T00:00:00.000Z`;
+      const to = `${dateStr}T23:59:59.999Z`;
+      url = `/api/members/${userId}/trips?from=${from}&to=${to}&limit=2000`;
+    }
+
+    apiFetch(url)
       .then(res => res.json())
-      .then(history => {
-        if (!history || history.length === 0) return;
+      .then(data => {
+        const summary = data?.summary || {};
+        const trips = data?.trips || [];
+        memberTrips = trips;
 
-        let maxSpeed = 0;
-        let totalDistKm = 0;
-        let movingPointsCount = 0;
-        let fastEvents = 0;
-
-        for (let i = 0; i < history.length; i++) {
-          const pt = history[i];
-          const spd = pt.speed ? pt.speed * 3.6 : 0; // m/s para km/h
-          if (spd > maxSpeed) maxSpeed = spd;
-          if (spd > 5) movingPointsCount++;
-          if (spd > 90) fastEvents++;
-
-          if (i > 0) {
-            const prev = history[i - 1];
-            totalDistKm += calcHaversineDist(prev.latitude, prev.longitude, pt.latitude, pt.longitude);
-          }
-        }
-
-        const totalMin = Math.round(movingPointsCount * 1.5); // estimativa de tempo
-
-        document.getElementById('dMaxSpeed').textContent = `${Math.round(maxSpeed)} km/h`;
-        document.getElementById('dDistance').textContent = `${totalDistKm.toFixed(1)} km`;
-        document.getElementById('dTime').textContent = `${totalMin} min`;
-        document.getElementById('dEvents').textContent = fastEvents;
+        document.getElementById('dMaxSpeed').textContent = `${summary.maxSpeedKmH || 0} km/h`;
+        document.getElementById('dDistance').textContent = `${(summary.totalDistanceKm || 0).toFixed(1)} km`;
+        document.getElementById('dTime').textContent = `${summary.totalDurationMinutes || 0} min`;
+        document.getElementById('dEvents').textContent = trips.reduce((acc, t) => acc + (t.speedEvents || 0), 0);
 
         const gradeEl = document.getElementById('driverGrade');
-        if (maxSpeed > 100 || fastEvents > 2) {
+        const score = summary.score || 'Excelente';
+        if (score === 'Atenção') {
           gradeEl.textContent = 'Atenção';
           gradeEl.className = 'driver-grade danger';
-        } else if (maxSpeed > 80) {
+        } else if (score === 'Bom') {
           gradeEl.textContent = 'Bom';
           gradeEl.className = 'driver-grade warning';
         } else {
           gradeEl.textContent = 'Excelente';
           gradeEl.className = 'driver-grade';
         }
+
+        renderTripsList(trips);
       })
-      .catch(err => console.error('Erro ao calcular driver report:', err));
+      .catch(err => {
+        console.error('Erro ao calcular driver report:', err);
+        renderTripsList([]);
+      });
   }
+
+  function formatTripTime(iso) {
+    const d = new Date(iso);
+    return d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+  }
+
+  function formatTripDuration(minutes) {
+    if (minutes < 60) return `${minutes} min`;
+    const h = Math.floor(minutes / 60);
+    const m = minutes % 60;
+    return m > 0 ? `${h}h ${m}min` : `${h}h`;
+  }
+
+  function renderTripsList(trips) {
+    const listEl = document.getElementById('tripsList');
+    const countEl = document.getElementById('tripsCount');
+    if (!listEl) return;
+
+    countEl.textContent = `${trips.length} viagem${trips.length === 1 ? '' : 's'}`;
+
+    if (!trips || trips.length === 0) {
+      listEl.innerHTML = '<div class="loading-state" style="padding: 10px 0; font-size: 12px;">Nenhuma viagem registrada neste período.</div>';
+      return;
+    }
+
+    // Mais recentes primeiro
+    const ordered = [...trips].reverse();
+
+    listEl.innerHTML = ordered
+      .map((t) => {
+        const alertChip = t.speedEvents > 0
+          ? `<span class="trip-stat-chip alert">⚠️ ${t.speedEvents} excesso${t.speedEvents === 1 ? '' : 's'}</span>`
+          : '';
+        return `
+          <div class="trip-card" onclick="window.replayTrip('${t.id}')">
+            <div class="trip-card-header">
+              <span class="trip-time">${formatTripTime(t.startTime)} → ${formatTripTime(t.endTime)}</span>
+              <span class="trip-duration">${formatTripDuration(t.durationMinutes)}</span>
+            </div>
+            <div class="trip-route">
+              <div class="trip-route-line">
+                <span class="trip-route-dot start"></span>
+                <span class="trip-route-text">${t.startLocation.label}</span>
+              </div>
+              <div class="trip-route-line">
+                <span class="trip-route-dot end"></span>
+                <span class="trip-route-text">${t.endLocation.label}</span>
+              </div>
+            </div>
+            <div class="trip-stats-row">
+              <span class="trip-stat-chip">📏 ${t.distanceKm} km</span>
+              <span class="trip-stat-chip">🚀 máx ${t.maxSpeedKmH} km/h</span>
+              <span class="trip-stat-chip">📊 méd ${t.avgSpeedKmH} km/h</span>
+              ${alertChip}
+            </div>
+          </div>
+        `;
+      })
+      .join('');
+  }
+
+  // Reproduz no mapa o trajeto de uma viagem específica
+  window.replayTrip = function (tripId) {
+    const trip = memberTrips.find((t) => t.id === tripId);
+    if (!trip || !trip.points || trip.points.length < 2) {
+      showToast('Trecho sem pontos suficientes para reproduzir.');
+      return;
+    }
+
+    if (historyPolyline) map.removeLayer(historyPolyline);
+
+    const latlngs = trip.points.map((p) => [p.latitude, p.longitude]);
+    historyPolyline = L.polyline(latlngs, {
+      color: '#6366F1',
+      weight: 5,
+      opacity: 0.85,
+    }).addTo(map);
+
+    // Marcadores de início e fim
+    if (tripStartMarker) map.removeLayer(tripStartMarker);
+    if (tripEndMarker) map.removeLayer(tripEndMarker);
+
+    tripStartMarker = L.circleMarker(latlngs[0], {
+      radius: 7,
+      color: '#FFFFFF',
+      weight: 3,
+      fillColor: '#3B82F6',
+      fillOpacity: 1,
+    }).addTo(map).bindTooltip(`Início ${formatTripTime(trip.startTime)}`);
+
+    tripEndMarker = L.circleMarker(latlngs[latlngs.length - 1], {
+      radius: 7,
+      color: '#FFFFFF',
+      weight: 3,
+      fillColor: '#EF4444',
+      fillOpacity: 1,
+    }).addTo(map).bindTooltip(`Fim ${formatTripTime(trip.endTime)}`);
+
+    map.fitBounds(historyPolyline.getBounds(), { padding: [50, 50] });
+    document.getElementById('btnClearHistory').style.display = 'block';
+
+    // Habilita o player de replay para o trecho
+    replayPoints = trip.points;
+    document.getElementById('replayPlayerBar').style.display = 'block';
+    document.getElementById('replaySlider').max = trip.points.length - 1;
+    document.getElementById('replaySlider').value = 0;
+    replayIndex = 0;
+    updateReplayUI();
+
+    showToast(`Viagem de ${formatTripTime(trip.startTime)} • ${trip.distanceKm} km`);
+  };
 
   function calcHaversineDist(lat1, lon1, lat2, lon2) {
     const R = 6371; // Raio da Terra em km
@@ -1319,6 +1431,14 @@ document.addEventListener('DOMContentLoaded', () => {
     if (historyPolyline) {
       map.removeLayer(historyPolyline);
       historyPolyline = null;
+    }
+    if (tripStartMarker) {
+      map.removeLayer(tripStartMarker);
+      tripStartMarker = null;
+    }
+    if (tripEndMarker) {
+      map.removeLayer(tripEndMarker);
+      tripEndMarker = null;
     }
     if (replayMarker) {
       map.removeLayer(replayMarker);
