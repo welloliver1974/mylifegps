@@ -23,6 +23,165 @@ document.addEventListener('DOMContentLoaded', () => {
   let sosCountdownInterval = null;
   let currentSosCountdown = 5;
 
+  // ---------- Autenticação ----------
+  const AUTH_TOKEN_KEY = 'life360_auth_token';
+  let authToken = localStorage.getItem(AUTH_TOKEN_KEY) || '';
+  let authMode = 'login'; // 'login' | 'setup'
+  let appStarted = false;
+
+  // Wrapper de fetch que injeta o token e trata sessão expirada
+  function apiFetch(url, options = {}) {
+    const opts = { ...options, headers: { ...(options.headers || {}) } };
+    if (authToken) opts.headers['Authorization'] = `Bearer ${authToken}`;
+
+    return fetch(url, opts).then((res) => {
+      if (res.status === 401 && !url.startsWith('/api/auth/')) {
+        handleUnauthorized();
+      }
+      return res;
+    });
+  }
+
+  function handleUnauthorized() {
+    authToken = '';
+    localStorage.removeItem(AUTH_TOKEN_KEY);
+    showAuthScreen('login', 'Sua sessão expirou. Entre novamente.');
+  }
+
+  function showAuthScreen(mode, message) {
+    authMode = mode;
+    const screen = document.getElementById('authScreen');
+    const subtitle = document.getElementById('authSubtitle');
+    const nameGroup = document.getElementById('authNameGroup');
+    const submitBtn = document.getElementById('authSubmitBtn');
+    const footnote = document.getElementById('authFootnote');
+    const errorEl = document.getElementById('authError');
+
+    screen.classList.remove('hidden');
+
+    if (mode === 'setup') {
+      subtitle.textContent = 'Primeira configuração: crie sua conta de administrador';
+      nameGroup.style.display = 'block';
+      submitBtn.textContent = 'Criar conta e entrar';
+      footnote.textContent = 'Esta conta protegerá o acesso a todas as localizações da família.';
+      document.getElementById('authPassword').setAttribute('autocomplete', 'new-password');
+    } else {
+      subtitle.textContent = 'Entre para acessar o círculo da família';
+      nameGroup.style.display = 'none';
+      submitBtn.textContent = 'Entrar';
+      footnote.textContent = 'Seus dados ficam apenas no seu próprio servidor.';
+      document.getElementById('authPassword').setAttribute('autocomplete', 'current-password');
+    }
+
+    if (message) {
+      errorEl.textContent = message;
+      errorEl.style.display = 'block';
+    } else {
+      errorEl.style.display = 'none';
+    }
+  }
+
+  function hideAuthScreen() {
+    document.getElementById('authScreen').classList.add('hidden');
+    document.getElementById('authError').style.display = 'none';
+  }
+
+  async function checkAuthStatus() {
+    try {
+      const res = await fetch('/api/auth/status');
+      const status = await res.json();
+      if (status.needsSetup) {
+        showAuthScreen('setup');
+        return false;
+      }
+    } catch (err) {
+      console.error('Erro ao consultar status de autenticação:', err);
+    }
+
+    if (!authToken) {
+      showAuthScreen('login');
+      return false;
+    }
+
+    try {
+      const res = await apiFetch('/api/auth/me');
+      if (res.ok) {
+        hideAuthScreen();
+        return true;
+      }
+    } catch (err) {
+      console.error('Erro ao validar sessão:', err);
+    }
+
+    showAuthScreen('login');
+    return false;
+  }
+
+  function setupAuthForm() {
+    document.getElementById('authForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+
+      const submitBtn = document.getElementById('authSubmitBtn');
+      const errorEl = document.getElementById('authError');
+      const email = document.getElementById('authEmail').value.trim();
+      const password = document.getElementById('authPassword').value;
+      const name = document.getElementById('authName').value.trim();
+
+      errorEl.style.display = 'none';
+      submitBtn.disabled = true;
+
+      const endpoint = authMode === 'setup' ? '/api/auth/setup' : '/api/auth/login';
+      const payload = authMode === 'setup' ? { name, email, password } : { email, password };
+
+      try {
+        const res = await fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        const data = await res.json();
+
+        if (!res.ok) {
+          errorEl.textContent = data.error || 'Não foi possível entrar.';
+          errorEl.style.display = 'block';
+          return;
+        }
+
+        authToken = data.token;
+        localStorage.setItem(AUTH_TOKEN_KEY, authToken);
+        document.getElementById('authPassword').value = '';
+        hideAuthScreen();
+        startApp();
+      } catch (err) {
+        console.error(err);
+        errorEl.textContent = 'Falha de conexão com o servidor.';
+        errorEl.style.display = 'block';
+      } finally {
+        submitBtn.disabled = false;
+      }
+    });
+  }
+
+  async function logout() {
+    try {
+      await apiFetch('/api/auth/logout', { method: 'POST' });
+    } catch (err) {
+      console.error('Erro ao sair:', err);
+    }
+
+    authToken = '';
+    localStorage.removeItem(AUTH_TOKEN_KEY);
+    document.getElementById('circleModal').style.display = 'none';
+
+    if (ws) {
+      ws.onclose = null;
+      ws.close();
+      ws = null;
+    }
+
+    location.reload();
+  }
+
   // Dicionário de emojis e cores para tipos de lugares
   const PLACE_ICONS = {
     home: '🏠',
@@ -101,7 +260,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }).setView([-23.55052, -46.633308], 14);
 
     try {
-      const cfgRes = await fetch('/api/config');
+      const cfgRes = await apiFetch('/api/config');
       const cfg = await cfgRes.json();
       if (cfg?.cartoApiKey) {
         cartoKey = cfg.cartoApiKey;
@@ -292,7 +451,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (ws && ws.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify({ type: 'TRIGGER_CHECKIN', data: payload }));
       } else {
-        fetch('/api/checkin', {
+        apiFetch('/api/checkin', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload),
@@ -321,7 +480,7 @@ document.addEventListener('DOMContentLoaded', () => {
       input.value = '';
 
       try {
-        await fetch('/api/messages', {
+        await apiFetch('/api/messages', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -340,7 +499,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   async function loadChat() {
     try {
-      const res = await fetch('/api/messages?limit=80');
+      const res = await apiFetch('/api/messages?limit=80');
       const messages = await res.json();
       const container = document.getElementById('chatMessages');
 
@@ -400,7 +559,7 @@ document.addEventListener('DOMContentLoaded', () => {
   async function loadAlerts() {
     const container = document.getElementById('alertsTimeline');
     try {
-      const res = await fetch('/api/places/events?limit=30');
+      const res = await apiFetch('/api/places/events?limit=30');
       const events = await res.json();
 
       if (!events || events.length === 0) {
@@ -441,7 +600,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // 5. Conexão WebSocket com Reconexão e Alerta de SOS
   function connectWebSocket() {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = `${protocol}//${window.location.host}/ws`;
+    const wsUrl = `${protocol}//${window.location.host}/ws?token=${encodeURIComponent(authToken)}`;
 
     const wsStatus = document.getElementById('wsStatus');
     const statusLabel = wsStatus.querySelector('.status-label');
@@ -533,7 +692,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // 7. Carrega Membros Iniciais da API
   async function loadMembers() {
     try {
-      const res = await fetch('/api/members/live');
+      const res = await apiFetch('/api/members/live');
       membersData = await res.json();
       renderMembersList();
       updateCollapsedBar();
@@ -547,7 +706,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // 8. Carrega Lugares/Cercas
   async function loadPlaces() {
     try {
-      const res = await fetch('/api/places');
+      const res = await apiFetch('/api/places');
       placesData = await res.json();
       renderPlaces();
       renderPlacesChips();
@@ -632,7 +791,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!confirm(`Excluir o lugar "${placeName}"? A cerca virtual será removida do mapa.`)) return;
 
     try {
-      const res = await fetch(`/api/places/${placeId}`, { method: 'DELETE' });
+      const res = await apiFetch(`/api/places/${placeId}`, { method: 'DELETE' });
       if (!res.ok) throw new Error('Falha ao excluir');
 
       const existing = placeLayers.get(placeId);
@@ -901,7 +1060,7 @@ document.addEventListener('DOMContentLoaded', () => {
         url = `/api/members/${userId}/history?from=${from}&to=${to}&limit=1000`;
       }
 
-      const res = await fetch(url);
+      const res = await apiFetch(url);
       const history = await res.json();
 
       if (!history || history.length === 0) {
@@ -939,7 +1098,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function loadDriverReportForMember(userId) {
-    fetch(`/api/members/${userId}/history?limit=200`)
+    apiFetch(`/api/members/${userId}/history?limit=200`)
       .then(res => res.json())
       .then(history => {
         if (!history || history.length === 0) return;
@@ -1172,7 +1331,7 @@ document.addEventListener('DOMContentLoaded', () => {
       ws.send(JSON.stringify({ type: 'TRIGGER_SOS', data: payload }));
     } else {
       try {
-        await fetch('/api/emergency/sos', {
+        await apiFetch('/api/emergency/sos', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload),
@@ -1257,7 +1416,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const color = document.getElementById('placeColor').value;
 
     try {
-      const res = await fetch('/api/places', {
+      const res = await apiFetch('/api/places', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name, latitude, longitude, radiusMeters, icon, color }),
@@ -1299,9 +1458,31 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // Inicialização
-  initMap();
-  connectWebSocket();
-  loadMembers();
-  loadPlaces();
-  loadChat();
+  // Inicializa a aplicação somente após autenticação bem-sucedida
+  function startApp() {
+    if (appStarted) {
+      loadMembers();
+      loadPlaces();
+      loadChat();
+      connectWebSocket();
+      return;
+    }
+    appStarted = true;
+
+    initMap();
+    connectWebSocket();
+    loadMembers();
+    loadPlaces();
+    loadChat();
+  }
+
+  async function bootstrapAuth() {
+    setupAuthForm();
+    document.getElementById('btnLogout').addEventListener('click', logout);
+
+    const authenticated = await checkAuthStatus();
+    if (authenticated) startApp();
+  }
+
+  bootstrapAuth();
 });

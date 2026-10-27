@@ -114,11 +114,11 @@
 ---
 
 ## BLOCO 8: Paridade Total & Segurança de Produção (Próxima Fase)
-- [ ] **Status:** PENDENTE
+- [/] **Status:** EM ANDAMENTO (Etapa 8.1 — Autenticação concluída)
 - **Objetivo:** Fechar as lacunas de paridade real com o Life360 oficial e tornar o app seguro para exposição na internet.
 - **Referência obrigatória:** [`FEATURE_PARITY.md`](FEATURE_PARITY.md) — auditoria item por item (fonte de verdade).
 - **Entregáveis prioritários:**
-  - [ ] **Autenticação e sessão (CRÍTICO):** login, hash de senha, JWT/cookie e proteção de todas as rotas `/api/*` e `/ws`.
+  - [x] **Autenticação e sessão (CRÍTICO):** login por e-mail/senha com bcrypt, sessões revogáveis de 30 dias em banco, `onRequest` global protegendo `/api/*` e validação de token no `/ws`. Tela de configuração inicial cria o administrador no primeiro acesso. Telemetria mantida pública para o Traccar Client.
   - [ ] **Notificações push (VAPID):** alertar chegada/saída, SOS e chat com o app fechado.
   - [ ] **Reverse geocoding:** exibir endereço do local atual (Nominatim/OSM, com cache).
   - [ ] **Editar lugar:** endpoint `PUT /api/places/:id` + formulário reaproveitando o modal existente.

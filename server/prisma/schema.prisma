@@ -8,14 +8,30 @@ datasource db {
 }
 
 model User {
+  id           String     @id @default(uuid())
+  name         String
+  avatarUrl    String?
+  color        String     @default("#3B82F6") // Hex color for map avatar
+  phone        String?
+  email        String?    @unique
+  passwordHash String?    // Nulo para membros rastreados que nunca acessam o painel
+  role         String     @default("member") // "admin" | "member"
+  devices      Device[]
+  sessions     AuthSession[]
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+}
+
+// Sessões de acesso ao painel (tokens revogáveis, com expiração)
+model AuthSession {
   id        String   @id @default(uuid())
-  name      String
-  avatarUrl String?
-  color     String   @default("#3B82F6") // Hex color for map avatar
-  phone     String?
-  devices   Device[]
+  token     String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+
+  @@index([userId])
 }
 
 model Device {

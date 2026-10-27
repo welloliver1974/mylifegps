@@ -6,10 +6,12 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { initDb } from './db.js';
 import { registerWsClient, broadcastSosAlert, broadcastCheckin } from './services/websocket.js';
+import { extractBearerToken, getUserFromToken } from './services/auth.js';
 import { telemetryRoutes } from './routes/telemetry.js';
 import { membersRoutes } from './routes/members.js';
 import { placesRoutes } from './routes/places.js';
 import { messagesRoutes } from './routes/messages.js';
+import { authRoutes } from './routes/auth.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -19,6 +21,13 @@ const fastify = Fastify({
     level: process.env.NODE_ENV === 'production' ? 'info' : 'debug',
   },
 });
+
+// Rotas de API que não exigem sessão: autenticação e ingestão de telemetria dos aparelhos
+const PUBLIC_API_PREFIXES = ['/api/auth/', '/api/telemetry'];
+
+function isPublicApi(url: string) {
+  return PUBLIC_API_PREFIXES.some((prefix) => url.startsWith(prefix));
+}
 
 async function bootstrap() {
   try {
@@ -33,9 +42,39 @@ async function bootstrap() {
 
     await fastify.register(websocket);
 
-    // 3. Endpoint WebSocket para streaming do mapa em tempo real, SOS e Check-in
+    // 3. Guarda de autenticação para todas as rotas /api (exceto login e telemetria)
+    fastify.addHook('onRequest', async (request, reply) => {
+      const url = request.raw.url || '';
+
+      if (!url.startsWith('/api/')) return;
+      if (isPublicApi(url)) return;
+      if (request.method === 'OPTIONS') return;
+
+      const token = extractBearerToken(request.headers.authorization);
+      const user = await getUserFromToken(token);
+
+      if (!user) {
+        return reply.status(401).send({ error: 'Não autenticado. Faça login para continuar.' });
+      }
+
+      (request as any).authUser = user;
+    });
+
+    // 4. Rotas de autenticação (públicas por prefixo)
+    await fastify.register(authRoutes);
+
+    // 5. Endpoint WebSocket protegido por token na query string
     fastify.register(async (app) => {
-      app.get('/ws', { websocket: true }, (socket) => {
+      app.get('/ws', { websocket: true }, async (socket, request) => {
+        const token = (request.query as any)?.token as string | undefined;
+        const user = await getUserFromToken(token);
+
+        if (!user) {
+          socket.send(JSON.stringify({ type: 'ERROR', message: 'Não autenticado.' }));
+          socket.close(1008, 'Unauthorized');
+          return;
+        }
+
         registerWsClient(socket);
         socket.send(
           JSON.stringify({
@@ -59,7 +98,7 @@ async function bootstrap() {
       });
     });
 
-    // 4. Rotas de Health Check, Configuração, SOS e Check-in via REST
+    // 6. Health Check e Configuração
     fastify.get('/health', async () => {
       return { status: 'online', timestamp: new Date().toISOString() };
     });
@@ -82,13 +121,13 @@ async function bootstrap() {
       return reply.send({ success: true, message: 'Check-in transmitido com sucesso.' });
     });
 
-    // 5. Registra Rotas de Telemetria, Membros e Lugares
+    // 7. Registra Rotas de Telemetria, Membros, Lugares e Chat
     await fastify.register(telemetryRoutes);
     await fastify.register(membersRoutes);
     await fastify.register(placesRoutes);
     await fastify.register(messagesRoutes);
 
-    // 6. Serve arquivos estáticos do Painel Web / PWA (Mapa e Interface)
+    // 8. Serve arquivos estáticos do Painel Web / PWA (Mapa e Interface)
     await fastify.register(fastifyStatic, {
       root: path.join(__dirname, '../public'),
       prefix: '/',

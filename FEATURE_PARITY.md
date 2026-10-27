@@ -6,7 +6,7 @@
 
 **Legenda:** ✅ implementado e funcionando · ⚠️ parcial / simplificado · ❌ ausente · 🚫 depende de terceiro (impossível auto-hospedar)
 
-*Última auditoria: 2026-10-27 — commit `be8c578`*
+*Última auditoria: 2026-10-27 — autenticação implementada (Bloco 8, etapa 1)*
 
 ---
 
@@ -90,12 +90,14 @@
 |---|---|---|
 | PWA instalável no celular | ✅ | manifest + service worker |
 | Mapa funciona offline (cache de assets) | ⚠️ | Assets em cache; tiles dependem de rede |
-| **Autenticação / login** | ❌ | **CRÍTICO** — qualquer pessoa com a URL vê todas as localizações |
-| **Permissões por papel (admin/membro)** | ❌ | |
+| **Autenticação / login** | ✅ | E-mail + senha (bcrypt), sessões revogáveis de 30 dias, `/api/*` e `/ws` protegidos |
+| **Permissões por papel (admin/membro)** | ⚠️ | Campo `role` existe e o primeiro usuário vira admin; ainda sem regras por papel nas rotas |
 | **HTTPS / túnel seguro** | ⚠️ | Depende do Cloudflare Tunnel na VPS |
 | **Backup automático do banco** | ❌ | |
 | **Notificações push (VAPID)** | ❌ | |
 | **Auditoria / log de acessos** | ❌ | |
+| **Ingestão de telemetria autenticada** | ⚠️ | `/api/telemetry` segue aberta para o Traccar Client; qualquer um que conheça a URL pode injetar coordenadas falsas |
+| **Recuperação de senha** | ❌ | Sem e-mail configurado; redefinição hoje exige acesso ao banco |
 
 ---
 
@@ -103,6 +105,7 @@
 
 - **Pronto (pode usar hoje):** mapa ao vivo, cercas, alertas, histórico ilimitado, replay, relatório de direção, SOS, chat, check-in, lugares ilimitados, estilos de mapa.
 - **Lacunas visíveis ao usuário:** endereço do local, push com app fechado, editar lugar, editar perfil, mensagem direta, histórico de SOS, relatório por viagem.
-- **Lacunas de plataforma (mais sérias):** **sem autenticação**, sem backup, sem log de acesso. Não expor na internet antes de resolver isso.
+- **Resolvido nesta etapa:** autenticação com login obrigatório em toda a API e no WebSocket, sessões revogáveis e tela de configuração inicial.
+- **Lacunas de plataforma restantes:** telemetria ainda aberta, sem backup automático, sem log de acessos, sem recuperação de senha.
 - **Impossível sem parceiro comercial:** despacho de emergência, monitoramento 24h, proteção de identidade.
 - **Depende de hardware (app mobile):** detecção de acidente, frenagem brusca.
