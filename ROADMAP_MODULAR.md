@@ -113,20 +113,54 @@
 
 ---
 
-## BLOCO 8: Paridade Total & Segurança de Produção (Próxima Fase)
-- [/] **Status:** EM ANDAMENTO (Etapa 8.1 — Autenticação concluída)
-- **Objetivo:** Fechar as lacunas de paridade real com o Life360 oficial e tornar o app seguro para exposição na internet.
+## BLOCO 8: Paridade Total & Segurança de Produção
+- [/] **Status:** EM ANDAMENTO (Etapa 8.1 concluída — Próxima: Etapa 8.2)
+- **Objetivo:** Fechar as lacunas de paridade real com o Life360 oficial e tornar o app seguro para produção e uso diário da família.
 - **Referência obrigatória:** [`FEATURE_PARITY.md`](FEATURE_PARITY.md) — auditoria item por item (fonte de verdade).
-- **Entregáveis prioritários:**
-  - [x] **Autenticação e sessão (CRÍTICO):** login por e-mail/senha com bcrypt, sessões revogáveis de 30 dias em banco, `onRequest` global protegendo `/api/*` e validação de token no `/ws`. Tela de configuração inicial cria o administrador no primeiro acesso. Telemetria mantida pública para o Traccar Client.
-  - [ ] **Notificações push (VAPID):** alertar chegada/saída, SOS e chat com o app fechado.
-  - [ ] **Reverse geocoding:** exibir endereço do local atual (Nominatim/OSM, com cache).
-  - [ ] **Editar lugar:** endpoint `PUT /api/places/:id` + formulário reaproveitando o modal existente.
-  - [ ] **Histórico de SOS:** persistir disparos em banco e listar no painel.
-  - [ ] **Relatório por viagem:** segmentar o histórico em viagens com horário, distância e nota.
-  - [ ] **Perfil de membro:** upload de avatar e edição de nome/cor.
-  - [ ] **Mensagem direta 1:1** no chat do círculo.
-  - [ ] **Backup automático do SQLite** (rotina diária com retenção).
-  - [ ] **Detecção de acidente no app mobile:** usar acelerômetro via `expo-sensors` e disparar o evento `CRASH_DETECTED`.
-- **Fora de escopo (não replicável):** despacho para serviços de emergência, monitoramento 24h e proteção contra roubo de identidade (serviços de parceiros comerciais).
-- **Critério de Conclusão:** `FEATURE_PARITY.md` sem nenhum item ❌ na categoria "Conta, Segurança e Infraestrutura", e todas as lacunas visíveis ao usuário resolvidas ou explicitamente aceitas.
+
+### Sub-etapas estruturadas (executar em ordem ao retomar):
+
+- [x] **Etapa 8.1: Autenticação e Sessão (CRÍTICO - CONCLUÍDO)**
+  - Senha com bcrypt, sessões revogáveis de 30 dias em SQLite (`AuthSession`), hook Fastify global bloqueando `/api/*`, `/ws` protegido com token na query string. Tela de primeiro acesso para criar admin. Commit `60038cf`.
+
+- [ ] **Etapa 8.2: Endereço Legível (Reverse Geocoding - PRÓXIMA)**
+  - **Objetivo:** Substituir as coordenadas brutas no card pelo endereço real (*ex: "Av. Paulista, 1000 - Bela Vista"*).
+  - **Arquivos:** `server/src/services/geocoding.ts` (integração Nominatim/OSM com cache em SQLite para não estourar rate limit) + endpoint `GET /api/geocoding/reverse?lat=&lon=` + atualização no `app.js` no card do membro selecionado.
+  - **Critério de conclusão:** Membro parado mostra rua/bairro em vez de latitude/longitude.
+
+- [ ] **Etapa 8.3: Edição de Lugares (Places)**
+  - **Objetivo:** Permitir editar nome, raio e ícone de uma cerca existente sem precisar excluir e recriar.
+  - **Arquivos:** `server/src/routes/places.ts` (`PUT /api/places/:id`) + botão de lápis no card/chip do lugar no painel + reaproveitamento do modal existente.
+  - **Critério de conclusão:** Editar raio de 100m para 250m atualiza imediatamente no mapa e no banco.
+
+- [ ] **Etapa 8.4: Relatório de Direção Segmentado por Viagem (Life360 Gold)**
+  - **Objetivo:** Em vez de só um resumo do dia todo, dividir os pontos em viagens individuais (viagem = início em movimento após >10 min parado até parada >10 min).
+  - **Arquivos:** `server/src/services/tripDetection.ts` + aba "Viagens" no painel de direção com horário, distância percorrida, velocidade máxima e eventos.
+  - **Critério de conclusão:** Histórico do dia lista cards individuais clicáveis de cada viagem feita.
+
+- [ ] **Etapa 8.5: Notificações Push Web (VAPID / Web Push)**
+  - **Objetivo:** Tocar notificação no celular mesmo com o navegador fechado quando alguém chega/sai de um lugar ou aciona SOS.
+  - **Arquivos:** `web-push` no servidor + `POST /api/push/subscribe` + `sw.js` ouvindo evento `push` e mostrando notificação nativa do sistema operacional.
+  - **Critério de conclusão:** Evento de ENTER/EXIT dispara notificação no celular com o app em segundo plano.
+
+- [ ] **Etapa 8.6: Histórico Persistido de SOS**
+  - **Objetivo:** Registrar ocorrências de SOS em tabela dedicada no banco (`SosEvent`), com status (ativo/resolvido) e linha do tempo de resolução.
+  - **Arquivos:** `schema.prisma` (`SosEvent`), `server/src/routes/emergency.ts` (`GET/POST/PUT /api/emergency/sos`).
+  - **Critério de conclusão:** Aba de histórico de segurança lista os alertas passados com data e quem disparou.
+
+- [ ] **Etapa 8.7: Perfil de Membro & Upload de Foto Real**
+  - **Objetivo:** Permitir envio de foto real do membro para substituir as iniciais SVG no mapa e na lista.
+  - **Arquivos:** `@fastify/multipart` + upload em `server/public/uploads/avatars` + endpoint `PUT /api/members/:id/profile`.
+
+- [ ] **Etapa 8.8: Mensagem Direta 1:1 no Círculo**
+  - **Objetivo:** Conversas privadas entre dois membros além do chat coletivo.
+  - **Arquivos:** Tabela `DirectMessage` + seletor no chat do app.
+
+- [ ] **Etapa 8.9: Segurança e Robustez de Infraestrutura**
+  - **Objetivo:** Proteger ingestão de GPS (`/api/telemetry` com API key por aparelho), rotina de backup diário do SQLite (WAL checkpoint + cópia segura com retenção) e log de acessos.
+
+- [ ] **Etapa 8.10: App Mobile Dedicado com Detecção de Acidente Real**
+  - **Objetivo:** Sensor de desaceleração brusca no app Expo usando `expo-sensors` (acelerômetro) para acionar `CRASH_DETECTED` real em caso de impacto veicular.
+
+- **Fora de escopo (não replicável):** despacho para polícia/SAMU e proteção contra roubo de identidade (serviços de parceiros comerciais pagos).
+- **Critério de Conclusão do Bloco 8:** `FEATURE_PARITY.md` com 100% dos itens técnicos concluídos e app pronto para deploy definitivo na VPS Oracle Cloud.
