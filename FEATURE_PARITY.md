@@ -6,7 +6,7 @@
 
 **Legenda:** ✅ implementado e funcionando · ⚠️ parcial / simplificado · ❌ ausente · 🚫 depende de terceiro (impossível auto-hospedar)
 
-*Última auditoria: 2026-10-27 — relatório de direção segmentado por viagens individuais implementado (Bloco 8, etapa 4)*
+*Última auditoria: 2026-10-27 — notificações push web (VAPID) implementadas (Bloco 8, etapa 5)*
 
 ---
 
@@ -94,7 +94,7 @@
 | **Permissões por papel (admin/membro)** | ⚠️ | Campo `role` existe e o primeiro usuário vira admin; ainda sem regras por papel nas rotas |
 | **HTTPS / túnel seguro** | ⚠️ | Depende do Cloudflare Tunnel na VPS |
 | **Backup automático do banco** | ❌ | |
-| **Notificações push (VAPID)** | ❌ | |
+| **Notificações push (VAPID)** | ✅ | Web Push W3C com chaves VAPID, service worker em segundo plano, alertas de cerca (ENTER/EXIT), SOS e check-in mesmo com navegador fechado (Etapa 8.5) |
 | **Auditoria / log de acessos** | ❌ | |
 | **Ingestão de telemetria autenticada** | ⚠️ | `/api/telemetry` segue aberta para o Traccar Client; qualquer um que conheça a URL pode injetar coordenadas falsas |
 | **Recuperação de senha** | ❌ | Sem e-mail configurado; redefinição hoje exige acesso ao banco |
@@ -103,9 +103,9 @@
 
 ## Resumo executivo
 
-- **Pronto (pode usar hoje):** mapa ao vivo, cercas, alertas, histórico ilimitado, replay, relatório de direção, SOS, chat, check-in, lugares ilimitados, estilos de mapa.
-- **Lacunas visíveis ao usuário:** push com app fechado, editar perfil, mensagem direta (1:1), histórico de SOS gravado.
-- **Resolvido nas últimas etapas:** autenticação com login obrigatório em toda a API e no WebSocket, geocoding reverso com endereço e lugares, edição completa de lugares, e relatório de direção segmentado por viagens individuais (Life360 Gold).
+- **Pronto (pode usar hoje):** mapa ao vivo, cercas, alertas, histórico ilimitado, replay, relatório de direção com viagens, push notifications em segundo plano, SOS, chat, check-in, lugares ilimitados, estilos de mapa.
+- **Lacunas visíveis ao usuário:** editar perfil (foto), mensagem direta (1:1), histórico de SOS gravado em tela dedicada.
+- **Resolvido nas últimas etapas:** autenticação com login obrigatório em toda a API e no WebSocket, geocoding reverso com endereço e lugares, edição completa de lugares, relatório de direção segmentado por viagens individuais (Life360 Gold) e notificações push Web (VAPID) com navegador fechado.
 - **Lacunas de plataforma restantes:** telemetria ainda aberta, sem backup automático, sem log de acessos, sem recuperação de senha.
 - **Impossível sem parceiro comercial:** despacho de emergência, monitoramento 24h, proteção de identidade.
 - **Depende de hardware (app mobile):** detecção de acidente, frenagem brusca.

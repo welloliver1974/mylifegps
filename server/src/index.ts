@@ -13,6 +13,7 @@ import { placesRoutes } from './routes/places.js';
 import { messagesRoutes } from './routes/messages.js';
 import { authRoutes } from './routes/auth.js';
 import { geocodingRoutes } from './routes/geocoding.js';
+import { pushRoutes } from './routes/push.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -59,6 +60,7 @@ async function bootstrap() {
       }
 
       (request as any).authUser = user;
+      (request as any).user = user;
     });
 
     // 4. Rotas de autenticação (públicas por prefixo)
@@ -128,6 +130,7 @@ async function bootstrap() {
     await fastify.register(placesRoutes);
     await fastify.register(messagesRoutes);
     await fastify.register(geocodingRoutes);
+    await fastify.register(pushRoutes);
 
     // 8. Serve arquivos estáticos do Painel Web / PWA (Mapa e Interface)
     await fastify.register(fastifyStatic, {

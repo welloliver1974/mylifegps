@@ -1766,6 +1766,151 @@ document.addEventListener('DOMContentLoaded', () => {
     return `Há ${Math.floor(diff / 3600)}h`;
   }
 
+  // 18. Notificações Push Web (VAPID / Web Push)
+  function urlBase64ToUint8Array(base64String) {
+    const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
+    const base64 = (base64String + padding).replace(/\-/g, '+').replace(/_/g, '/');
+    const rawData = window.atob(base64);
+    const outputArray = new Uint8Array(rawData.length);
+    for (let i = 0; i < rawData.length; ++i) {
+      outputArray[i] = rawData.charCodeAt(i);
+    }
+    return outputArray;
+  }
+
+  async function updatePushNotificationUI() {
+    const toggleBtn = document.getElementById('btnTogglePushNotifications');
+    const testBtn = document.getElementById('btnTestPushNotification');
+    if (!toggleBtn) return;
+
+    if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+      toggleBtn.textContent = '❌ Push não suportado neste navegador';
+      toggleBtn.disabled = true;
+      if (testBtn) testBtn.style.display = 'none';
+      return;
+    }
+
+    try {
+      const reg = window.swRegistration || (await navigator.serviceWorker.ready);
+      const sub = await reg.pushManager.getSubscription();
+      if (sub && Notification.permission === 'granted') {
+        toggleBtn.textContent = '🔔 Notificações Ativas (Toque para desativar)';
+        toggleBtn.style.backgroundColor = '#ECFDF5';
+        toggleBtn.style.color = '#059669';
+        toggleBtn.style.borderColor = '#A7F3D0';
+        if (testBtn) testBtn.style.display = 'block';
+      } else {
+        toggleBtn.textContent = '🔔 Ativar Notificações no Celular';
+        toggleBtn.style.backgroundColor = '';
+        toggleBtn.style.color = '';
+        toggleBtn.style.borderColor = '';
+        if (testBtn) testBtn.style.display = 'none';
+      }
+    } catch (err) {
+      console.warn('Erro ao verificar status push:', err);
+    }
+  }
+
+  async function togglePushNotifications() {
+    const toggleBtn = document.getElementById('btnTogglePushNotifications');
+    if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+      showToast('Push não é suportado pelo seu navegador.');
+      return;
+    }
+
+    const reg = window.swRegistration || (await navigator.serviceWorker.ready);
+    const existingSub = await reg.pushManager.getSubscription();
+
+    if (existingSub) {
+      try {
+        const endpoint = existingSub.endpoint;
+        await existingSub.unsubscribe();
+        await apiFetch('/api/push/unsubscribe', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ endpoint }),
+        });
+        showToast('Notificações push desativadas.');
+        updatePushNotificationUI();
+      } catch (err) {
+        console.error('Erro ao desinscrever:', err);
+        showToast('Erro ao desativar notificações.');
+      }
+      return;
+    }
+
+    try {
+      const permission = await Notification.requestPermission();
+      if (permission !== 'granted') {
+        showToast('Permissão de notificação negada no navegador.');
+        return;
+      }
+
+      const keyRes = await apiFetch('/api/push/public-key');
+      const keyData = await keyRes.json();
+      if (!keyData.configured || !keyData.publicKey) {
+        showToast('Servidor não possui chaves VAPID configuradas.');
+        return;
+      }
+
+      const applicationServerKey = urlBase64ToUint8Array(keyData.publicKey);
+      const newSub = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey,
+      });
+
+      const subJson = newSub.toJSON();
+      const res = await apiFetch('/api/push/subscribe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          endpoint: subJson.endpoint,
+          keys: subJson.keys,
+          userAgent: navigator.userAgent,
+        }),
+      });
+
+      if (res.ok) {
+        showToast('🔔 Notificações push ativadas com sucesso!');
+        updatePushNotificationUI();
+      } else {
+        const errData = await res.json();
+        showToast(errData.error || 'Erro ao registrar notificação.');
+      }
+    } catch (err) {
+      console.error('Falha ao ativar push:', err);
+      showToast('Erro ao ativar notificações push.');
+    }
+  }
+
+  async function testPushNotification() {
+    try {
+      showToast('Enviando notificação de teste...');
+      const res = await apiFetch('/api/push/test', { method: 'POST' });
+      const data = await res.json();
+      if (res.ok) {
+        showToast(data.message || 'Notificação enviada!');
+      } else {
+        showToast(data.error || 'Falha ao testar notificação.');
+      }
+    } catch (err) {
+      console.error('Erro ao testar push:', err);
+      showToast('Erro ao solicitar teste.');
+    }
+  }
+
+  function setupPushNotifications() {
+    const toggleBtn = document.getElementById('btnTogglePushNotifications');
+    const testBtn = document.getElementById('btnTestPushNotification');
+    if (toggleBtn) toggleBtn.addEventListener('click', togglePushNotifications);
+    if (testBtn) testBtn.addEventListener('click', testPushNotification);
+
+    window.onServiceWorkerReady = () => updatePushNotificationUI();
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.ready.then(() => updatePushNotificationUI());
+    }
+  }
+
   // Inicialização
   // Inicializa a aplicação somente após autenticação bem-sucedida
   function startApp() {
@@ -1774,6 +1919,7 @@ document.addEventListener('DOMContentLoaded', () => {
       loadPlaces();
       loadChat();
       connectWebSocket();
+      updatePushNotificationUI();
       return;
     }
     appStarted = true;
@@ -1783,6 +1929,7 @@ document.addEventListener('DOMContentLoaded', () => {
     loadMembers();
     loadPlaces();
     loadChat();
+    setupPushNotifications();
   }
 
   async function bootstrapAuth() {

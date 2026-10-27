@@ -1,5 +1,6 @@
 import { prisma } from '../db.js';
 import { broadcastLocationUpdate } from './websocket.js';
+import { broadcastPushNotification } from './push.js';
 
 // Fórmula de Haversine para calcular distância precisa em metros entre duas coordenadas
 export function calculateDistanceMeters(
@@ -138,4 +139,14 @@ function emitGeofenceNotification(
       timestamp,
     },
   });
+
+  // Dispara notificação Web Push no celular dos membros da família
+  broadcastPushNotification({
+    title: `🔔 ${placeName}`,
+    body: `${userName} ${actionText} ${placeName}`,
+    icon: '/icon-192.png',
+    badge: '/icon-192.png',
+    tag: `geofence-${placeName}-${eventType}`,
+    data: { url: '/', type: 'geofence' },
+  }).catch((err) => console.error('[Push Geofence Error]', err));
 }

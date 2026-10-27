@@ -16,10 +16,11 @@ model User {
   email        String?    @unique
   passwordHash String?    // Nulo para membros rastreados que nunca acessam o painel
   role         String     @default("member") // "admin" | "member"
-  devices      Device[]
-  sessions     AuthSession[]
-  createdAt    DateTime   @default(now())
-  updatedAt    DateTime   @updatedAt
+  devices           Device[]
+  sessions          AuthSession[]
+  pushSubscriptions PushSubscription[]
+  createdAt         DateTime   @default(now())
+  updatedAt         DateTime   @updatedAt
 }
 
 // Sessões de acesso ao painel (tokens revogáveis, com expiração)
@@ -118,4 +119,19 @@ model GeocodingCache {
 
   @@unique([latKey, lonKey])
   @@index([latKey, lonKey])
+}
+
+// Inscrições Web Push (VAPID) para notificações no celular mesmo com navegador fechado
+model PushSubscription {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  userAgent String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
 }

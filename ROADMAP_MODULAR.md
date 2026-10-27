@@ -114,7 +114,7 @@
 ---
 
 ## BLOCO 8: Paridade Total & Segurança de Produção
-- [/] **Status:** EM ANDAMENTO (Etapas 8.1, 8.2, 8.3 e 8.4 concluídas — Próxima: Etapa 8.5)
+- [/] **Status:** EM ANDAMENTO (Etapas 8.1 a 8.5 concluídas — Próxima: Etapa 8.6)
 - **Objetivo:** Fechar as lacunas de paridade real com o Life360 oficial e tornar o app seguro para produção e uso diário da família.
 - **Referência obrigatória:** [`FEATURE_PARITY.md`](FEATURE_PARITY.md) — auditoria item por item (fonte de verdade).
 
@@ -139,14 +139,16 @@
   - Algoritmo de segmentação inteligente em `server/src/services/tripDetection.ts` com corte por paradas (>5 min), filtro de deslocamento mínimo (150 m) e associação de início/fim a lugares cadastrados ou endereços legíveis.
   - Endpoint `GET /api/members/:userId/trips` com filtros de data (`?from=&to=&limit=`) e sumário com tempo em movimento real, velocidade máxima e nota calibrada (Excelente, Bom, Atenção).
   - Interface no estilo Life360 Gold: cards individuais de viagens com horário inicial/final, duração, trajeto ilustrado (origem e destino com marcadores), chips de distância, velocidade média/máxima e alertas de excesso.
-  - Clique no card de viagem traça rota destacada no mapa com marcadores de início/fim e carrega o Scrubber de replay. Cache PWA `life360-v10`.
+  - Clique no card de viagem traça rota destacada no mapa com marcadores de início/fim e carrega o Scrubber de replay. Cache PWA `life360-v10`. Commit `d7d5758`.
 
-- [ ] **Etapa 8.5: Notificações Push Web (VAPID / Web Push - PRÓXIMA)**
-  - **Objetivo:** Tocar notificação no celular mesmo com o navegador fechado quando alguém chega/sai de um lugar ou aciona SOS.
-  - **Arquivos:** `web-push` no servidor + `POST /api/push/subscribe` + `sw.js` ouvindo evento `push` e mostrando notificação nativa do sistema operacional.
-  - **Critério de conclusão:** Evento de ENTER/EXIT dispara notificação no celular com o app em segundo plano.
+- [x] **Etapa 8.5: Notificações Push Web (VAPID / Web Push - CONCLUÍDO)**
+  - Pacote `web-push` configurado no backend com chaves criptográficas VAPID e tabela `PushSubscription` no SQLite (`dev.db`).
+  - Endpoints `GET /api/push/public-key`, `POST /api/push/subscribe`, `POST /api/push/unsubscribe` e `POST /api/push/test`.
+  - Service Worker (`sw.js`) com escuta nativa de eventos `push` e foco na janela do app ao clicar na notificação (`notificationclick`). Notificações de SOS com `requireInteraction` (não somem até o usuário tocar).
+  - Disparo automático de Web Push em eventos de cerca eletrônica (ENTER/EXIT em `geofence.ts`), Alertas de SOS (`websocket.ts`) e Check-in da família (`websocket.ts`), mesmo com o app/navegador fechados.
+  - Botão de ativação e teste de push integrado no menu do círculo da UI. Cache PWA `life360-v11`.
 
-- [ ] **Etapa 8.6: Histórico Persistido de SOS**
+- [ ] **Etapa 8.6: Histórico Persistido de SOS (PRÓXIMA)**
   - **Objetivo:** Registrar ocorrências de SOS em tabela dedicada no banco (`SosEvent`), com status (ativo/resolvido) e linha do tempo de resolução.
   - **Arquivos:** `schema.prisma` (`SosEvent`), `server/src/routes/emergency.ts` (`GET/POST/PUT /api/emergency/sos`).
   - **Critério de conclusão:** Aba de histórico de segurança lista os alertas passados com data e quem disparou.

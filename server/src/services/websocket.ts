@@ -1,4 +1,5 @@
 import { WebSocket } from 'ws';
+import { broadcastPushNotification } from './push.js';
 
 // Conjunto de clientes conectados ao mapa ao vivo
 const clients = new Set<WebSocket>();
@@ -51,6 +52,19 @@ export function broadcastSosAlert(payload: any) {
       client.send(message);
     }
   }
+
+  // Notifica todos os outros membros do círculo via Web Push no celular
+  broadcastPushNotification(
+    {
+      title: '🚨 ALERTA DE SOS / PÂNICO',
+      body: payload.message || `Emergência: ${payload.userName || 'Membro da Família'} acionou o SOS!`,
+      icon: '/icon-192.png',
+      badge: '/icon-192.png',
+      tag: 'sos-alert',
+      data: { url: '/', type: 'sos', userId: payload.userId },
+    },
+    payload.userId
+  ).catch((err) => console.error('[Push SOS Error]', err));
 }
 
 // Dispara mensagem de chat para todos os membros do círculo em tempo real
@@ -86,4 +100,17 @@ export function broadcastCheckin(payload: any) {
       client.send(message);
     }
   }
+
+  // Notifica via Web Push
+  broadcastPushNotification(
+    {
+      title: '📍 Check-in de Família',
+      body: `${payload.userName || 'Membro'} fez check-in: Estou seguro!`,
+      icon: '/icon-192.png',
+      badge: '/icon-192.png',
+      tag: 'checkin-alert',
+      data: { url: '/', type: 'checkin' },
+    },
+    payload.userId
+  ).catch((err) => console.error('[Push Checkin Error]', err));
 }

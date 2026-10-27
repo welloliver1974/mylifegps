@@ -17,7 +17,7 @@
   <!-- Leaflet CSS -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
 
-  <link rel="stylesheet" href="/style.css?v=10">
+  <link rel="stylesheet" href="/style.css?v=11">
 </head>
 <body>
   <!-- Tela de Autenticação (Login / Configuração Inicial) -->
@@ -363,6 +363,12 @@
           </div>
 
           <div class="circle-actions-list">
+            <button class="btn secondary" id="btnTogglePushNotifications" style="width: 100%; margin-bottom: 8px;">
+              🔔 Ativar Notificações no Celular
+            </button>
+            <button class="btn secondary" id="btnTestPushNotification" style="width: 100%; margin-bottom: 8px; display: none;">
+              📲 Testar Notificação Push
+            </button>
             <button class="btn secondary" id="btnCircleCheckin" style="width: 100%; margin-bottom: 8px;">
               📍 Fazer Check-in Agora (Avisar a todos)
             </button>
@@ -459,11 +465,16 @@
 
   <!-- Leaflet JS -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
-  <script src="/app.js?v=10"></script>
+  <script src="/app.js?v=11"></script>
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
-        navigator.serviceWorker.register('/sw.js').catch(console.error);
+        navigator.serviceWorker.register('/sw.js')
+          .then((reg) => {
+            window.swRegistration = reg;
+            if (window.onServiceWorkerReady) window.onServiceWorkerReady(reg);
+          })
+          .catch(console.error);
       });
     }
   </script>
