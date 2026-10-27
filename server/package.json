@@ -20,9 +20,11 @@
     "@fastify/static": "^7.0.4",
     "@fastify/websocket": "^10.0.1",
     "@prisma/client": "^5.22.0",
+    "bcryptjs": "^3.0.3",
     "fastify": "^4.28.1"
   },
   "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
     "@types/node": "^20.14.0",
     "@types/ws": "^8.18.2",
     "prisma": "^5.22.0",
