@@ -17,7 +17,7 @@
   <!-- Leaflet CSS -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
 
-  <link rel="stylesheet" href="/style.css?v=12">
+  <link rel="stylesheet" href="/style.css?v=13">
 </head>
 <body>
   <!-- Tela de Autenticação (Login / Configuração Inicial) -->
@@ -444,6 +444,62 @@
       </div>
     </div>
 
+    <!-- Modal de Edição de Perfil & Foto Real (Etapa 8.7) -->
+    <div class="modal-overlay" id="profileModal" style="display: none;">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3 id="profileModalTitle">Editar Perfil do Membro</h3>
+          <button class="close-btn" id="btnCloseProfileModal">&times;</button>
+        </div>
+        <form id="profileForm">
+          <input type="hidden" id="profileUserId" value="">
+
+          <div class="profile-avatar-preview-wrap">
+            <div class="profile-avatar-circle" id="profileAvatarCircle">
+              <span id="profileAvatarInitials">--</span>
+              <img id="profileAvatarImg" src="" alt="Avatar" style="display: none;" />
+            </div>
+            <div class="profile-avatar-buttons">
+              <input type="file" id="profileAvatarFileInput" accept="image/png, image/jpeg, image/jpg, image/webp" style="display: none;" />
+              <button type="button" class="btn small primary" id="btnTriggerAvatarFile">📷 Escolher Foto</button>
+              <button type="button" class="btn small secondary" id="btnRemoveAvatarPhoto" style="display: none; color: var(--accent-red);">Remover</button>
+            </div>
+            <span class="profile-avatar-hint">JPG, PNG ou WEBP (máx. 5MB)</span>
+          </div>
+
+          <div class="form-group">
+            <label for="profileName">Nome do Membro</label>
+            <input type="text" id="profileName" required placeholder="Ex: Wellington" />
+          </div>
+
+          <div class="form-group">
+            <label for="profilePhone">Telefone</label>
+            <input type="text" id="profilePhone" placeholder="(11) 99999-9999" />
+          </div>
+
+          <div class="form-group">
+            <label>Cor do Marcador no Mapa</label>
+            <input type="hidden" id="profileColor" value="#3B82F6" />
+            <div class="color-swatches" id="profileColorSwatches">
+              <button type="button" class="color-swatch active" data-color="#3B82F6" style="background:#3B82F6;"></button>
+              <button type="button" class="color-swatch" data-color="#10B981" style="background:#10B981;"></button>
+              <button type="button" class="color-swatch" data-color="#8B5CF6" style="background:#8B5CF6;"></button>
+              <button type="button" class="color-swatch" data-color="#EC4899" style="background:#EC4899;"></button>
+              <button type="button" class="color-swatch" data-color="#F59E0B" style="background:#F59E0B;"></button>
+              <button type="button" class="color-swatch" data-color="#EF4444" style="background:#EF4444;"></button>
+              <button type="button" class="color-swatch" data-color="#14B8A6" style="background:#14B8A6;"></button>
+              <button type="button" class="color-swatch" data-color="#6366F1" style="background:#6366F1;"></button>
+            </div>
+          </div>
+
+          <div class="modal-actions">
+            <button type="button" class="btn secondary" id="btnCancelProfile">Cancelar</button>
+            <button type="submit" class="btn primary" id="btnSaveProfile">Salvar Alterações</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
     <!-- Modal de Confirmação de Disparo de SOS -->
     <div class="modal-overlay" id="sosConfirmModal" style="display: none;">
       <div class="modal-content sos-confirm-content">
@@ -484,7 +540,7 @@
 
   <!-- Leaflet JS -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
-  <script src="/app.js?v=12"></script>
+  <script src="/app.js?v=13"></script>
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {

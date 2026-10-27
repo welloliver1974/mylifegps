@@ -2,6 +2,7 @@ import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import websocket from '@fastify/websocket';
 import fastifyStatic from '@fastify/static';
+import multipart from '@fastify/multipart';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { initDb, prisma } from './db.js';
@@ -37,10 +38,17 @@ async function bootstrap() {
     // 1. Configura SQLite com WAL mode
     await initDb();
 
-    // 2. Plugins (CORS e WebSockets)
+    // 2. Plugins (CORS, Multipart e WebSockets)
     await fastify.register(cors, {
       origin: true,
       methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    });
+
+    await fastify.register(multipart, {
+      limits: {
+        fileSize: 5 * 1024 * 1024, // Limite de 5 MB por avatar
+        files: 1,
+      },
     });
 
     await fastify.register(websocket);

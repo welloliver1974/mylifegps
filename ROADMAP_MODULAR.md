@@ -114,7 +114,7 @@
 ---
 
 ## BLOCO 8: Paridade Total & Segurança de Produção
-- [/] **Status:** EM ANDAMENTO (Etapas 8.1 a 8.6 concluídas — Próxima: Etapa 8.7)
+- [/] **Status:** EM ANDAMENTO (Etapas 8.1 a 8.7 concluídas — Próxima: Etapa 8.8)
 - **Objetivo:** Fechar as lacunas de paridade real com o Life360 oficial e tornar o app seguro para produção e uso diário da família.
 - **Referência obrigatória:** [`FEATURE_PARITY.md`](FEATURE_PARITY.md) — auditoria item por item (fonte de verdade).
 
@@ -155,13 +155,16 @@
   - Interface de Histórico de Segurança no Bottom Sheet (`#sosHistorySection` no estilo Life360 Safety History) com filtros dinâmicos (Todos, Ativos, Resolvidos), badges animados, botão de localização rápida no mapa e botão "Marcar como Seguro" (resolução).
   - Botão de resolução rápida diretamente no alerta em tela cheia (`#btnSosResolveActive`). Cache PWA `life360-v12`.
 
-- [ ] **Etapa 8.7: Perfil de Membro & Upload de Foto Real (PRÓXIMA)**
-  - **Objetivo:** Permitir envio de foto real do membro para substituir as iniciais SVG no mapa e na lista.
-  - **Arquivos:** `@fastify/multipart` + upload em `server/public/uploads/avatars` + endpoint `PUT /api/members/:id/profile`.
+- [x] **Etapa 8.7: Perfil de Membro & Upload de Foto Real (CONCLUÍDO)**
+  - Pacote `@fastify/multipart` registrado com limite de 5MB por arquivo.
+  - Endpoints `PUT /api/members/:id/profile`, `POST /api/members/:id/avatar` e `DELETE /api/members/:id/avatar` em `server/src/routes/members.ts`.
+  - Armazenamento em `server/public/uploads/avatars/` servido estaticamente com limpeza automática de arquivos substituídos/removidos.
+  - Modal `#profileModal` com edição de nome, telefone, seletor de cor com 8 opções e botão `✏️ Editar` no cabeçalho do membro.
+  - Upload com preview dinâmico no círculo de avatar, suporte a remoção de foto e renderização de fotos reais nos marcadores do mapa Leaflet, na lista de membros e na barra colapsada. Cache PWA `life360-v13`.
 
-- [ ] **Etapa 8.8: Mensagem Direta 1:1 no Círculo**
-  - **Objetivo:** Conversas privadas entre dois membros além do chat coletivo.
-  - **Arquivos:** Tabela `DirectMessage` + seletor no chat do app.
+- [ ] **Etapa 8.8: Mensagem Direta 1:1 no Círculo (PRÓXIMA)**
+  - **Objetivo:** Conversas privadas entre dois membros além do chat coletivo do círculo.
+  - **Arquivos:** Tabela `DirectMessage` no Prisma + rotas `/api/messages/direct` + abas de conversa ("Círculo" e membros individuais) no modal de chat da interface.
 
 - [ ] **Etapa 8.9: Segurança e Robustez de Infraestrutura**
   - **Objetivo:** Proteger ingestão de GPS (`/api/telemetry` com API key por aparelho), rotina de backup diário do SQLite (WAL checkpoint + cópia segura com retenção) e log de acessos.

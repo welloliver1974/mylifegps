@@ -22,3 +22,11 @@ decompiled_manifest/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+
+# Uploads de usuários (avatares)
+server/public/uploads/*
+!server/public/uploads/.gitkeep
+!server/public/uploads/avatars/
+server/public/uploads/avatars/*
+!server/public/uploads/avatars/.gitkeep
+

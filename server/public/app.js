@@ -285,6 +285,7 @@ document.addEventListener('DOMContentLoaded', () => {
     setupChat();
     setupAlerts();
     setupSosFlow();
+    setupProfileModal();
     setupReplayPlayer();
     setupDriverReportAndHistory();
   }
@@ -982,7 +983,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     avatarsEl.innerHTML = membersData.slice(0, 3).map((m) => {
       const initials = m.name.substring(0, 2).toUpperCase();
-      return `<div class="mini-avatar" style="background-color: ${m.color || '#3B82F6'}">${initials}</div>`;
+      return `<div class="mini-avatar" style="background-color: ${m.color || '#3B82F6'}">${m.avatarUrl ? `<img src="${m.avatarUrl}" alt="${m.name}" />` : initials}</div>`;
     }).join('');
 
     titleEl.textContent = membersData.length > 0 ? `Círculo (${membersData.length} membros)` : 'Círculo Família';
@@ -1044,7 +1045,7 @@ document.addEventListener('DOMContentLoaded', () => {
         return `
           <div class="member-card ${isSelected}" onclick="window.selectMember('${m.id}')">
             <div class="member-avatar" style="background-color: ${m.color || '#3B82F6'}">
-              ${initials}
+              ${m.avatarUrl ? `<img src="${m.avatarUrl}" alt="${m.name}" />` : initials}
               <div class="battery-badge ${battClass}">${batt}% ${isCharging}</div>
             </div>
             <div class="member-info">
@@ -1087,14 +1088,17 @@ document.addEventListener('DOMContentLoaded', () => {
     const updated = member.location?.recordedAt ? formatRelativeTime(member.location.recordedAt) : '--';
 
     document.getElementById('detailHeader').innerHTML = `
-      <div style="display: flex; align-items: center; gap: 12px;">
+      <div style="display: flex; align-items: center; gap: 12px; width: 100%;">
         <div class="member-avatar" style="background-color: ${member.color || '#3B82F6'}; width: 48px; height: 48px; font-size: 18px;">
-          ${initials}
+          ${member.avatarUrl ? `<img src="${member.avatarUrl}" alt="${member.name}" />` : initials}
         </div>
-        <div>
+        <div style="flex: 1; min-width: 0;">
           <h3 style="font-size: 18px; font-weight: 700;">${member.name}</h3>
-          <p style="font-size: 12px; color: var(--text-secondary);">${member.activeDevice?.name || 'Celular Principal'}</p>
+          <p style="font-size: 12px; color: var(--text-secondary);">${member.activeDevice?.name || 'Celular Principal'}${member.phone ? ` • ${member.phone}` : ''}</p>
         </div>
+        <button class="detail-edit-profile-btn" onclick="window.openProfileModal('${member.id}')" title="Editar perfil e foto">
+          ✏️ Editar
+        </button>
       </div>
     `;
 
@@ -1809,6 +1813,191 @@ document.addEventListener('DOMContentLoaded', () => {
   window.resolveSosItem = (id) => {
     resolveSosAlert(id, 'RESOLVED');
   };
+
+  // 16b. Edição de Perfil & Foto Real do Membro (Etapa 8.7)
+  let profilePendingAvatarFile = null;
+  let profileCurrentAvatarUrl = '';
+
+  function updateProfileAvatarPreview(name, avatarUrl, color) {
+    const circle = document.getElementById('profileAvatarCircle');
+    const initialsEl = document.getElementById('profileAvatarInitials');
+    const imgEl = document.getElementById('profileAvatarImg');
+    const removeBtn = document.getElementById('btnRemoveAvatarPhoto');
+
+    circle.style.backgroundColor = color || '#3B82F6';
+    initialsEl.textContent = (name || '--').substring(0, 2).toUpperCase();
+
+    if (avatarUrl) {
+      imgEl.src = avatarUrl;
+      imgEl.style.display = 'block';
+      initialsEl.style.display = 'none';
+      if (removeBtn) removeBtn.style.display = 'inline-block';
+    } else {
+      imgEl.src = '';
+      imgEl.style.display = 'none';
+      initialsEl.style.display = 'block';
+      if (removeBtn) removeBtn.style.display = 'none';
+    }
+  }
+
+  window.openProfileModal = (userId) => {
+    const member = membersData.find((m) => m.id === userId);
+    if (!member) {
+      showToast('Membro não encontrado.');
+      return;
+    }
+
+    profilePendingAvatarFile = null;
+    profileCurrentAvatarUrl = member.avatarUrl || '';
+
+    document.getElementById('profileUserId').value = member.id;
+    document.getElementById('profileName').value = member.name || '';
+    document.getElementById('profilePhone').value = member.phone || '';
+    document.getElementById('profileColor').value = member.color || '#3B82F6';
+    document.getElementById('profileAvatarFileInput').value = '';
+
+    document.querySelectorAll('#profileColorSwatches .color-swatch').forEach((sw) => {
+      sw.classList.toggle('active', sw.dataset.color === (member.color || '#3B82F6'));
+    });
+
+    updateProfileAvatarPreview(member.name, profileCurrentAvatarUrl, member.color);
+    document.getElementById('profileModal').style.display = 'flex';
+  };
+
+  function setupProfileModal() {
+    const modal = document.getElementById('profileModal');
+    const fileInput = document.getElementById('profileAvatarFileInput');
+    const nameInput = document.getElementById('profileName');
+    const colorInput = document.getElementById('profileColor');
+
+    const closeModal = () => {
+      modal.style.display = 'none';
+      profilePendingAvatarFile = null;
+    };
+
+    const closeBtn = document.getElementById('btnCloseProfileModal');
+    if (closeBtn) closeBtn.addEventListener('click', closeModal);
+
+    const cancelBtn = document.getElementById('btnCancelProfile');
+    if (cancelBtn) cancelBtn.addEventListener('click', closeModal);
+
+    const triggerBtn = document.getElementById('btnTriggerAvatarFile');
+    if (triggerBtn) {
+      triggerBtn.addEventListener('click', () => fileInput.click());
+    }
+
+    if (fileInput) {
+      fileInput.addEventListener('change', () => {
+        const file = fileInput.files && fileInput.files[0];
+        if (!file) return;
+        if (file.size > 5 * 1024 * 1024) {
+          showToast('⚠️ Imagem muito grande. Máximo de 5MB.');
+          fileInput.value = '';
+          return;
+        }
+        profilePendingAvatarFile = file;
+        const previewUrl = URL.createObjectURL(file);
+        updateProfileAvatarPreview(nameInput.value, previewUrl, colorInput.value);
+      });
+    }
+
+    const removeBtn = document.getElementById('btnRemoveAvatarPhoto');
+    if (removeBtn) {
+      removeBtn.addEventListener('click', async () => {
+        const userId = document.getElementById('profileUserId').value;
+        if (!userId) return;
+        try {
+          const res = await apiFetch(`/api/members/${userId}/avatar`, { method: 'DELETE' });
+          if (!res.ok) throw new Error('Falha ao remover foto');
+          profileCurrentAvatarUrl = '';
+          profilePendingAvatarFile = null;
+          fileInput.value = '';
+          updateProfileAvatarPreview(nameInput.value, '', colorInput.value);
+          await loadMembers();
+          showToast('🗑️ Foto removida. Voltando às iniciais coloridas.');
+        } catch (err) {
+          console.error(err);
+          showToast('Erro ao remover a foto de perfil.');
+        }
+      });
+    }
+
+    if (nameInput) {
+      nameInput.addEventListener('input', () => {
+        const preview = profilePendingAvatarFile
+          ? document.getElementById('profileAvatarImg').src
+          : profileCurrentAvatarUrl;
+        updateProfileAvatarPreview(nameInput.value, preview, colorInput.value);
+      });
+    }
+
+    document.querySelectorAll('#profileColorSwatches .color-swatch').forEach((sw) => {
+      sw.addEventListener('click', () => {
+        document.querySelectorAll('#profileColorSwatches .color-swatch').forEach((s) => s.classList.remove('active'));
+        sw.classList.add('active');
+        colorInput.value = sw.dataset.color;
+        document.getElementById('profileAvatarCircle').style.backgroundColor = sw.dataset.color;
+      });
+    });
+
+    const form = document.getElementById('profileForm');
+    if (form) {
+      form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const userId = document.getElementById('profileUserId').value;
+        const name = nameInput.value.trim();
+        const phone = document.getElementById('profilePhone').value.trim();
+        const color = colorInput.value;
+        const saveBtn = document.getElementById('btnSaveProfile');
+
+        if (!userId) return;
+        if (!name) {
+          showToast('⚠️ O nome do membro é obrigatório.');
+          return;
+        }
+
+        saveBtn.disabled = true;
+        saveBtn.textContent = 'Salvando...';
+
+        try {
+          // 1. Envia a foto, se houver uma nova selecionada
+          if (profilePendingAvatarFile) {
+            const formData = new FormData();
+            formData.append('file', profilePendingAvatarFile);
+            const uploadRes = await apiFetch(`/api/members/${userId}/avatar`, {
+              method: 'POST',
+              body: formData,
+            });
+            if (!uploadRes.ok) {
+              const err = await uploadRes.json().catch(() => ({}));
+              throw new Error(err.error || 'Falha no upload da foto');
+            }
+          }
+
+          // 2. Atualiza os dados de texto/cor
+          const res = await apiFetch(`/api/members/${userId}/profile`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name, phone, color }),
+          });
+          if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            throw new Error(err.error || 'Falha ao salvar perfil');
+          }
+
+          closeModal();
+          await loadMembers();
+          showToast('✅ Perfil do membro atualizado com sucesso!');
+        } catch (err) {
+          console.error('Erro ao salvar perfil:', err);
+          showToast(`Erro: ${err.message}`);
+        } finally {
+          saveBtn.disabled = false;
+          saveBtn.textContent = 'Salvar Alterações';
+        }
+      });
+    }
+  }
 
   // 17. Modal Novo Lugar & Seletor de Ícones
   const placeModal = document.getElementById('placeModal');

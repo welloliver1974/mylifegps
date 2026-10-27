@@ -6,7 +6,7 @@
 
 **Legenda:** ✅ implementado e funcionando · ⚠️ parcial / simplificado · ❌ ausente · 🚫 depende de terceiro (impossível auto-hospedar)
 
-*Última auditoria: 2026-10-27 — histórico persistido de SOS implementado (Bloco 8, etapa 6)*
+*Última auditoria: 2026-10-27 — perfil de membro e upload de foto real implementados (Bloco 8, etapa 7)*
 
 ---
 
@@ -16,7 +16,7 @@
 |---|---|---|
 | Mapa ao vivo com todos os membros | ✅ | Leaflet + WebSocket em tempo real |
 | Estilos de mapa (claro, satélite, escuro) | ✅ | CARTO Voyager / Esri Imagery / CARTO Dark |
-| Avatar do membro no mapa | ✅ | Iniciais; **foto apenas por URL**, sem upload |
+| Avatar do membro no mapa | ✅ | Iniciais coloridas ou foto real do membro via upload (@fastify/multipart) e preview dinâmico (Etapa 8.7) |
 | Anel circular de bateria | ✅ | SVG dinâmico verde/laranja/vermelho |
 | Status de carregamento (⚡) | ✅ | |
 | Velocidade / "em trânsito" | ✅ | Tag `🚗 km/h` acima de 5 km/h |
@@ -41,7 +41,7 @@
 | Alertas de ENTER/EXIT | ✅ | Motor com histerese (Bloco 3) |
 | Timeline de alertas de lugares | ✅ | Últimas 30 entradas/saídas |
 | Toast em tempo real ao entrar/sair | ✅ | Via WebSocket |
-| **Push notification com app fechado** | ❌ | Só alerta com a tela aberta |
+| **Push notification com app fechado** | ✅ | Web Push VAPID ativo via Service Worker em segundo plano (Etapa 8.5) |
 | **Editar lugar existente** | ✅ | `PUT /api/places/:id`, botão ✏️ no chip e clique no marcador do mapa |
 
 ## Círculo Familiar e Comunicação
@@ -53,7 +53,7 @@
 | Check-in ("estou seguro") | ✅ | Topo da tela e menu do círculo |
 | Código de convite | ⚠️ | Código gerado e copiável, mas **não há fluxo real de entrada de membro** com validação |
 | **Adicionar/remover membros de verdade** | ❌ | Sem tela de entrada e sem vínculo de usuário |
-| **Editar perfil / foto do membro** | ❌ | Sem upload de avatar |
+| **Editar perfil / foto do membro** | ✅ | Modal com edição de nome, telefone, cor do marcador e upload de foto real (@fastify/multipart) com remoção e preview dinâmico (Etapa 8.7) |
 | **Mensagem direta 1:1** | ❌ | Só chat coletivo |
 | **Reações / curtir mensagens** | ❌ | |
 | **Menções e notificações de chat** | ❌ | |
@@ -103,9 +103,9 @@
 
 ## Resumo executivo
 
-- **Pronto (pode usar hoje):** mapa ao vivo, cercas, alertas, histórico ilimitado, replay, relatório de direção com viagens, push notifications em segundo plano, SOS com histórico persistido e resolução, chat, check-in, lugares ilimitados, estilos de mapa.
-- **Lacunas visíveis ao usuário:** editar perfil (foto), mensagem direta (1:1).
-- **Resolvido nas últimas etapas:** autenticação com login obrigatório em toda a API e no WebSocket, geocoding reverso com endereço e lugares, edição completa de lugares, relatório de direção segmentado por viagens individuais (Life360 Gold), notificações push Web (VAPID) com navegador fechado e histórico persistido de emergências SOS com resolução.
+- **Pronto (pode usar hoje):** mapa ao vivo, cercas, alertas, histórico ilimitado, replay, relatório de direção com viagens, push notifications em segundo plano, SOS com histórico persistido e resolução, perfil de membro com upload de foto real, chat, check-in, lugares ilimitados, estilos de mapa.
+- **Lacunas visíveis ao usuário:** mensagem direta (1:1).
+- **Resolvido nas últimas etapas:** autenticação com login obrigatório em toda a API e no WebSocket, geocoding reverso com endereço e lugares, edição completa de lugares, relatório de direção segmentado por viagens individuais (Life360 Gold), notificações push Web (VAPID) com navegador fechado, histórico persistido de emergências SOS com resolução e edição de perfil de membro com upload de foto real (Etapa 8.7).
 - **Lacunas de plataforma restantes:** telemetria ainda aberta, sem backup automático, sem log de acessos, sem recuperação de senha.
 - **Impossível sem parceiro comercial:** despacho de emergência, monitoramento 24h, proteção de identidade.
 - **Depende de hardware (app mobile):** detecção de acidente, frenagem brusca.

@@ -1,7 +1,14 @@
 import { FastifyInstance } from 'fastify';
+import path from 'path';
+import fs from 'fs';
+import { fileURLToPath } from 'url';
 import { prisma } from '../db.js';
 import { calculateDistanceMeters } from '../services/geofence.js';
 import { segmentPointsIntoTrips } from '../services/tripDetection.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const AVATARS_DIR = path.resolve(__dirname, '../../public/uploads/avatars');
 
 export async function membersRoutes(fastify: FastifyInstance) {
   // Retorna todos os membros e suas últimas posições conhecidas
@@ -180,5 +187,146 @@ export async function membersRoutes(fastify: FastifyInstance) {
     });
 
     return reply.status(201).send(user);
+  });
+
+  // Atualiza dados de perfil do membro (nome, telefone, cor do marcador)
+  fastify.put('/api/members/:id/profile', async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const body = (request.body as any) || {};
+
+    const existing = await prisma.user.findUnique({ where: { id } });
+    if (!existing) {
+      return reply.status(404).send({ error: 'Membro não encontrado' });
+    }
+
+    const data: any = {};
+    if (typeof body.name === 'string' && body.name.trim()) data.name = body.name.trim();
+    if (typeof body.phone === 'string') data.phone = body.phone.trim();
+    if (typeof body.color === 'string' && body.color.trim()) data.color = body.color.trim();
+    if (body.avatarUrl !== undefined) data.avatarUrl = body.avatarUrl;
+
+    const updated = await prisma.user.update({
+      where: { id },
+      data,
+      select: {
+        id: true,
+        name: true,
+        color: true,
+        phone: true,
+        avatarUrl: true,
+        email: true,
+        role: true,
+      },
+    });
+
+    return reply.send({ success: true, user: updated });
+  });
+
+  // Upload de foto real de perfil do membro (Etapa 8.7)
+  fastify.post('/api/members/:id/avatar', async (request, reply) => {
+    const { id } = request.params as { id: string };
+
+    const user = await prisma.user.findUnique({ where: { id } });
+    if (!user) {
+      return reply.status(404).send({ error: 'Membro não encontrado' });
+    }
+
+    const file = await request.file();
+    if (!file) {
+      return reply.status(400).send({ error: 'Nenhum arquivo enviado' });
+    }
+
+    const allowedMimes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+    if (!allowedMimes.includes(file.mimetype)) {
+      return reply.status(400).send({ error: 'Formato inválido. Envie imagem JPEG, PNG ou WEBP.' });
+    }
+
+    const extMap: Record<string, string> = {
+      'image/jpeg': '.jpg',
+      'image/png': '.png',
+      'image/webp': '.webp',
+      'image/gif': '.gif',
+    };
+    const ext = extMap[file.mimetype] || path.extname(file.filename) || '.jpg';
+    const filename = `avatar-${id}-${Date.now()}${ext}`;
+    const targetPath = path.join(AVATARS_DIR, filename);
+
+    if (!fs.existsSync(AVATARS_DIR)) {
+      fs.mkdirSync(AVATARS_DIR, { recursive: true });
+    }
+
+    const buffer = await file.toBuffer();
+    await fs.promises.writeFile(targetPath, buffer);
+
+    // Se o usuário já tinha avatar local antigo, remove o arquivo anterior para poupar disco
+    if (user.avatarUrl && user.avatarUrl.startsWith('/uploads/avatars/')) {
+      const oldFilename = path.basename(user.avatarUrl);
+      const oldPath = path.join(AVATARS_DIR, oldFilename);
+      if (fs.existsSync(oldPath)) {
+        try {
+          await fs.promises.unlink(oldPath);
+        } catch (e) {
+          console.warn('[Avatar] Falha ao deletar avatar antigo:', e);
+        }
+      }
+    }
+
+    const avatarUrl = `/uploads/avatars/${filename}`;
+    const updated = await prisma.user.update({
+      where: { id },
+      data: { avatarUrl },
+      select: {
+        id: true,
+        name: true,
+        color: true,
+        avatarUrl: true,
+      },
+    });
+
+    return reply.status(201).send({
+      success: true,
+      avatarUrl,
+      user: updated,
+      message: 'Foto de perfil atualizada com sucesso.',
+    });
+  });
+
+  // Remove foto real de perfil e volta para as iniciais SVG
+  fastify.delete('/api/members/:id/avatar', async (request, reply) => {
+    const { id } = request.params as { id: string };
+
+    const user = await prisma.user.findUnique({ where: { id } });
+    if (!user) {
+      return reply.status(404).send({ error: 'Membro não encontrado' });
+    }
+
+    if (user.avatarUrl && user.avatarUrl.startsWith('/uploads/avatars/')) {
+      const oldFilename = path.basename(user.avatarUrl);
+      const oldPath = path.join(AVATARS_DIR, oldFilename);
+      if (fs.existsSync(oldPath)) {
+        try {
+          await fs.promises.unlink(oldPath);
+        } catch (e) {
+          console.warn('[Avatar] Falha ao deletar avatar:', e);
+        }
+      }
+    }
+
+    const updated = await prisma.user.update({
+      where: { id },
+      data: { avatarUrl: null },
+      select: {
+        id: true,
+        name: true,
+        color: true,
+        avatarUrl: true,
+      },
+    });
+
+    return reply.send({
+      success: true,
+      user: updated,
+      message: 'Foto de perfil removida. Voltando às iniciais coloridas.',
+    });
   });
 }
