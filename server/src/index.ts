@@ -45,9 +45,15 @@ async function bootstrap() {
       });
     });
 
-    // 4. Rota de Health Check
+    // 4. Rota de Health Check e Configuração Pública
     fastify.get('/health', async () => {
       return { status: 'online', timestamp: new Date().toISOString() };
+    });
+
+    fastify.get('/api/config', async () => {
+      return {
+        cartoApiKey: process.env.CARTO_API_KEY || '',
+      };
     });
 
     // 5. Registra Rotas de Telemetria, Membros e Lugares

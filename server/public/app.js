@@ -10,15 +10,26 @@ document.addEventListener('DOMContentLoaded', () => {
   let ws = null;
 
   // 1. Inicializa o Mapa Leaflet
-  function initMap() {
+  async function initMap() {
     // Padrão São Paulo ou centro do Brasil caso não haja dados
     map = L.map('map', {
       zoomControl: false,
       attributionControl: false,
     }).setView([-23.55052, -46.633308], 14);
 
-    // Tiles do CartoDB Dark Matter para visual escuro moderno estilo Life360
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+    let tileUrl = 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png';
+    try {
+      const cfgRes = await fetch('/api/config');
+      const cfg = await cfgRes.json();
+      if (cfg?.cartoApiKey) {
+        tileUrl = `https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png?api_key=${cfg.cartoApiKey}`;
+      }
+    } catch (err) {
+      console.warn('Usando tiles padrão da Carto:', err);
+    }
+
+    // Tiles do CartoDB Voyager com suporte a chave de API
+    L.tileLayer(tileUrl, {
       maxZoom: 19,
       subdomains: 'abcd',
     }).addTo(map);
