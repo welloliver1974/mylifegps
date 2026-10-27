@@ -1,0 +1,82 @@
+# My Life360: Roteiro de Execução em Blocos Modulares
+
+> **Instrução para qualquer IA / Desenvolvedor:**
+> Este documento é a fonte de verdade do estado do projeto. Cada bloco é autocontido. Ao retomar o trabalho, verifique o status de cada bloco (`[ ]` pendente, `[/]` em andamento, `[x]` concluído) e execute a partir do bloco atual.
+
+---
+
+## Estado Geral do Projeto
+* **Diretório Raiz:** `E:\Apps\my life360`
+* **Abordagem Escolhida:** Caminho B (Sistema próprio e independente, hospedado em VPS Oracle Cloud Ubuntu 24/7 via Cloudflare Tunnel).
+* **Foco:** Baixo consumo de bateria, privacidade total, histórico ilimitado e sem dependência de APIs fechadas do Life360.
+
+---
+
+## BLOCO 1: Contrato de Dados & Schemas (Backend Core)
+- [x] **Status:** CONCLUÍDO
+- **Objetivo:** Definir modelos de dados e schemas de entrada/saída.
+- **Entregáveis:**
+  - `User` (id, nome, avatar, cor, telefone, criado_em)
+  - `Device` (id, user_id, device_name, token_auth, ultimo_visto)
+  - `Location` (id, device_id, latitude, longitude, altitude, accuracy, speed, heading, battery, is_charging, timestamp)
+  - `Place` / `Geofence` (id, user_id/circle_id, nome, latitude, longitude, radius_meters)
+  - `PlaceEvent` (id, device_id, place_id, tipo: ENTER | EXIT, timestamp)
+- **Critério de Conclusão:** Arquivo `schema.prisma` criado em `server/prisma/schema.prisma`, banco SQLite `dev.db` gerado com WAL mode e seed de teste testado.
+
+---
+
+## BLOCO 2: Servidor API & WebSockets (VPS)
+- [x] **Status:** CONCLUÍDO
+- **Objetivo:** Criar a API leve em Node.js (Fastify ou Express + TypeScript).
+- **Entregáveis:**
+  - `POST /api/telemetry` (ingestão rápida de coordenadas enviadas pelos celulares).
+  - `GET /api/members/live` (última posição conhecida de cada membro da família).
+  - `GET /api/members/:id/history?from=&to=` (histórico de rastros).
+  - Servidor WebSocket (`/ws`) para broadcast de posições em tempo real para o mapa.
+  - Compatibilidade com protocolo Traccar HTTP (`GET/POST /api/telemetry/traccar`) para teste imediato.
+- **Critério de Conclusão:** Servidor Fastify estruturado em `server/src`, compilado em `dist/` e 100% validado pelo script de teste automatizado `test-api.ts`.
+
+---
+
+## BLOCO 3: Engine de Geofencing (Detecção de Lugares)
+- [x] **Status:** CONCLUÍDO
+- **Objetivo:** Identificar automaticamente quando um membro entra ou sai de áreas demarcadas (Casa, Trabalho, Escola).
+- **Entregáveis:**
+  - Função matemática de distância (fórmula de Haversine de alta precisão).
+  - Máquina de estados com histerese (evita falso positivo e duplicatas por jitter de GPS).
+  - Emissão de eventos `ENTER` e `EXIT` persistidos em banco e transmitidos via WebSocket em tempo real.
+  - Endpoint `GET /api/places/events` para timeline de alertas.
+- **Critério de Conclusão:** Testes automatizados em `server/test-geofence.ts` validados (detecção de entrada, saída e supressão de ruídos).
+
+---
+
+## BLOCO 4: Painel Web / PWA em Tempo Real (Interface Estilo Life360)
+- [ ] **Status:** PENDENTE
+- **Objetivo:** Interface moderna, responsiva (mobile e desktop) com mapa interativo.
+- **Entregáveis:**
+  - Mapa em tela cheia (Leaflet ou MapLibre GL com tiles gratuitos e tema escuro).
+  - Marcadores animados com avatar, porcentagem de bateria e indicador de carregamento.
+  - Linha do tempo de histórico de deslocamento do dia.
+  - Funciona como PWA (instalável na tela inicial do celular).
+- **Critério de Conclusão:** Acessível via navegador/Cloudflare Tunnel com atualização em tempo real via WebSocket.
+
+---
+
+## BLOCO 5: Ingestão de Teste Imediato (Clientes Celular)
+- [ ] **Status:** PENDENTE
+- **Objetivo:** Colocar a família no mapa hoje sem esperar a compilação do app próprio final.
+- **Entregáveis:**
+  - Instalar o app leve *Traccar Client* (Android/iOS) nos aparelhos da família.
+  - Configurar URL do nosso servidor na VPS e frequência inteligente (distância > 50m ou intervalo de 60s).
+- **Critério de Conclusão:** Celulares reais transmitindo coordenadas para a VPS com baixo consumo de bateria.
+
+---
+
+## BLOCO 6: Aplicativo Mobile Próprio Dedicado (Fase Final)
+- [ ] **Status:** PENDENTE
+- **Objetivo:** App nativo (React Native / Expo) com a experiência completa do Life360.
+- **Entregáveis:**
+  - Foreground Service discreto no Android para envio de localização 24/7.
+  - Activity Recognition para pausar GPS quando o celular estiver sobre a mesa.
+  - Notificações push nativas para entrada/saída de membros.
+- **Critério de Conclusão:** APK instalado nos celulares substituindo qualquer cliente genérico.

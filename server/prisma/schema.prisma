@@ -1,0 +1,77 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(uuid())
+  name      String
+  avatarUrl String?
+  color     String   @default("#3B82F6") // Hex color for map avatar
+  phone     String?
+  devices   Device[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Device {
+  id               String           @id @default(uuid())
+  name             String           // Ex: "Galaxy S23 Wellington"
+  deviceIdentifier String           @unique // Unique ID / IMEI / Traccar deviceId
+  apiKey           String           @unique @default(uuid())
+  userId           String
+  user             User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  locations        LocationRecord[]
+  placeEvents      PlaceEvent[]
+  lastSeenAt       DateTime?
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+}
+
+model LocationRecord {
+  id         String   @id @default(uuid())
+  deviceId   String
+  device     Device   @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  latitude   Float
+  longitude  Float
+  altitude   Float?
+  accuracy   Float?   // Precisão em metros
+  speed      Float?   // Velocidade em km/h ou m/s
+  heading    Float?   // Direção (0 a 360 graus)
+  battery    Float?   // Nível da bateria (0 a 100%)
+  isCharging Boolean  @default(false)
+  recordedAt DateTime @default(now()) // Timestamp do GPS no aparelho
+  createdAt  DateTime @default(now()) // Timestamp de chegada no servidor
+
+  @@index([deviceId, recordedAt])
+}
+
+model Place {
+  id           String       @id @default(uuid())
+  name         String       // Ex: "Casa", "Trabalho", "Escola"
+  latitude     Float
+  longitude    Float
+  radiusMeters Float        @default(100.0) // Raio da cerca em metros
+  color        String       @default("#10B981")
+  icon         String       @default("home")
+  placeEvents  PlaceEvent[]
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+}
+
+model PlaceEvent {
+  id         String   @id @default(uuid())
+  deviceId   String
+  device     Device   @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  placeId    String
+  place      Place    @relation(fields: [placeId], references: [id], onDelete: Cascade)
+  eventType  String   // "ENTER" | "EXIT"
+  recordedAt DateTime @default(now())
+
+  @@index([deviceId, recordedAt])
+  @@index([placeId, recordedAt])
+}
