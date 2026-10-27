@@ -110,3 +110,23 @@
     - **Menu do Círculo Familiar:** Painel com código de convite, check-in e gestão do grupo.
     - **Layout sem Sobreposição:** Painel lateral à esquerda no desktop (minimizável) e gaveta inferior no celular, liberando 100% dos botões flutuantes da direita.
 - **Critério de Conclusão:** Interface web/PWA e mobile visualmente idêntica à experiência do Life360 original com 100% dos recursos avançados e pagos disponíveis gratuitamente.
+
+---
+
+## BLOCO 8: Paridade Total & Segurança de Produção (Próxima Fase)
+- [ ] **Status:** PENDENTE
+- **Objetivo:** Fechar as lacunas de paridade real com o Life360 oficial e tornar o app seguro para exposição na internet.
+- **Referência obrigatória:** [`FEATURE_PARITY.md`](FEATURE_PARITY.md) — auditoria item por item (fonte de verdade).
+- **Entregáveis prioritários:**
+  - [ ] **Autenticação e sessão (CRÍTICO):** login, hash de senha, JWT/cookie e proteção de todas as rotas `/api/*` e `/ws`.
+  - [ ] **Notificações push (VAPID):** alertar chegada/saída, SOS e chat com o app fechado.
+  - [ ] **Reverse geocoding:** exibir endereço do local atual (Nominatim/OSM, com cache).
+  - [ ] **Editar lugar:** endpoint `PUT /api/places/:id` + formulário reaproveitando o modal existente.
+  - [ ] **Histórico de SOS:** persistir disparos em banco e listar no painel.
+  - [ ] **Relatório por viagem:** segmentar o histórico em viagens com horário, distância e nota.
+  - [ ] **Perfil de membro:** upload de avatar e edição de nome/cor.
+  - [ ] **Mensagem direta 1:1** no chat do círculo.
+  - [ ] **Backup automático do SQLite** (rotina diária com retenção).
+  - [ ] **Detecção de acidente no app mobile:** usar acelerômetro via `expo-sensors` e disparar o evento `CRASH_DETECTED`.
+- **Fora de escopo (não replicável):** despacho para serviços de emergência, monitoramento 24h e proteção contra roubo de identidade (serviços de parceiros comerciais).
+- **Critério de Conclusão:** `FEATURE_PARITY.md` sem nenhum item ❌ na categoria "Conta, Segurança e Infraestrutura", e todas as lacunas visíveis ao usuário resolvidas ou explicitamente aceitas.
