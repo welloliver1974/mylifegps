@@ -89,11 +89,11 @@
 ---
 
 ## BLOCO 7: Aprimoramento Visual & Experiência Life360 (UI/UX do Mapa e App)
-- [ ] **Status:** PENDENTE (Próximo Passo)
+- [/] **Status:** EM ANDAMENTO (Etapas 7.1 e 7.2 Concluídas)
 - **Objetivo:** Transformar a interface visual para replicar fielmente a estética premium do Life360 oficial.
 - **Entregáveis:**
-  - **Estilo de Mapa Estilo Life360:** Migrar de raster escuro básico para mapa vetorial interativo (MapLibre GL JS / CARTO Vector ou Mapbox Clean/Voyager) com tons suaves (pastel, verde/azul sutil para água/parques, ruas bem definidas).
-  - **Avatares Idênticos ao Life360:** Marcador circular com foto/iniciais, anel colorido indicando nível de bateria em degradê, indicador de movimento (carro/parado/a pé) e halo pulsante suave.
-  - **Gaveta Inferior Interativa (Bottom Sheet):** Deslizar suavemente com gestos de toque, lista de membros com status de condução e nível de bateria detalhado.
-  - **Lugares e Cercas Estilizadas:** Ícones ilustrados (Casa 🏠, Trabalho 💼, Escola 🎓) com áreas translúcidas coloridas.
+  - [x] **Estilo de Mapa Estilo Life360:** Mapa Voyager limpo (pastel, verde/azul suave, ruas bem definidas) + seletor flutuante para Satélite Esri e Noturno CARTO.
+  - [x] **Avatares Idênticos ao Life360:** Marcador com anel SVG circular de bateria dinâmico (verde/laranja/vermelho), badge de recarga ⚡, tag de velocidade (🚗 km/h) e deslizamento contínuo suave.
+  - [x] **Lugares e Cercas Estilizadas:** Ícones ilustrados (Casa 🏠, Trabalho 💼, Escola 🎓, etc.) com pílula flutuante e seletor visual no cadastro.
+  - [ ] **Gaveta Inferior Interativa (Bottom Sheet - Etapa 7.3):** Deslizar suavemente com gestos de toque (arrasto vertical), cartões aprimorados e visual translúcido nativo.
 - **Critério de Conclusão:** Interface web/PWA e mobile visualmente indistinguível da experiência do Life360 original.
