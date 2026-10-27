@@ -1,0 +1,21 @@
+version: '3.8'
+
+services:
+  life360-server:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    container_name: my-life360-app
+    restart: always
+    ports:
+      - "3000:3000"
+    environment:
+      - PORT=3000
+      - HOST=0.0.0.0
+      - DATABASE_URL=file:/data/life360.db
+    volumes:
+      - life360_data:/data
+
+volumes:
+  life360_data:
+    driver: local

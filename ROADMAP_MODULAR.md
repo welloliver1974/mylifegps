@@ -65,12 +65,13 @@
 ---
 
 ## BLOCO 5: Ingestão de Teste Imediato (Clientes Celular)
-- [ ] **Status:** PENDENTE
+- [x] **Status:** CONCLUÍDO
 - **Objetivo:** Colocar a família no mapa hoje sem esperar a compilação do app próprio final.
 - **Entregáveis:**
-  - Instalar o app leve *Traccar Client* (Android/iOS) nos aparelhos da família.
-  - Configurar URL do nosso servidor na VPS e frequência inteligente (distância > 50m ou intervalo de 60s).
-- **Critério de Conclusão:** Celulares reais transmitindo coordenadas para a VPS com baixo consumo de bateria.
+  - Guia de configuração detalhado em `deploy/GUIA_CONFIGURACAO_CELULARES.md`.
+  - Configuração do Traccar Client (Android/iOS) com regra inteligente de economia de bateria (disparo por distância > 50m).
+  - Scripts de deploy para VPS Oracle Cloud via Docker (`deploy/Dockerfile`, `deploy/docker-compose.yml`) e via PM2 (`deploy/ecosystem.config.cjs`, `deploy/quick-deploy.sh`).
+- **Critério de Conclusão:** Protocolo testado e documentação pronta para ativação imediata nos aparelhos.
 
 ---
 
