@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>My Life360</title>
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#0F172A">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+
+  <!-- Google Fonts: Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+  <!-- Leaflet CSS -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
+
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <div id="app">
+    <!-- Barra Superior Flutuante -->
+    <header class="top-bar">
+      <div class="brand">
+        <div class="brand-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <circle cx="12" cy="12" r="9"/>
+            <circle cx="12" cy="12" r="4" fill="currentColor"/>
+          </svg>
+        </div>
+        <div class="brand-text">
+          <h1>My Life360</h1>
+          <span class="live-status" id="wsStatus">
+            <span class="status-dot"></span>
+            <span class="status-label">Conectando...</span>
+          </span>
+        </div>
+      </div>
+
+      <div class="top-actions">
+        <button class="icon-btn" id="btnFitAll" title="Enquadrar todos">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M3 9V5a2 2 0 0 1 2-2h4M15 3h4a2 2 0 0 1 2 2v4M21 15v4a2 2 0 0 1-2 2h-4M9 21H5a2 2 0 0 1-2-2v-4"/>
+          </svg>
+        </button>
+        <button class="icon-btn" id="btnAddPlace" title="Novo Lugar">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 5v14M5 12h14"/>
+          </svg>
+        </button>
+      </div>
+    </header>
+
+    <!-- Mapa em Tela Cheia -->
+    <div id="map"></div>
+
+    <!-- Container de Notificações Toast -->
+    <div id="toastContainer" class="toast-container"></div>
+
+    <!-- Gaveta / Lista de Membros da Família -->
+    <aside class="members-drawer" id="membersDrawer">
+      <div class="drawer-handle" id="drawerHandle">
+        <span class="handle-bar"></span>
+      </div>
+
+      <div class="drawer-header">
+        <h2>Círculo Familiar</h2>
+        <span class="badge" id="memberCount">0 membros</span>
+      </div>
+
+      <div class="members-list" id="membersList">
+        <div class="loading-state">Carregando membros...</div>
+      </div>
+
+      <!-- Detalhes do Membro Selecionado -->
+      <div class="member-detail-panel" id="memberDetailPanel" style="display: none;">
+        <button class="back-btn" id="btnBackToList">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M19 12H5M12 19l-7-7 7-7"/>
+          </svg>
+          Voltar para a lista
+        </button>
+
+        <div class="detail-header" id="detailHeader"></div>
+
+        <div class="detail-stats" id="detailStats"></div>
+
+        <div class="detail-actions">
+          <button class="action-btn primary" id="btnShowHistory">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10"/>
+              <polyline points="12 6 12 12 16 14"/>
+            </svg>
+            Histórico de Hoje
+          </button>
+          <button class="action-btn secondary" id="btnClearHistory" style="display: none;">
+            Limpar Rastro
+          </button>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Modal de Cadastro de Novo Lugar -->
+    <div class="modal-overlay" id="placeModal" style="display: none;">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3>Novo Lugar (Cerca Virtual)</h3>
+          <button class="close-btn" id="btnClosePlaceModal">&times;</button>
+        </div>
+        <form id="placeForm">
+          <div class="form-group">
+            <label for="placeName">Nome do Lugar</label>
+            <input type="text" id="placeName" placeholder="Ex: Casa, Trabalho, Escola" required>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label for="placeLat">Latitude</label>
+              <input type="number" step="any" id="placeLat" required>
+            </div>
+            <div class="form-group">
+              <label for="placeLng">Longitude</label>
+              <input type="number" step="any" id="placeLng" required>
+            </div>
+          </div>
+          <div class="form-group">
+            <label for="placeRadius">Raio (Metros): <span id="radiusVal">100m</span></label>
+            <input type="range" id="placeRadius" min="50" max="1000" step="25" value="100">
+          </div>
+          <div class="modal-actions">
+            <button type="button" class="btn secondary" id="btnCancelPlace">Cancelar</button>
+            <button type="submit" class="btn primary">Salvar Lugar</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Leaflet JS -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+  <script src="/app.js"></script>
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/sw.js').catch(console.error);
+      });
+    }
+  </script>
+</body>
+</html>

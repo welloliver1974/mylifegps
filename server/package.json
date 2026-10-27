@@ -1,6 +1,7 @@
 {
   "name": "life360-private-server",
   "version": "1.0.0",
+  "type": "module",
   "description": "Backend próprio e leve para rastreamento familiar em tempo real",
   "main": "dist/index.js",
   "scripts": {

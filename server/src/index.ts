@@ -1,11 +1,17 @@
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import websocket from '@fastify/websocket';
+import fastifyStatic from '@fastify/static';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import { initDb } from './db.js';
 import { registerWsClient } from './services/websocket.js';
 import { telemetryRoutes } from './routes/telemetry.js';
 import { membersRoutes } from './routes/members.js';
 import { placesRoutes } from './routes/places.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const fastify = Fastify({
   logger: {
@@ -48,6 +54,12 @@ async function bootstrap() {
     await fastify.register(telemetryRoutes);
     await fastify.register(membersRoutes);
     await fastify.register(placesRoutes);
+
+    // 6. Serve arquivos estáticos do Painel Web / PWA (Mapa e Interface)
+    await fastify.register(fastifyStatic, {
+      root: path.join(__dirname, '../public'),
+      prefix: '/',
+    });
 
     const port = Number(process.env.PORT) || 3000;
     const host = process.env.HOST || '0.0.0.0';

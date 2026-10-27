@@ -1,0 +1,16 @@
+{
+  "name": "My Life360",
+  "short_name": "Life360",
+  "description": "Rastreamento e segurança familiar privada em tempo real",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0F172A",
+  "theme_color": "#1E293B",
+  "icons": [
+    {
+      "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='45' fill='%233B82F6'/><circle cx='50' cy='50' r='30' fill='none' stroke='white' stroke-width='6'/><circle cx='50' cy='50' r='14' fill='white'/></svg>",
+      "sizes": "192x192 512x512",
+      "type": "image/svg+xml"
+    }
+  ]
+}

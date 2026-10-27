@@ -51,14 +51,16 @@
 ---
 
 ## BLOCO 4: Painel Web / PWA em Tempo Real (Interface Estilo Life360)
-- [ ] **Status:** PENDENTE
+- [x] **Status:** CONCLUÍDO
 - **Objetivo:** Interface moderna, responsiva (mobile e desktop) com mapa interativo.
 - **Entregáveis:**
-  - Mapa em tela cheia (Leaflet ou MapLibre GL com tiles gratuitos e tema escuro).
-  - Marcadores animados com avatar, porcentagem de bateria e indicador de carregamento.
-  - Linha do tempo de histórico de deslocamento do dia.
-  - Funciona como PWA (instalável na tela inicial do celular).
-- **Critério de Conclusão:** Acessível via navegador/Cloudflare Tunnel com atualização em tempo real via WebSocket.
+  - Mapa em tela cheia (Leaflet com tiles CartoDB Voyager/Dark Matter sem chaves de API).
+  - Marcadores animados com avatar, porcentagem de bateria, velocidade e status de carregamento.
+  - Linha do tempo de histórico de deslocamento do dia (rastro em polyline no mapa).
+  - PWA instalável no celular (`manifest.json` + `sw.js`).
+  - Atualização em tempo real via WebSocket com toasts de geofencing.
+  - Servido diretamente pela API Fastify via `@fastify/static` em `server/public`.
+- **Critério de Conclusão:** Acessível em `http://localhost:3000/` (e na VPS via Cloudflare Tunnel), validado com status HTTP 200.
 
 ---
 
