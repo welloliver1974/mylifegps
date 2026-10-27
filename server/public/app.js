@@ -643,10 +643,49 @@ document.addEventListener('DOMContentLoaded', () => {
     };
   }
 
+  // Geocoding reverso e detecção de cercas no frontend
+  const clientAddressCache = new Map();
+
+  function formatAddressKey(lat, lon) {
+    return `${(Math.round(lat * 10000) / 10000).toFixed(4)}:${(Math.round(lon * 10000) / 10000).toFixed(4)}`;
+  }
+
+  function findPlaceForCoords(lat, lon) {
+    if (!placesData || placesData.length === 0) return null;
+    for (const p of placesData) {
+      const distKm = calcHaversineDist(lat, lon, p.latitude, p.longitude);
+      if (distKm * 1000 <= p.radiusMeters) {
+        return p;
+      }
+    }
+    return null;
+  }
+
+  async function fetchAddressForCoords(lat, lon) {
+    const key = formatAddressKey(lat, lon);
+    if (clientAddressCache.has(key)) {
+      return clientAddressCache.get(key);
+    }
+    try {
+      const res = await apiFetch(`/api/geocoding/reverse?lat=${lat}&lon=${lon}`);
+      if (res.ok) {
+        const data = await res.json();
+        clientAddressCache.set(key, data);
+        return data;
+      }
+    } catch (err) {
+      console.warn('Falha no reverse geocode:', err);
+    }
+    return null;
+  }
+
   // 6. Atualização de Posição em Tempo Real (via WS)
   function handleLiveLocation(locData) {
     const member = membersData.find((m) => m.id === locData.userId);
+    const currentPlace = findPlaceForCoords(locData.latitude, locData.longitude);
+
     if (member) {
+      member.currentPlace = currentPlace;
       member.location = {
         latitude: locData.latitude,
         longitude: locData.longitude,
@@ -666,6 +705,7 @@ document.addEventListener('DOMContentLoaded', () => {
         name: locData.userName,
         color: locData.userColor,
         avatarUrl: locData.userAvatar,
+        currentPlace,
         activeDevice: { id: locData.deviceId, name: locData.deviceName },
         location: {
           latitude: locData.latitude,
@@ -934,7 +974,32 @@ document.addEventListener('DOMContentLoaded', () => {
         let subtext = 'Sem localização recente';
         if (m.location) {
           const speed = m.location.speed ? Math.round(m.location.speed) : 0;
-          subtext = speed > 5 ? `🚗 Em trânsito (${speed} km/h)` : `📍 Parado • ${formatRelativeTime(m.location.recordedAt)}`;
+          const currentPlace = m.currentPlace || findPlaceForCoords(m.location.latitude, m.location.longitude);
+
+          if (speed > 5) {
+            subtext = `🚗 Em trânsito (${speed} km/h)`;
+          } else if (currentPlace) {
+            const icon = PLACE_ICONS[currentPlace.icon] || '📍';
+            subtext = `${icon} ${currentPlace.name} • ${formatRelativeTime(m.location.recordedAt)}`;
+          } else {
+            const addrKey = formatAddressKey(m.location.latitude, m.location.longitude);
+            const cached = clientAddressCache.get(addrKey);
+            if (cached && cached.address) {
+              const shortAddr = cached.road || cached.address.split(' - ')[0] || cached.address;
+              subtext = `📍 ${shortAddr} • ${formatRelativeTime(m.location.recordedAt)}`;
+            } else {
+              subtext = `📍 Localizando... • ${formatRelativeTime(m.location.recordedAt)}`;
+              fetchAddressForCoords(m.location.latitude, m.location.longitude).then((data) => {
+                if (data && data.address) {
+                  const subEl = document.getElementById(`memberSubtext-${m.id}`);
+                  if (subEl) {
+                    const shortAddr = data.road || data.address.split(' - ')[0] || data.address;
+                    subEl.textContent = `📍 ${shortAddr} • ${formatRelativeTime(m.location.recordedAt)}`;
+                  }
+                }
+              });
+            }
+          }
         }
 
         const isSelected = selectedMemberId === m.id ? 'selected' : '';
@@ -947,7 +1012,7 @@ document.addEventListener('DOMContentLoaded', () => {
             </div>
             <div class="member-info">
               <div class="member-name">${m.name}</div>
-              <div class="member-subtext">${subtext}</div>
+              <div class="member-subtext" id="memberSubtext-${m.id}">${subtext}</div>
             </div>
           </div>
         `;
@@ -995,6 +1060,73 @@ document.addEventListener('DOMContentLoaded', () => {
         </div>
       </div>
     `;
+
+    // Banner de Endereço / Lugar Estilo Life360
+    const addrCard = document.getElementById('detailAddressCard');
+    if (member.location) {
+      addrCard.style.display = 'flex';
+      const spd = member.location.speed ? Math.round(member.location.speed) : 0;
+      const currentPlace = member.currentPlace || findPlaceForCoords(member.location.latitude, member.location.longitude);
+
+      if (currentPlace) {
+        const icon = PLACE_ICONS[currentPlace.icon] || '📍';
+        addrCard.innerHTML = `
+          <div class="detail-address-icon">${icon}</div>
+          <div class="detail-address-info">
+            <div class="detail-address-title">${currentPlace.name}</div>
+            <div class="detail-address-sub" id="detailAddressSub">Cerca virtual • Atualizado ${updated}</div>
+          </div>
+        `;
+        fetchAddressForCoords(member.location.latitude, member.location.longitude).then((data) => {
+          if (data && data.address && selectedMemberId === member.id) {
+            const subEl = document.getElementById('detailAddressSub');
+            if (subEl) subEl.textContent = `${data.address} • Atualizado ${updated}`;
+          }
+        });
+      } else if (spd > 5) {
+        addrCard.innerHTML = `
+          <div class="detail-address-icon">🚗</div>
+          <div class="detail-address-info">
+            <div class="detail-address-title">Em trânsito (${spd} km/h)</div>
+            <div class="detail-address-sub" id="detailAddressSub">Velocidade ao vivo • Atualizado ${updated}</div>
+          </div>
+        `;
+        fetchAddressForCoords(member.location.latitude, member.location.longitude).then((data) => {
+          if (data && data.address && selectedMemberId === member.id) {
+            const subEl = document.getElementById('detailAddressSub');
+            if (subEl) subEl.textContent = `Próximo a ${data.address} • Atualizado ${updated}`;
+          }
+        });
+      } else {
+        const addrKey = formatAddressKey(member.location.latitude, member.location.longitude);
+        const cached = clientAddressCache.get(addrKey);
+        const initialTitle = cached?.road || cached?.address?.split(' - ')[0] || 'Localizando endereço...';
+        const initialSub = cached?.address
+          ? `${cached.suburb ? cached.suburb + ', ' : ''}${cached.city || ''} • Atualizado ${updated}`
+          : `Coordenadas: ${member.location.latitude.toFixed(4)}, ${member.location.longitude.toFixed(4)}`;
+
+        addrCard.innerHTML = `
+          <div class="detail-address-icon">📍</div>
+          <div class="detail-address-info">
+            <div class="detail-address-title" id="detailAddressTitle">${initialTitle}</div>
+            <div class="detail-address-sub" id="detailAddressSub">${initialSub}</div>
+          </div>
+        `;
+
+        if (!cached) {
+          fetchAddressForCoords(member.location.latitude, member.location.longitude).then((data) => {
+            if (data && data.address && selectedMemberId === member.id) {
+              const titleEl = document.getElementById('detailAddressTitle');
+              const subEl = document.getElementById('detailAddressSub');
+              if (titleEl) titleEl.textContent = data.road || data.address.split(' - ')[0] || data.address;
+              if (subEl) subEl.textContent = `${data.suburb ? data.suburb + ', ' : ''}${data.city || ''} • Atualizado ${updated}`;
+            }
+          });
+        }
+      }
+    } else {
+      addrCard.style.display = 'none';
+    }
 
     document.getElementById('detailStats').innerHTML = `
       <div class="stat-box">

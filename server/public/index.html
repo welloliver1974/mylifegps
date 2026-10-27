@@ -17,7 +17,7 @@
   <!-- Leaflet CSS -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
 
-  <link rel="stylesheet" href="/style.css?v=7">
+  <link rel="stylesheet" href="/style.css?v=8">
 </head>
 <body>
   <!-- Tela de Autenticação (Login / Configuração Inicial) -->
@@ -226,6 +226,7 @@
           </button>
 
           <div class="detail-header" id="detailHeader"></div>
+          <div class="detail-address-card" id="detailAddressCard" style="display: none;"></div>
           <div class="detail-stats" id="detailStats"></div>
 
           <!-- Ações Rápidas do Membro -->
@@ -446,7 +447,7 @@
 
   <!-- Leaflet JS -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
-  <script src="/app.js?v=7"></script>
+  <script src="/app.js?v=8"></script>
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {

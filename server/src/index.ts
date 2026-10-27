@@ -12,6 +12,7 @@ import { membersRoutes } from './routes/members.js';
 import { placesRoutes } from './routes/places.js';
 import { messagesRoutes } from './routes/messages.js';
 import { authRoutes } from './routes/auth.js';
+import { geocodingRoutes } from './routes/geocoding.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -121,11 +122,12 @@ async function bootstrap() {
       return reply.send({ success: true, message: 'Check-in transmitido com sucesso.' });
     });
 
-    // 7. Registra Rotas de Telemetria, Membros, Lugares e Chat
+    // 7. Registra Rotas de Telemetria, Membros, Lugares, Chat e Geocoding
     await fastify.register(telemetryRoutes);
     await fastify.register(membersRoutes);
     await fastify.register(placesRoutes);
     await fastify.register(messagesRoutes);
+    await fastify.register(geocodingRoutes);
 
     // 8. Serve arquivos estáticos do Painel Web / PWA (Mapa e Interface)
     await fastify.register(fastifyStatic, {

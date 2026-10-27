@@ -1,21 +1,25 @@
 import { FastifyInstance } from 'fastify';
 import { prisma } from '../db.js';
+import { calculateDistanceMeters } from '../services/geofence.js';
 
 export async function membersRoutes(fastify: FastifyInstance) {
   // Retorna todos os membros e suas últimas posições conhecidas
   fastify.get('/api/members/live', async (_request, reply) => {
-    const users = await prisma.user.findMany({
-      include: {
-        devices: {
-          include: {
-            locations: {
-              orderBy: { recordedAt: 'desc' },
-              take: 1,
+    const [users, places] = await Promise.all([
+      prisma.user.findMany({
+        include: {
+          devices: {
+            include: {
+              locations: {
+                orderBy: { recordedAt: 'desc' },
+                take: 1,
+              },
             },
           },
         },
-      },
-    });
+      }),
+      prisma.place.findMany(),
+    ]);
 
     const members = users.map((u) => {
       // Pega o dispositivo com o ponto de localização mais recente
@@ -32,12 +36,36 @@ export async function membersRoutes(fastify: FastifyInstance) {
         }
       }
 
+      // Verifica se a última posição está dentro de alguma cerca/lugar cadastrado
+      let currentPlace: any = null;
+      if (latestLocation && places.length > 0) {
+        for (const place of places) {
+          const dist = calculateDistanceMeters(
+            latestLocation.latitude,
+            latestLocation.longitude,
+            place.latitude,
+            place.longitude
+          );
+          if (dist <= place.radiusMeters) {
+            currentPlace = {
+              id: place.id,
+              name: place.name,
+              icon: place.icon,
+              color: place.color,
+              distanceMeters: Math.round(dist),
+            };
+            break;
+          }
+        }
+      }
+
       return {
         id: u.id,
         name: u.name,
         avatarUrl: u.avatarUrl,
         color: u.color,
         phone: u.phone,
+        currentPlace,
         activeDevice: activeDevice
           ? {
               id: activeDevice.id,

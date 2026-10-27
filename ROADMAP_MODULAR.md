@@ -114,7 +114,7 @@
 ---
 
 ## BLOCO 8: Paridade Total & Segurança de Produção
-- [/] **Status:** EM ANDAMENTO (Etapa 8.1 concluída — Próxima: Etapa 8.2)
+- [/] **Status:** EM ANDAMENTO (Etapas 8.1 e 8.2 concluídas — Próxima: Etapa 8.3)
 - **Objetivo:** Fechar as lacunas de paridade real com o Life360 oficial e tornar o app seguro para produção e uso diário da família.
 - **Referência obrigatória:** [`FEATURE_PARITY.md`](FEATURE_PARITY.md) — auditoria item por item (fonte de verdade).
 
@@ -123,12 +123,13 @@
 - [x] **Etapa 8.1: Autenticação e Sessão (CRÍTICO - CONCLUÍDO)**
   - Senha com bcrypt, sessões revogáveis de 30 dias em SQLite (`AuthSession`), hook Fastify global bloqueando `/api/*`, `/ws` protegido com token na query string. Tela de primeiro acesso para criar admin. Commit `60038cf`.
 
-- [ ] **Etapa 8.2: Endereço Legível (Reverse Geocoding - PRÓXIMA)**
-  - **Objetivo:** Substituir as coordenadas brutas no card pelo endereço real (*ex: "Av. Paulista, 1000 - Bela Vista"*).
-  - **Arquivos:** `server/src/services/geocoding.ts` (integração Nominatim/OSM com cache em SQLite para não estourar rate limit) + endpoint `GET /api/geocoding/reverse?lat=&lon=` + atualização no `app.js` no card do membro selecionado.
-  - **Critério de conclusão:** Membro parado mostra rua/bairro em vez de latitude/longitude.
+- [x] **Etapa 8.2: Endereço Legível (Reverse Geocoding - CONCLUÍDO)**
+  - Nominatim/OSM integrado com rate limiting (1 req/s) e cache persistente em SQLite (`GeocodingCache` indexado por lat/lon arredondados).
+  - Detecção imediata de cerca virtual ativa (`currentPlace` no `GET /api/members/live` e no WebSocket).
+  - Card de endereço Life360 no painel de detalhes (`#detailAddressCard`) e subtítulo dinâmico na lista de membros (`#memberSubtext-${id}`).
+  - PWA atualizado para cache `life360-v8`.
 
-- [ ] **Etapa 8.3: Edição de Lugares (Places)**
+- [ ] **Etapa 8.3: Edição de Lugares (Places - PRÓXIMA)**
   - **Objetivo:** Permitir editar nome, raio e ícone de uma cerca existente sem precisar excluir e recriar.
   - **Arquivos:** `server/src/routes/places.ts` (`PUT /api/places/:id`) + botão de lápis no card/chip do lugar no painel + reaproveitamento do modal existente.
   - **Critério de conclusão:** Editar raio de 100m para 250m atualiza imediatamente no mapa e no banco.

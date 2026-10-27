@@ -103,3 +103,19 @@ model CircleMessage {
 
   @@index([createdAt])
 }
+
+// Cache persistente de Geocoding Reverso (evita chamadas repetidas ao Nominatim/OSM)
+model GeocodingCache {
+  id        String   @id @default(uuid())
+  latKey    Float
+  lonKey    Float
+  address   String
+  road      String?
+  suburb    String?
+  city      String?
+  fullJson  String?
+  createdAt DateTime @default(now())
+
+  @@unique([latKey, lonKey])
+  @@index([latKey, lonKey])
+}

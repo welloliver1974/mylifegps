@@ -6,7 +6,7 @@
 
 **Legenda:** ✅ implementado e funcionando · ⚠️ parcial / simplificado · ❌ ausente · 🚫 depende de terceiro (impossível auto-hospedar)
 
-*Última auditoria: 2026-10-27 — autenticação implementada (Bloco 8, etapa 1)*
+*Última auditoria: 2026-10-27 — endereço legível / reverse geocoding implementado (Bloco 8, etapa 2)*
 
 ---
 
@@ -21,7 +21,7 @@
 | Status de carregamento (⚡) | ✅ | |
 | Velocidade / "em trânsito" | ✅ | Tag `🚗 km/h` acima de 5 km/h |
 | Precisão do GPS | ✅ | Círculo de acurácia + stat no painel |
-| **Endereço do local atual** | ❌ | Mostra coordenadas; falta reverse geocoding (Nominatim) |
+| **Endereço do local atual** | ✅ | Nominatim/OSM com cache SQLite (`GeocodingCache`) e detecção de cerca |
 | **"Atualizar agora" (forçar posição)** | ❌ | Depende de comando remoto ao aparelho |
 | Enquadrar todos na tela | ✅ | Botão flutuante |
 | "Como Chegar" / navegação | ✅ | Deep link Google Maps |
