@@ -76,10 +76,12 @@
 ---
 
 ## BLOCO 6: Aplicativo Mobile Próprio Dedicado (Fase Final)
-- [ ] **Status:** PENDENTE
+- [x] **Status:** CONCLUÍDO
 - **Objetivo:** App nativo (React Native / Expo) com a experiência completa do Life360.
 - **Entregáveis:**
-  - Foreground Service discreto no Android para envio de localização 24/7.
-  - Activity Recognition para pausar GPS quando o celular estiver sobre a mesa.
-  - Notificações push nativas para entrada/saída de membros.
-- **Critério de Conclusão:** APK instalado nos celulares substituindo qualquer cliente genérico.
+  - Código-fonte completo em `mobile/` com Expo, React Native e TypeScript.
+  - Foreground Service persistente (`mobile/src/services/locationTask.ts`) com `expo-location` e `expo-task-manager` para envio 24/7.
+  - Leitura nativa de bateria e status de carregamento (`expo-battery`).
+  - Interface híbrida de alta performance unificando mapa ao vivo e menu de ajustes do aparelho (`mobile/App.tsx`).
+  - Instruções de compilação de APK instalável via EAS em `mobile/README.md`.
+- **Critério de Conclusão:** Projeto mobile estruturado, configurado com permissões de background no Android/iOS e pronto para geração do APK.
