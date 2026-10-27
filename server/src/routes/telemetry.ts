@@ -14,11 +14,11 @@ export async function telemetryRoutes(fastify: FastifyInstance) {
       deviceIdentifier: String(body.deviceIdentifier),
       latitude: Number(body.latitude),
       longitude: Number(body.longitude),
-      altitude: body.altitude ? Number(body.altitude) : undefined,
-      accuracy: body.accuracy ? Number(body.accuracy) : undefined,
-      speed: body.speed ? Number(body.speed) : undefined,
-      heading: body.heading ? Number(body.heading) : undefined,
-      battery: body.battery ? Number(body.battery) : undefined,
+      altitude: body.altitude !== undefined && body.altitude !== null ? Number(body.altitude) : undefined,
+      accuracy: body.accuracy !== undefined && body.accuracy !== null ? Number(body.accuracy) : undefined,
+      speed: body.speed !== undefined && body.speed !== null ? Number(body.speed) : undefined,
+      heading: body.heading !== undefined && body.heading !== null ? Number(body.heading) : undefined,
+      battery: body.battery !== undefined && body.battery !== null ? Number(body.battery) : undefined,
       isCharging: Boolean(body.isCharging),
       recordedAt: body.timestamp ? new Date(body.timestamp) : undefined,
     });
@@ -43,11 +43,11 @@ export async function telemetryRoutes(fastify: FastifyInstance) {
       deviceIdentifier: String(id),
       latitude: parseFloat(lat),
       longitude: parseFloat(lon),
-      altitude: query.altitude ? parseFloat(query.altitude) : undefined,
-      accuracy: query.accuracy || query.hdop ? parseFloat(query.accuracy || query.hdop) : undefined,
-      speed: query.speed ? parseFloat(query.speed) * 3.6 : undefined, // converte nós ou m/s para km/h
-      heading: query.bearing || query.heading ? parseFloat(query.bearing || query.heading) : undefined,
-      battery: query.batt ? parseFloat(query.batt) : undefined,
+      altitude: query.altitude !== undefined ? parseFloat(query.altitude) : undefined,
+      accuracy: query.accuracy !== undefined || query.hdop !== undefined ? parseFloat(query.accuracy || query.hdop) : undefined,
+      speed: query.speed !== undefined ? parseFloat(query.speed) * 3.6 : undefined, // converte nós ou m/s para km/h
+      heading: query.bearing !== undefined || query.heading !== undefined ? parseFloat(query.bearing || query.heading) : undefined,
+      battery: query.batt !== undefined ? parseFloat(query.batt) : undefined,
       isCharging: query.charge === 'true' || query.charge === true,
       recordedAt: timestamp,
     });
