@@ -17,7 +17,7 @@
   <!-- Leaflet CSS -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
 
-  <link rel="stylesheet" href="/style.css?v=2">
+  <link rel="stylesheet" href="/style.css?v=3">
 </head>
 <body>
   <div id="app">
@@ -45,7 +45,7 @@
             <path d="M3 9V5a2 2 0 0 1 2-2h4M15 3h4a2 2 0 0 1 2 2v4M21 15v4a2 2 0 0 1-2 2h-4M9 21H5a2 2 0 0 1-2-2v-4"/>
           </svg>
         </button>
-        <button class="icon-btn" id="btnAddPlace" title="Novo Lugar">
+        <button class="icon-btn primary-action" id="btnAddPlace" title="Novo Lugar">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M12 5v14M5 12h14"/>
           </svg>
@@ -55,6 +55,52 @@
 
     <!-- Mapa em Tela Cheia -->
     <div id="map"></div>
+
+    <!-- Controles Flutuantes do Mapa Estilo Life360 -->
+    <div class="map-floating-controls">
+      <!-- Botão de Camadas do Mapa -->
+      <div class="layer-control-wrap">
+        <button class="map-fab-btn" id="btnToggleLayers" title="Alternar estilo do mapa">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polygon points="12 2 2 7 12 12 22 7 12 2"/>
+            <polyline points="2 17 12 22 22 17"/>
+            <polyline points="2 12 12 17 22 12"/>
+          </svg>
+        </button>
+        <!-- Popover Seletor de Estilo -->
+        <div class="layer-popover" id="layerPopover" style="display: none;">
+          <div class="layer-popover-title">Estilo do Mapa</div>
+          <div class="layer-options-grid">
+            <button type="button" class="layer-card active" data-layer="voyager">
+              <div class="layer-preview voyager-preview"></div>
+              <span>Life360 Clean</span>
+            </button>
+            <button type="button" class="layer-card" data-layer="satellite">
+              <div class="layer-preview satellite-preview"></div>
+              <span>Satélite</span>
+            </button>
+            <button type="button" class="layer-card" data-layer="dark">
+              <div class="layer-preview dark-preview"></div>
+              <span>Noturno</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Botão Centralizar Membros -->
+      <button class="map-fab-btn" id="btnRecenterFab" title="Centralizar membros da família">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="3"/>
+          <path d="M12 2v3M12 19v3M2 12h3M19 12h3"/>
+        </svg>
+      </button>
+
+      <!-- Zoom In / Zoom Out -->
+      <div class="zoom-fab-group">
+        <button class="map-fab-btn zoom-btn" id="btnZoomIn" title="Aproximar">+</button>
+        <button class="map-fab-btn zoom-btn" id="btnZoomOut" title="Afastar">−</button>
+      </div>
+    </div>
 
     <!-- Container de Notificações Toast -->
     <div id="toastContainer" class="toast-container"></div>
@@ -114,6 +160,19 @@
             <label for="placeName">Nome do Lugar</label>
             <input type="text" id="placeName" placeholder="Ex: Casa, Trabalho, Escola" required>
           </div>
+          <div class="form-group">
+            <label>Tipo de Lugar</label>
+            <input type="hidden" id="placeIcon" value="home">
+            <input type="hidden" id="placeColor" value="#10B981">
+            <div class="place-icon-selector" id="placeIconSelector">
+              <button type="button" class="icon-chip active" data-icon="home" data-color="#10B981">🏠 Casa</button>
+              <button type="button" class="icon-chip" data-icon="briefcase" data-color="#3B82F6">💼 Trabalho</button>
+              <button type="button" class="icon-chip" data-icon="school" data-color="#8B5CF6">🎓 Escola</button>
+              <button type="button" class="icon-chip" data-icon="gym" data-color="#EF4444">🏋️ Academia</button>
+              <button type="button" class="icon-chip" data-icon="market" data-color="#F59E0B">🛒 Mercado</button>
+              <button type="button" class="icon-chip" data-icon="star" data-color="#EC4899">⭐ Outro</button>
+            </div>
+          </div>
           <div class="form-row">
             <div class="form-group">
               <label for="placeLat">Latitude</label>
@@ -139,7 +198,7 @@
 
   <!-- Leaflet JS -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
-  <script src="/app.js?v=2"></script>
+  <script src="/app.js?v=3"></script>
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
