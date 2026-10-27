@@ -4,7 +4,7 @@ import websocket from '@fastify/websocket';
 import fastifyStatic from '@fastify/static';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { initDb } from './db.js';
+import { initDb, prisma } from './db.js';
 import { registerWsClient, broadcastSosAlert, broadcastCheckin } from './services/websocket.js';
 import { extractBearerToken, getUserFromToken } from './services/auth.js';
 import { telemetryRoutes } from './routes/telemetry.js';
@@ -14,6 +14,7 @@ import { messagesRoutes } from './routes/messages.js';
 import { authRoutes } from './routes/auth.js';
 import { geocodingRoutes } from './routes/geocoding.js';
 import { pushRoutes } from './routes/push.js';
+import { emergencyRoutes } from './routes/emergency.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -86,11 +87,39 @@ async function bootstrap() {
           })
         );
 
-        socket.on('message', (raw) => {
+        socket.on('message', async (raw) => {
           try {
             const msg = JSON.parse(raw.toString());
             if (msg.type === 'TRIGGER_SOS') {
-              broadcastSosAlert(msg.data);
+              const data = msg.data || {};
+              const userId = user.id;
+              const lat = Number(data.latitude) || 0;
+              const lon = Number(data.longitude) || 0;
+              const battery = data.battery !== undefined ? Number(data.battery) : null;
+              const message = data.message || `🚨 ALERTA DE EMERGÊNCIA: ${user.name} acionou o SOS!`;
+
+              const event = await prisma.sosEvent.create({
+                data: {
+                  userId,
+                  latitude: lat,
+                  longitude: lon,
+                  battery,
+                  message,
+                  status: 'ACTIVE',
+                },
+              });
+
+              broadcastSosAlert({
+                id: event.id,
+                userId,
+                userName: user.name,
+                userAvatar: user.avatarUrl,
+                latitude: lat,
+                longitude: lon,
+                battery,
+                createdAt: event.createdAt.toISOString(),
+                message,
+              });
             } else if (msg.type === 'TRIGGER_CHECKIN') {
               broadcastCheckin(msg.data);
             }
@@ -112,25 +141,20 @@ async function bootstrap() {
       };
     });
 
-    fastify.post('/api/emergency/sos', async (request, reply) => {
-      const body = request.body as any;
-      broadcastSosAlert(body || {});
-      return reply.send({ success: true, message: 'Alerta de SOS transmitido com sucesso.' });
-    });
-
     fastify.post('/api/checkin', async (request, reply) => {
       const body = request.body as any;
       broadcastCheckin(body || {});
       return reply.send({ success: true, message: 'Check-in transmitido com sucesso.' });
     });
 
-    // 7. Registra Rotas de Telemetria, Membros, Lugares, Chat e Geocoding
+    // 7. Registra Rotas de Telemetria, Membros, Lugares, Chat, Geocoding, Push e Emergência
     await fastify.register(telemetryRoutes);
     await fastify.register(membersRoutes);
     await fastify.register(placesRoutes);
     await fastify.register(messagesRoutes);
     await fastify.register(geocodingRoutes);
     await fastify.register(pushRoutes);
+    await fastify.register(emergencyRoutes);
 
     // 8. Serve arquivos estáticos do Painel Web / PWA (Mapa e Interface)
     await fastify.register(fastifyStatic, {

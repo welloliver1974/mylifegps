@@ -19,6 +19,8 @@ model User {
   devices           Device[]
   sessions          AuthSession[]
   pushSubscriptions PushSubscription[]
+  sosEvents         SosEvent[]         @relation("SosUser")
+  resolvedSosEvents SosEvent[]         @relation("SosResolver")
   createdAt         DateTime   @default(now())
   updatedAt         DateTime   @updatedAt
 }
@@ -134,4 +136,25 @@ model PushSubscription {
   updatedAt DateTime @updatedAt
 
   @@index([userId])
+}
+
+// Histórico de Alertas de SOS / Emergência (Life360 Safety History)
+model SosEvent {
+  id           String    @id @default(uuid())
+  userId       String
+  user         User      @relation("SosUser", fields: [userId], references: [id], onDelete: Cascade)
+  latitude     Float
+  longitude    Float
+  accuracy     Float?
+  battery      Int?
+  status       String    @default("ACTIVE") // "ACTIVE" | "RESOLVED" | "CANCELED"
+  message      String?
+  resolvedAt   DateTime?
+  resolvedById String?
+  resolvedBy   User?     @relation("SosResolver", fields: [resolvedById], references: [id], onDelete: SetNull)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@index([userId, createdAt])
+  @@index([status])
 }

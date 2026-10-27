@@ -17,7 +17,7 @@
   <!-- Leaflet CSS -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
 
-  <link rel="stylesheet" href="/style.css?v=11">
+  <link rel="stylesheet" href="/style.css?v=12">
 </head>
 <body>
   <!-- Tela de Autenticação (Login / Configuração Inicial) -->
@@ -342,6 +342,22 @@
             <div class="loading-state">Carregando alertas...</div>
           </div>
         </div>
+
+        <!-- Histórico de Segurança & SOS (Life360 Safety History - Etapa 8.6) -->
+        <div class="sheet-sos-history-section" id="sosHistorySection">
+          <div class="sheet-section-header">
+            <h2>🚨 Histórico de SOS & Segurança</h2>
+            <button class="small-add-btn" id="btnRefreshSosHistory" style="background: var(--bg-tertiary); color: var(--text-secondary);" title="Atualizar histórico">↻</button>
+          </div>
+          <div class="sos-filter-chips" id="sosFilterChips">
+            <button type="button" class="sos-filter-chip active" data-status="ALL">Todos</button>
+            <button type="button" class="sos-filter-chip" data-status="ACTIVE">Ativos</button>
+            <button type="button" class="sos-filter-chip" data-status="RESOLVED">Resolvidos</button>
+          </div>
+          <div class="sos-events-list" id="sosEventsList">
+            <div class="loading-state">Carregando histórico de segurança...</div>
+          </div>
+        </div>
       </div>
     </aside>
 
@@ -455,7 +471,10 @@
           <button class="btn danger large" id="btnSosNavigate">
             🧭 Navegar Imediatamente (Google Maps)
           </button>
-          <button class="btn secondary" id="btnSosDismiss">
+          <button class="btn success large" id="btnSosResolveActive" style="margin-top: 8px; width: 100%; background: #10B981; color: white;">
+            ✅ Marcar como Seguro / Resolvido
+          </button>
+          <button class="btn secondary" id="btnSosDismiss" style="margin-top: 8px; width: 100%;">
             Silenciar Alerta
           </button>
         </div>
@@ -465,7 +484,7 @@
 
   <!-- Leaflet JS -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
-  <script src="/app.js?v=11"></script>
+  <script src="/app.js?v=12"></script>
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {

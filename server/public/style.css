@@ -2394,3 +2394,197 @@ input[type="range"]::-moz-range-thumb {
   color: var(--text-tertiary);
   line-height: 1.4;
 }
+
+/* ==========================================================
+   Histórico de Segurança & SOS (Life360 Safety History - Etapa 8.6)
+   ========================================================== */
+.sheet-sos-history-section {
+  margin-top: 22px;
+}
+
+.sos-filter-chips {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.sos-filter-chip {
+  padding: 5px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--border-light);
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.sos-filter-chip:hover {
+  background: var(--bg-tertiary);
+}
+
+.sos-filter-chip.active {
+  background: #FEF2F2;
+  border-color: #FECACA;
+  color: var(--accent-red);
+}
+
+.sos-events-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 280px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+
+.sos-events-list::-webkit-scrollbar {
+  width: 4px;
+}
+
+.sos-events-list::-webkit-scrollbar-thumb {
+  background: #CBD5E1;
+  border-radius: 2px;
+}
+
+.sos-card {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-light);
+  border-radius: 14px;
+  padding: 10px 12px;
+  transition: all 0.18s ease;
+}
+
+.sos-card.active-alert {
+  border-color: #FECACA;
+  background: #FFF5F5;
+  box-shadow: 0 4px 12px rgba(239, 68, 68, 0.15);
+}
+
+.sos-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
+.sos-user-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.sos-user-avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 800;
+  flex-shrink: 0;
+}
+
+.sos-user-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.sos-user-name {
+  font-size: 12.5px;
+  font-weight: 800;
+  color: var(--text-primary);
+  line-height: 1.2;
+}
+
+.sos-time {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-tertiary);
+}
+
+.sos-status-badge {
+  font-size: 10px;
+  font-weight: 800;
+  padding: 3px 8px;
+  border-radius: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.sos-status-badge.active {
+  background: #FEE2E2;
+  color: #B91C1C;
+  animation: pulseBadge 1.2s infinite alternate;
+}
+
+@keyframes pulseBadge {
+  0% { transform: scale(1); opacity: 0.9; }
+  100% { transform: scale(1.05); opacity: 1; }
+}
+
+.sos-status-badge.resolved {
+  background: #DCFCE7;
+  color: #166534;
+}
+
+.sos-status-badge.canceled {
+  background: #F1F5F9;
+  color: #64748B;
+}
+
+.sos-card-message {
+  font-size: 11.5px;
+  color: var(--text-secondary);
+  font-weight: 600;
+  margin-bottom: 7px;
+  line-height: 1.35;
+}
+
+.sos-card-meta {
+  display: flex;
+  gap: 8px;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--text-tertiary);
+  margin-bottom: 8px;
+}
+
+.sos-card-actions {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.sos-action-btn {
+  padding: 5px 10px;
+  border-radius: 9px;
+  font-size: 10.5px;
+  font-weight: 800;
+  font-family: inherit;
+  cursor: pointer;
+  border: none;
+  transition: all 0.15s ease;
+}
+
+.sos-action-btn.map {
+  background: #EFF6FF;
+  color: #2563EB;
+}
+
+.sos-action-btn.map:hover {
+  background: #DBEAFE;
+}
+
+.sos-action-btn.resolve {
+  background: #10B981;
+  color: white;
+}
+
+.sos-action-btn.resolve:hover {
+  background: #059669;
+}

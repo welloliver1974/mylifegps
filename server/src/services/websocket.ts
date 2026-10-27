@@ -35,14 +35,14 @@ export function broadcastSosAlert(payload: any) {
   const message = JSON.stringify({
     type: 'SOS_ALERT',
     alert: {
-      id: Math.random().toString(36).substring(2, 9),
+      id: payload.id || Math.random().toString(36).substring(2, 9),
       userId: payload.userId,
       userName: payload.userName,
       userAvatar: payload.userAvatar,
       latitude: payload.latitude,
       longitude: payload.longitude,
       battery: payload.battery,
-      triggeredAt: new Date().toISOString(),
+      triggeredAt: payload.createdAt || new Date().toISOString(),
       message: payload.message || `🚨 ALERTA DE EMERGÊNCIA: ${payload.userName || 'Membro da Família'} acionou o SOS!`,
     },
   });
@@ -61,10 +61,29 @@ export function broadcastSosAlert(payload: any) {
       icon: '/icon-192.png',
       badge: '/icon-192.png',
       tag: 'sos-alert',
-      data: { url: '/', type: 'sos', userId: payload.userId },
+      data: { url: '/', type: 'sos', userId: payload.userId, sosId: payload.id },
     },
     payload.userId
   ).catch((err) => console.error('[Push SOS Error]', err));
+}
+
+// Dispara Notificação de Resolução do SOS (Alerta cancelado ou resolvido)
+export function broadcastSosResolved(payload: {
+  id: string;
+  status: string;
+  resolvedByName?: string;
+  resolvedAt: string;
+}) {
+  const message = JSON.stringify({
+    type: 'SOS_RESOLVED',
+    alert: payload,
+  });
+
+  for (const client of clients) {
+    if (client.readyState === WebSocket.OPEN) {
+      client.send(message);
+    }
+  }
 }
 
 // Dispara mensagem de chat para todos os membros do círculo em tempo real

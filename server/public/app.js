@@ -624,6 +624,13 @@ document.addEventListener('DOMContentLoaded', () => {
           showToast(msg.alert.message);
         } else if (msg.type === 'SOS_ALERT') {
           triggerSosEmergencyOverlay(msg.alert);
+          loadSosHistory();
+        } else if (msg.type === 'SOS_RESOLVED') {
+          if (currentActiveSosAlert && (currentActiveSosAlert.id === msg.alert?.id || !msg.alert?.id)) {
+            document.getElementById('sosEmergencyOverlay').style.display = 'none';
+          }
+          showToast(`✅ SOS resolvido por ${msg.alert?.resolvedByName || 'Família'}`);
+          loadSosHistory();
         } else if (msg.type === 'CHECKIN_ALERT') {
           showToast(msg.alert?.message || '📍 Um membro fez check-in.');
         } else if (msg.type === 'CHAT_MESSAGE') {
@@ -1548,13 +1555,18 @@ document.addEventListener('DOMContentLoaded', () => {
     updateReplayPosition();
   }
 
-  // 16. Fluxo de SOS e Pânico de Emergência
+  // 16. Fluxo de SOS e Pânico de Emergência (Etapa 8.6 - Histórico Persistido)
+  let currentActiveSosAlert = null;
+  let currentSosFilter = 'ALL';
+
   function setupSosFlow() {
     const btnTopSos = document.getElementById('btnTopSos');
     const btnSheetSos = document.getElementById('btnSheetSos');
     const sosConfirmModal = document.getElementById('sosConfirmModal');
     const btnCancelSos = document.getElementById('btnCancelSos');
     const btnConfirmSosNow = document.getElementById('btnConfirmSosNow');
+    const btnSosResolveActive = document.getElementById('btnSosResolveActive');
+    const btnRefreshSosHistory = document.getElementById('btnRefreshSosHistory');
 
     const openConfirmModal = () => {
       currentSosCountdown = 5;
@@ -1571,21 +1583,51 @@ document.addEventListener('DOMContentLoaded', () => {
       }, 1000);
     };
 
-    btnTopSos.addEventListener('click', openConfirmModal);
-    btnSheetSos.addEventListener('click', openConfirmModal);
+    if (btnTopSos) btnTopSos.addEventListener('click', openConfirmModal);
+    if (btnSheetSos) btnSheetSos.addEventListener('click', openConfirmModal);
 
-    btnCancelSos.addEventListener('click', () => {
-      if (sosCountdownInterval) clearInterval(sosCountdownInterval);
-      sosConfirmModal.style.display = 'none';
-    });
+    if (btnCancelSos) {
+      btnCancelSos.addEventListener('click', () => {
+        if (sosCountdownInterval) clearInterval(sosCountdownInterval);
+        sosConfirmModal.style.display = 'none';
+      });
+    }
 
-    btnConfirmSosNow.addEventListener('click', () => {
-      if (sosCountdownInterval) clearInterval(sosCountdownInterval);
-      executeSosDispatch();
-    });
+    if (btnConfirmSosNow) {
+      btnConfirmSosNow.addEventListener('click', () => {
+        if (sosCountdownInterval) clearInterval(sosCountdownInterval);
+        executeSosDispatch();
+      });
+    }
 
-    document.getElementById('btnSosDismiss').addEventListener('click', () => {
-      document.getElementById('sosEmergencyOverlay').style.display = 'none';
+    const btnDismiss = document.getElementById('btnSosDismiss');
+    if (btnDismiss) {
+      btnDismiss.addEventListener('click', () => {
+        document.getElementById('sosEmergencyOverlay').style.display = 'none';
+      });
+    }
+
+    if (btnSosResolveActive) {
+      btnSosResolveActive.addEventListener('click', () => {
+        if (currentActiveSosAlert && currentActiveSosAlert.id) {
+          resolveSosAlert(currentActiveSosAlert.id, 'RESOLVED');
+        } else {
+          document.getElementById('sosEmergencyOverlay').style.display = 'none';
+        }
+      });
+    }
+
+    if (btnRefreshSosHistory) {
+      btnRefreshSosHistory.addEventListener('click', () => loadSosHistory());
+    }
+
+    document.querySelectorAll('#sosFilterChips .sos-filter-chip').forEach(chip => {
+      chip.addEventListener('click', () => {
+        document.querySelectorAll('#sosFilterChips .sos-filter-chip').forEach(c => c.classList.remove('active'));
+        chip.classList.add('active');
+        currentSosFilter = chip.dataset.status || 'ALL';
+        loadSosHistory(currentSosFilter);
+      });
     });
   }
 
@@ -1594,48 +1636,53 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Usuário atual (primeiro membro do círculo) com sua posição e bateria
     const user = getCurrentUser();
-    const loc = user.location;
+    const loc = user?.location || {};
 
     const payload = {
-      userId: user.id,
-      userName: user.name,
-      userAvatar: user.avatarUrl || '',
+      userId: user?.id,
+      userName: user?.name,
+      userAvatar: user?.avatarUrl || '',
       latitude: loc.latitude,
       longitude: loc.longitude,
-      battery: loc.battery || 90,
-      message: `🚨 ALERTA DE EMERGÊNCIA: ${user.name} acionou o SOS de pânico!`,
+      battery: loc.battery !== undefined ? loc.battery : 90,
+      message: `🚨 ALERTA DE EMERGÊNCIA: ${user?.name || 'Membro'} acionou o SOS de pânico!`,
     };
 
-    // Envia via WebSocket se aberto, ou via REST API
-    if (ws && ws.readyState === WebSocket.OPEN) {
-      ws.send(JSON.stringify({ type: 'TRIGGER_SOS', data: payload }));
-    } else {
-      try {
-        await apiFetch('/api/emergency/sos', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload),
-        });
-      } catch (err) {
-        console.error('Erro ao enviar SOS via REST:', err);
+    try {
+      const res = await apiFetch('/api/emergency/sos', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      const event = data?.event || payload;
+      currentActiveSosAlert = event;
+      triggerSosEmergencyOverlay(event);
+      loadSosHistory();
+      showToast('🚨 Alerta de SOS transmitido e gravado no histórico!');
+    } catch (err) {
+      console.error('Erro ao enviar SOS via REST:', err);
+      // Fallback WS se houver falha de rede REST
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: 'TRIGGER_SOS', data: payload }));
       }
+      triggerSosEmergencyOverlay(payload);
     }
-
-    triggerSosEmergencyOverlay(payload);
   }
 
   function triggerSosEmergencyOverlay(alert) {
+    currentActiveSosAlert = alert;
     const overlay = document.getElementById('sosEmergencyOverlay');
     document.getElementById('sosSenderText').textContent = `${alert.userName || 'Membro'} acionou o botão de pânico SOS!`;
 
     document.getElementById('sosEmergencyStats').innerHTML = `
       <div class="emergency-stat-item">
         <div class="e-label">Bateria</div>
-        <div class="e-val">${alert.battery !== undefined ? alert.battery + '%' : '--'}</div>
+        <div class="e-val">${alert.battery !== undefined && alert.battery !== null ? alert.battery + '%' : '--'}</div>
       </div>
       <div class="emergency-stat-item">
         <div class="e-label">Horário</div>
-        <div class="e-val">${new Date(alert.triggeredAt || Date.now()).toLocaleTimeString()}</div>
+        <div class="e-val">${new Date(alert.triggeredAt || alert.createdAt || Date.now()).toLocaleTimeString()}</div>
       </div>
     `;
 
@@ -1646,6 +1693,122 @@ document.addEventListener('DOMContentLoaded', () => {
 
     overlay.style.display = 'flex';
   }
+
+  async function resolveSosAlert(sosId, status = 'RESOLVED') {
+    if (!sosId) {
+      document.getElementById('sosEmergencyOverlay').style.display = 'none';
+      return;
+    }
+    try {
+      const res = await apiFetch(`/api/emergency/sos/${sosId}/resolve`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status }),
+      });
+      if (res.ok) {
+        document.getElementById('sosEmergencyOverlay').style.display = 'none';
+        showToast(status === 'RESOLVED' ? '✅ Alerta marcado como Seguro / Resolvido.' : 'Alerta cancelado.');
+        loadSosHistory(currentSosFilter);
+      } else {
+        const err = await res.json();
+        showToast(`Erro ao resolver: ${err.error || 'Falha na requisição'}`);
+      }
+    } catch (err) {
+      console.error('Erro ao resolver SOS:', err);
+      showToast('Erro de conexão ao resolver alerta.');
+    }
+  }
+
+  async function loadSosHistory(status = null) {
+    if (status !== null) currentSosFilter = status;
+    const listEl = document.getElementById('sosEventsList');
+    if (!listEl) return;
+
+    try {
+      const res = await apiFetch(`/api/emergency/sos?status=${currentSosFilter}&limit=50`);
+      if (!res.ok) throw new Error('Falha ao obter histórico de SOS');
+      const data = await res.json();
+      renderSosHistory(data?.events || []);
+    } catch (err) {
+      console.error('Erro ao carregar histórico de SOS:', err);
+      listEl.innerHTML = '<div class="loading-state">Erro ao carregar histórico de segurança.</div>';
+    }
+  }
+
+  function renderSosHistory(events) {
+    const listEl = document.getElementById('sosEventsList');
+    if (!listEl) return;
+
+    if (!events || events.length === 0) {
+      listEl.innerHTML = '<div class="loading-state" style="padding: 12px 0; font-size: 12px;">Nenhum alerta de emergência registrado.</div>';
+      return;
+    }
+
+    listEl.innerHTML = events.map(ev => {
+      const u = ev.user || {};
+      const userColor = u.color || '#EF4444';
+      const initials = (u.name || 'Membro').slice(0, 2).toUpperCase();
+      const timeStr = new Date(ev.createdAt).toLocaleString('pt-BR', {
+        day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit'
+      });
+      const isResolved = ev.status === 'RESOLVED';
+      const isActive = ev.status === 'ACTIVE';
+      const statusLabel = isActive ? 'Ativo' : isResolved ? 'Resolvido' : 'Cancelado';
+      const badgeClass = isActive ? 'active' : isResolved ? 'resolved' : 'canceled';
+
+      let resolvedInfo = '';
+      if (isResolved && ev.resolvedAt) {
+        const resTime = new Date(ev.resolvedAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+        const resName = ev.resolvedBy?.name || 'Família';
+        resolvedInfo = ` • Resolvido às ${resTime} por ${resName}`;
+      }
+
+      return `
+        <div class="sos-card ${isActive ? 'active-alert' : ''}">
+          <div class="sos-card-header">
+            <div class="sos-user-wrap">
+              <div class="sos-user-avatar" style="background: ${userColor};">
+                ${initials}
+              </div>
+              <div class="sos-user-info">
+                <span class="sos-user-name">${u.name || 'Membro'}</span>
+                <span class="sos-time">${timeStr}${resolvedInfo}</span>
+              </div>
+            </div>
+            <span class="sos-status-badge ${badgeClass}">${statusLabel}</span>
+          </div>
+
+          <div class="sos-card-message">${ev.message || 'Alerta de SOS acionado'}</div>
+
+          <div class="sos-card-meta">
+            <span>🔋 ${ev.battery !== null && ev.battery !== undefined ? ev.battery + '%' : '--'}</span>
+            <span>📍 ${ev.latitude ? ev.latitude.toFixed(4) : 0}, ${ev.longitude ? ev.longitude.toFixed(4) : 0}</span>
+          </div>
+
+          <div class="sos-card-actions">
+            <button class="sos-action-btn map" onclick="window.viewSosOnMap(${ev.latitude}, ${ev.longitude})">
+              🗺️ Ver no Mapa
+            </button>
+            ${isActive ? `
+              <button class="sos-action-btn resolve" onclick="window.resolveSosItem('${ev.id}')">
+                ✅ Marcar como Seguro
+              </button>
+            ` : ''}
+          </div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  window.viewSosOnMap = (lat, lon) => {
+    if (!lat && !lon) return;
+    map.flyTo([lat, lon], 17, { animate: true, duration: 1.2 });
+    showToast('📍 Centralizado na localização do alerta de emergência.');
+  };
+
+  window.resolveSosItem = (id) => {
+    resolveSosAlert(id, 'RESOLVED');
+  };
 
   // 17. Modal Novo Lugar & Seletor de Ícones
   const placeModal = document.getElementById('placeModal');
@@ -1918,6 +2081,7 @@ document.addEventListener('DOMContentLoaded', () => {
       loadMembers();
       loadPlaces();
       loadChat();
+      loadSosHistory();
       connectWebSocket();
       updatePushNotificationUI();
       return;
@@ -1929,6 +2093,7 @@ document.addEventListener('DOMContentLoaded', () => {
     loadMembers();
     loadPlaces();
     loadChat();
+    loadSosHistory();
     setupPushNotifications();
   }
 

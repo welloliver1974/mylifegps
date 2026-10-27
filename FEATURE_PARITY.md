@@ -6,7 +6,7 @@
 
 **Legenda:** ✅ implementado e funcionando · ⚠️ parcial / simplificado · ❌ ausente · 🚫 depende de terceiro (impossível auto-hospedar)
 
-*Última auditoria: 2026-10-27 — notificações push web (VAPID) implementadas (Bloco 8, etapa 5)*
+*Última auditoria: 2026-10-27 — histórico persistido de SOS implementado (Bloco 8, etapa 6)*
 
 ---
 
@@ -65,7 +65,7 @@
 | Botão de pânico SOS | ✅ | Contagem de 5s + cancelamento |
 | Alerta em tela cheia para o círculo | ✅ | Via WebSocket |
 | Rota imediata para o membro em SOS | ✅ | Google Maps |
-| **Histórico de alertas SOS** | ❌ | Não persiste os disparos |
+| **Histórico de alertas SOS** | ✅ | Tabela `SosEvent`, status ACTIVE/RESOLVED/CANCELED, resolução com timestamp e nome do membro, filtros de status, botão 'Ver no Mapa' e 'Marcar como Seguro' (Etapa 8.6) |
 | **Detecção de acidente real** | ⚠️ | Existe apenas o selo visual; requer acelerômetro no app mobile |
 | **Frenagem/aceleração brusca** | ❌ | Requer acelerômetro |
 | **Despacho para polícia/SAMU** | 🚫 | Serviço de monitoramento pago |
@@ -103,9 +103,9 @@
 
 ## Resumo executivo
 
-- **Pronto (pode usar hoje):** mapa ao vivo, cercas, alertas, histórico ilimitado, replay, relatório de direção com viagens, push notifications em segundo plano, SOS, chat, check-in, lugares ilimitados, estilos de mapa.
-- **Lacunas visíveis ao usuário:** editar perfil (foto), mensagem direta (1:1), histórico de SOS gravado em tela dedicada.
-- **Resolvido nas últimas etapas:** autenticação com login obrigatório em toda a API e no WebSocket, geocoding reverso com endereço e lugares, edição completa de lugares, relatório de direção segmentado por viagens individuais (Life360 Gold) e notificações push Web (VAPID) com navegador fechado.
+- **Pronto (pode usar hoje):** mapa ao vivo, cercas, alertas, histórico ilimitado, replay, relatório de direção com viagens, push notifications em segundo plano, SOS com histórico persistido e resolução, chat, check-in, lugares ilimitados, estilos de mapa.
+- **Lacunas visíveis ao usuário:** editar perfil (foto), mensagem direta (1:1).
+- **Resolvido nas últimas etapas:** autenticação com login obrigatório em toda a API e no WebSocket, geocoding reverso com endereço e lugares, edição completa de lugares, relatório de direção segmentado por viagens individuais (Life360 Gold), notificações push Web (VAPID) com navegador fechado e histórico persistido de emergências SOS com resolução.
 - **Lacunas de plataforma restantes:** telemetria ainda aberta, sem backup automático, sem log de acessos, sem recuperação de senha.
 - **Impossível sem parceiro comercial:** despacho de emergência, monitoramento 24h, proteção de identidade.
 - **Depende de hardware (app mobile):** detecção de acidente, frenagem brusca.

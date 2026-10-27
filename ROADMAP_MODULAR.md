@@ -114,7 +114,7 @@
 ---
 
 ## BLOCO 8: Paridade Total & Segurança de Produção
-- [/] **Status:** EM ANDAMENTO (Etapas 8.1 a 8.5 concluídas — Próxima: Etapa 8.6)
+- [/] **Status:** EM ANDAMENTO (Etapas 8.1 a 8.6 concluídas — Próxima: Etapa 8.7)
 - **Objetivo:** Fechar as lacunas de paridade real com o Life360 oficial e tornar o app seguro para produção e uso diário da família.
 - **Referência obrigatória:** [`FEATURE_PARITY.md`](FEATURE_PARITY.md) — auditoria item por item (fonte de verdade).
 
@@ -148,12 +148,14 @@
   - Disparo automático de Web Push em eventos de cerca eletrônica (ENTER/EXIT em `geofence.ts`), Alertas de SOS (`websocket.ts`) e Check-in da família (`websocket.ts`), mesmo com o app/navegador fechados.
   - Botão de ativação e teste de push integrado no menu do círculo da UI. Cache PWA `life360-v11`.
 
-- [ ] **Etapa 8.6: Histórico Persistido de SOS (PRÓXIMA)**
-  - **Objetivo:** Registrar ocorrências de SOS em tabela dedicada no banco (`SosEvent`), com status (ativo/resolvido) e linha do tempo de resolução.
-  - **Arquivos:** `schema.prisma` (`SosEvent`), `server/src/routes/emergency.ts` (`GET/POST/PUT /api/emergency/sos`).
-  - **Critério de conclusão:** Aba de histórico de segurança lista os alertas passados com data e quem disparou.
+- [x] **Etapa 8.6: Histórico Persistido de SOS (CONCLUÍDO)**
+  - Modelo `SosEvent` no SQLite com relações de usuário e resolvedor (`prisma/schema.prisma`).
+  - Rotas `GET /api/emergency/sos`, `GET /api/emergency/sos/active`, `POST /api/emergency/sos` e `PUT /api/emergency/sos/:id/resolve` em `server/src/routes/emergency.ts`.
+  - Persistência e disparo síncrono tanto via REST quanto via WebSocket (`TRIGGER_SOS` em `index.ts`), com broadcast em tempo real (`SOS_ALERT` e `SOS_RESOLVED`) e envio de Web Push com tag e som de alta prioridade.
+  - Interface de Histórico de Segurança no Bottom Sheet (`#sosHistorySection` no estilo Life360 Safety History) com filtros dinâmicos (Todos, Ativos, Resolvidos), badges animados, botão de localização rápida no mapa e botão "Marcar como Seguro" (resolução).
+  - Botão de resolução rápida diretamente no alerta em tela cheia (`#btnSosResolveActive`). Cache PWA `life360-v12`.
 
-- [ ] **Etapa 8.7: Perfil de Membro & Upload de Foto Real**
+- [ ] **Etapa 8.7: Perfil de Membro & Upload de Foto Real (PRÓXIMA)**
   - **Objetivo:** Permitir envio de foto real do membro para substituir as iniciais SVG no mapa e na lista.
   - **Arquivos:** `@fastify/multipart` + upload em `server/public/uploads/avatars` + endpoint `PUT /api/members/:id/profile`.
 
