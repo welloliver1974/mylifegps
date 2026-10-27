@@ -17,7 +17,7 @@
   <!-- Leaflet CSS -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
 
-  <link rel="stylesheet" href="/style.css?v=8">
+  <link rel="stylesheet" href="/style.css?v=9">
 </head>
 <body>
   <!-- Tela de Autenticação (Login / Configuração Inicial) -->
@@ -363,14 +363,15 @@
       </div>
     </div>
 
-    <!-- Modal de Cadastro de Novo Lugar -->
+    <!-- Modal de Cadastro / Edição de Lugar -->
     <div class="modal-overlay" id="placeModal" style="display: none;">
       <div class="modal-content">
         <div class="modal-header">
-          <h3>Novo Lugar (Cerca Virtual)</h3>
+          <h3 id="placeModalTitle">Novo Lugar (Cerca Virtual)</h3>
           <button class="close-btn" id="btnClosePlaceModal">&times;</button>
         </div>
         <form id="placeForm">
+          <input type="hidden" id="placeId" value="">
           <div class="form-group">
             <label for="placeName">Nome do Lugar</label>
             <input type="text" id="placeName" placeholder="Ex: Casa, Trabalho, Escola" required>
@@ -404,7 +405,7 @@
           </div>
           <div class="modal-actions">
             <button type="button" class="btn secondary" id="btnCancelPlace">Cancelar</button>
-            <button type="submit" class="btn primary">Salvar Lugar</button>
+            <button type="submit" class="btn primary" id="btnSavePlace">Salvar Lugar</button>
           </div>
         </form>
       </div>
@@ -447,7 +448,7 @@
 
   <!-- Leaflet JS -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
-  <script src="/app.js?v=8"></script>
+  <script src="/app.js?v=9"></script>
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {

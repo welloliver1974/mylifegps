@@ -6,7 +6,7 @@
 
 **Legenda:** ✅ implementado e funcionando · ⚠️ parcial / simplificado · ❌ ausente · 🚫 depende de terceiro (impossível auto-hospedar)
 
-*Última auditoria: 2026-10-27 — endereço legível / reverse geocoding implementado (Bloco 8, etapa 2)*
+*Última auditoria: 2026-10-27 — edição de lugares implementada (Bloco 8, etapa 3)*
 
 ---
 
@@ -42,7 +42,7 @@
 | Timeline de alertas de lugares | ✅ | Últimas 30 entradas/saídas |
 | Toast em tempo real ao entrar/sair | ✅ | Via WebSocket |
 | **Push notification com app fechado** | ❌ | Só alerta com a tela aberta |
-| Editar lugar existente | ❌ | Só criar e excluir |
+| **Editar lugar existente** | ✅ | `PUT /api/places/:id`, botão ✏️ no chip e clique no marcador do mapa |
 
 ## Círculo Familiar e Comunicação
 

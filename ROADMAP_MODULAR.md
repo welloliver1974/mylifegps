@@ -114,7 +114,7 @@
 ---
 
 ## BLOCO 8: Paridade Total & Segurança de Produção
-- [/] **Status:** EM ANDAMENTO (Etapas 8.1 e 8.2 concluídas — Próxima: Etapa 8.3)
+- [/] **Status:** EM ANDAMENTO (Etapas 8.1, 8.2 e 8.3 concluídas — Próxima: Etapa 8.4)
 - **Objetivo:** Fechar as lacunas de paridade real com o Life360 oficial e tornar o app seguro para produção e uso diário da família.
 - **Referência obrigatória:** [`FEATURE_PARITY.md`](FEATURE_PARITY.md) — auditoria item por item (fonte de verdade).
 
@@ -127,14 +127,15 @@
   - Nominatim/OSM integrado com rate limiting (1 req/s) e cache persistente em SQLite (`GeocodingCache` indexado por lat/lon arredondados).
   - Detecção imediata de cerca virtual ativa (`currentPlace` no `GET /api/members/live` e no WebSocket).
   - Card de endereço Life360 no painel de detalhes (`#detailAddressCard`) e subtítulo dinâmico na lista de membros (`#memberSubtext-${id}`).
-  - PWA atualizado para cache `life360-v8`.
+  - PWA atualizado para cache `life360-v8`. Commit `334d3cc`.
 
-- [ ] **Etapa 8.3: Edição de Lugares (Places - PRÓXIMA)**
-  - **Objetivo:** Permitir editar nome, raio e ícone de uma cerca existente sem precisar excluir e recriar.
-  - **Arquivos:** `server/src/routes/places.ts` (`PUT /api/places/:id`) + botão de lápis no card/chip do lugar no painel + reaproveitamento do modal existente.
-  - **Critério de conclusão:** Editar raio de 100m para 250m atualiza imediatamente no mapa e no banco.
+- [x] **Etapa 8.3: Edição de Lugares (Places - CONCLUÍDO)**
+  - Endpoint `PUT /api/places/:id` com validação de dados no Fastify.
+  - Botão de edição (✏️) nos chips de lugares do painel e abertura direta pelo clique na pílula flutuante no mapa.
+  - Modal reaproveitado dinamicamente para criação ou alteração (título, campos preenchidos e botão de confirmação).
+  - Recálculo imediato do status de presença dos membros no raio modificado. Cache PWA `life360-v9`.
 
-- [ ] **Etapa 8.4: Relatório de Direção Segmentado por Viagem (Life360 Gold)**
+- [ ] **Etapa 8.4: Relatório de Direção Segmentado por Viagem (Life360 Gold - PRÓXIMA)**
   - **Objetivo:** Em vez de só um resumo do dia todo, dividir os pontos em viagens individuais (viagem = início em movimento após >10 min parado até parada >10 min).
   - **Arquivos:** `server/src/services/tripDetection.ts` + aba "Viagens" no painel de direção com horário, distância percorrida, velocidade máxima e eventos.
   - **Critério de conclusão:** Histórico do dia lista cards individuais clicáveis de cada viagem feita.

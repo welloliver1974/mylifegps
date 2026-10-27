@@ -61,6 +61,38 @@ export async function placesRoutes(fastify: FastifyInstance) {
     return reply.status(201).send(place);
   });
 
+  // Atualiza um lugar existente (Etapa 8.3)
+  fastify.put('/api/places/:id', async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const body = request.body as any;
+
+    const existing = await prisma.place.findUnique({ where: { id } });
+    if (!existing) {
+      return reply.status(404).send({ error: 'Lugar não encontrado' });
+    }
+
+    const data: any = {};
+    if (body.name !== undefined) {
+      const trimmed = String(body.name).trim();
+      if (!trimmed) {
+        return reply.status(400).send({ error: 'O nome do lugar não pode ser vazio' });
+      }
+      data.name = trimmed;
+    }
+    if (body.latitude !== undefined) data.latitude = Number(body.latitude);
+    if (body.longitude !== undefined) data.longitude = Number(body.longitude);
+    if (body.radiusMeters !== undefined) data.radiusMeters = Number(body.radiusMeters);
+    if (body.color !== undefined) data.color = String(body.color);
+    if (body.icon !== undefined) data.icon = String(body.icon);
+
+    const updated = await prisma.place.update({
+      where: { id },
+      data,
+    });
+
+    return reply.send(updated);
+  });
+
   // Remove um lugar
   fastify.delete('/api/places/:id', async (request, reply) => {
     const { id } = request.params as { id: string };

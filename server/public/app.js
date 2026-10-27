@@ -793,14 +793,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
       const labelMarker = L.marker([place.latitude, place.longitude], {
         icon: labelIcon,
-        interactive: false,
+        interactive: true,
       }).addTo(map);
+
+      labelMarker.on('click', () => {
+        window.openEditPlaceModal(place.id);
+      });
 
       placeLayers.set(place.id, { circle, labelMarker });
     });
   }
 
-  // 10. Chips de Lugares no Bottom Sheet
+  // 10. Chips de Lugares no Bottom Sheet com Edição e Exclusão
   function renderPlacesChips() {
     const container = document.getElementById('placesChipsList');
     if (!container) return;
@@ -813,15 +817,39 @@ document.addEventListener('DOMContentLoaded', () => {
     container.innerHTML = placesData.map(p => {
       const icon = PLACE_ICONS[p.icon] || '📍';
       const color = p.color || '#10B981';
+      const safeName = p.name.replace(/'/g, "\\'");
       return `
         <div class="place-chip" onclick="window.zoomToPlace(${p.latitude}, ${p.longitude})">
           <span class="place-chip-dot" style="background: ${color};"></span>
           <span>${icon} ${p.name}</span>
-          <span class="delete-chip-btn" title="Excluir lugar" onclick="event.stopPropagation(); window.deletePlace('${p.id}', '${p.name.replace(/'/g, "\\'")}')">✕</span>
+          <span class="edit-chip-btn" title="Editar lugar" onclick="event.stopPropagation(); window.openEditPlaceModal('${p.id}')">✏️</span>
+          <span class="delete-chip-btn" title="Excluir lugar" onclick="event.stopPropagation(); window.deletePlace('${p.id}', '${safeName}')">✕</span>
         </div>
       `;
     }).join('');
   }
+
+  window.openEditPlaceModal = function (placeId) {
+    const place = placesData.find((p) => p.id === placeId);
+    if (!place) return;
+
+    document.getElementById('placeModalTitle').textContent = 'Editar Lugar (Cerca Virtual)';
+    document.getElementById('btnSavePlace').textContent = 'Salvar Alterações';
+    document.getElementById('placeId').value = place.id;
+    document.getElementById('placeName').value = place.name;
+    document.getElementById('placeLat').value = place.latitude;
+    document.getElementById('placeLng').value = place.longitude;
+    document.getElementById('placeRadius').value = place.radiusMeters;
+    document.getElementById('radiusVal').textContent = `${Math.round(place.radiusMeters)}m`;
+    document.getElementById('placeIcon').value = place.icon || 'home';
+    document.getElementById('placeColor').value = place.color || '#10B981';
+
+    document.querySelectorAll('.icon-chip').forEach((chip) => {
+      chip.classList.toggle('active', chip.dataset.icon === (place.icon || 'home'));
+    });
+
+    placeModal.style.display = 'flex';
+  };
 
   window.zoomToPlace = function(lat, lng) {
     map.flyTo([lat, lng], 17, { animate: true, duration: 1.2 });
@@ -1517,19 +1545,26 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
-  document.getElementById('btnAddPlace').addEventListener('click', () => {
+  function openCreatePlaceModal() {
+    document.getElementById('placeModalTitle').textContent = 'Novo Lugar (Cerca Virtual)';
+    document.getElementById('btnSavePlace').textContent = 'Salvar Lugar';
+    document.getElementById('placeId').value = '';
+    document.getElementById('placeForm').reset();
     const center = map.getCenter();
     document.getElementById('placeLat').value = center.lat.toFixed(6);
     document.getElementById('placeLng').value = center.lng.toFixed(6);
+    document.getElementById('placeRadius').value = 100;
+    document.getElementById('radiusVal').textContent = '100m';
+    document.getElementById('placeIcon').value = 'home';
+    document.getElementById('placeColor').value = '#10B981';
+    document.querySelectorAll('.icon-chip').forEach((c) => {
+      c.classList.toggle('active', c.dataset.icon === 'home');
+    });
     placeModal.style.display = 'flex';
-  });
+  }
 
-  document.getElementById('btnAddPlaceFromSheet').addEventListener('click', () => {
-    const center = map.getCenter();
-    document.getElementById('placeLat').value = center.lat.toFixed(6);
-    document.getElementById('placeLng').value = center.lng.toFixed(6);
-    placeModal.style.display = 'flex';
-  });
+  document.getElementById('btnAddPlace').addEventListener('click', openCreatePlaceModal);
+  document.getElementById('btnAddPlaceFromSheet').addEventListener('click', openCreatePlaceModal);
 
   document.getElementById('btnClosePlaceModal').addEventListener('click', () => {
     placeModal.style.display = 'none';
@@ -1540,6 +1575,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   document.getElementById('placeForm').addEventListener('submit', async (e) => {
     e.preventDefault();
+    const placeId = document.getElementById('placeId').value;
     const name = document.getElementById('placeName').value;
     const latitude = parseFloat(document.getElementById('placeLat').value);
     const longitude = parseFloat(document.getElementById('placeLng').value);
@@ -1547,21 +1583,42 @@ document.addEventListener('DOMContentLoaded', () => {
     const icon = document.getElementById('placeIcon').value;
     const color = document.getElementById('placeColor').value;
 
+    const isEdit = !!placeId;
+    const url = isEdit ? `/api/places/${placeId}` : '/api/places';
+    const method = isEdit ? 'PUT' : 'POST';
+
     try {
-      const res = await apiFetch('/api/places', {
-        method: 'POST',
+      const res = await apiFetch(url, {
+        method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name, latitude, longitude, radiusMeters, icon, color }),
       });
+
       if (res.ok) {
         placeModal.style.display = 'none';
         document.getElementById('placeForm').reset();
-        showToast(`Lugar "${name}" cadastrado!`);
+        document.getElementById('placeId').value = '';
+        showToast(isEdit ? `Lugar "${name}" atualizado!` : `Lugar "${name}" cadastrado!`);
         await loadPlaces();
+
+        // Atualiza status dos membros caso o raio ou lugar tenha mudado
+        membersData.forEach((m) => {
+          if (m.location) {
+            m.currentPlace = findPlaceForCoords(m.location.latitude, m.location.longitude);
+          }
+        });
+        renderMembersList();
+        if (selectedMemberId) {
+          const sel = membersData.find((m) => m.id === selectedMemberId);
+          if (sel) renderMemberDetails(sel);
+        }
+      } else {
+        const data = await res.json();
+        showToast(data.error || 'Erro ao salvar lugar');
       }
     } catch (err) {
       console.error(err);
-      showToast('Erro ao cadastrar lugar');
+      showToast('Erro ao salvar lugar');
     }
   });
 

@@ -1223,12 +1223,32 @@ body, html {
   flex-shrink: 0;
 }
 
+.edit-chip-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-tertiary);
+  font-size: 11px;
+  margin-left: 5px;
+  cursor: pointer;
+  padding: 1px 4px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s;
+}
+
+.edit-chip-btn:hover {
+  background: #E0E7FF;
+  color: var(--primary);
+}
+
 .delete-chip-btn {
   background: transparent;
   border: none;
   color: var(--text-tertiary);
   font-size: 11px;
-  margin-left: 4px;
+  margin-left: 3px;
   cursor: pointer;
   padding: 1px 4px;
   border-radius: 4px;
