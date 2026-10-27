@@ -120,6 +120,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     setupFloatingControls();
     setupBottomsheetGestures();
+    setupCircleMenu();
+    setupChat();
+    setupAlerts();
     setupSosFlow();
     setupReplayPlayer();
     setupDriverReportAndHistory();
@@ -155,24 +158,36 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('btnZoomOut').addEventListener('click', () => map.zoomOut());
   }
 
-  // 4. Gestos e Interação do Bottom Sheet (Arrasto Touch / Mouse)
+  // 4. Gestos e Interação do Bottom Sheet (Arrasto Touch / Mouse + Minimizar)
   function setupBottomsheetGestures() {
     const sheet = document.getElementById('bottomSheet');
     const handle = document.getElementById('sheetDragHandle');
+    const toggleBtn = document.getElementById('btnSheetToggle');
+    let startX = 0;
     let startY = 0;
+    let currentX = 0;
     let currentY = 0;
     let isDragging = false;
 
-    const onStart = (clientY) => {
+    const isDesktop = () => window.matchMedia('(min-width: 768px)').matches;
+
+    const onStart = (clientX, clientY) => {
       isDragging = true;
+      startX = clientX;
       startY = clientY;
+      currentX = 0;
+      currentY = 0;
       sheet.classList.add('dragging');
     };
 
-    const onMove = (clientY) => {
+    const onMove = (clientX, clientY) => {
       if (!isDragging) return;
+      currentX = clientX - startX;
       currentY = clientY - startY;
-      if (currentY > 0) {
+      // No desktop (painel na esquerda) o arrasto horizontal recolhe o card
+      if (isDesktop() && currentX < 0) {
+        sheet.style.transform = `translateX(${currentX}px)`;
+      } else if (!isDesktop() && currentY > 0) {
         sheet.style.transform = `translateY(${currentY}px)`;
       }
     };
@@ -182,24 +197,245 @@ document.addEventListener('DOMContentLoaded', () => {
       isDragging = false;
       sheet.classList.remove('dragging');
       sheet.style.transform = '';
-      if (currentY > 120) {
-        // Se arrastou para baixo com força, recolhe ou fecha detalhes
-        if (selectedMemberId) {
-          document.getElementById('btnBackToList').click();
-        }
+
+      if (isDesktop() && currentX < -110) {
+        sheet.classList.add('collapsed-desktop');
+        toggleBtn.textContent = '▸';
+        toggleBtn.title = 'Exibir painel';
+      } else if (!isDesktop() && currentY > 110) {
+        sheet.classList.add('peek-mobile');
+        toggleBtn.textContent = '▴';
+        toggleBtn.title = 'Expandir painel';
       }
+      currentX = 0;
       currentY = 0;
     };
 
-    handle.addEventListener('touchstart', (e) => onStart(e.touches[0].clientY), { passive: true });
-    window.addEventListener('touchmove', (e) => onMove(e.touches[0].clientY), { passive: true });
+    handle.addEventListener('touchstart', (e) => onStart(e.touches[0].clientX, e.touches[0].clientY), { passive: true });
+    window.addEventListener('touchmove', (e) => onMove(e.touches[0].clientX, e.touches[0].clientY), { passive: true });
     window.addEventListener('touchend', onEnd);
 
-    handle.addEventListener('mousedown', (e) => onStart(e.clientY));
+    handle.addEventListener('mousedown', (e) => onStart(e.clientX, e.clientY));
     window.addEventListener('mousemove', (e) => {
-      if (isDragging) onMove(e.clientY);
+      if (isDragging) onMove(e.clientX, e.clientY);
     });
     window.addEventListener('mouseup', onEnd);
+
+    // Botão de minimizar/expandir explícito (sempre visível no puxador)
+    toggleBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (isDesktop()) {
+        const collapsed = sheet.classList.toggle('collapsed-desktop');
+        toggleBtn.textContent = collapsed ? '▸' : '▾';
+        toggleBtn.title = collapsed ? 'Exibir painel' : 'Ocultar painel';
+      } else {
+        const peeked = sheet.classList.toggle('peek-mobile');
+        toggleBtn.textContent = peeked ? '▴' : '▾';
+        toggleBtn.title = peeked ? 'Expandir painel' : 'Minimizar painel';
+      }
+    });
+
+    // Permite reabrir o painel clicando em qualquer parte da borda quando recolhido
+    sheet.addEventListener('click', (e) => {
+      if (isDesktop() && sheet.classList.contains('collapsed-desktop') && e.clientX < sheet.getBoundingClientRect().left + 46) {
+        sheet.classList.remove('collapsed-desktop');
+        toggleBtn.textContent = '▾';
+        toggleBtn.title = 'Ocultar painel';
+      }
+    });
+  }
+
+  // 4b. Menu do Círculo Familiar, Código de Convite e Check-in
+  function setupCircleMenu() {
+    const circleModal = document.getElementById('circleModal');
+    const btnCircleMenu = document.getElementById('btnCircleMenu');
+    const btnCloseCircleModal = document.getElementById('btnCloseCircleModal');
+    const inviteCodeEl = document.getElementById('circleInviteCode');
+
+    // Código de convite persistente e privado por círculo
+    let inviteCode = localStorage.getItem('life360_circle_invite_code');
+    if (!inviteCode) {
+      inviteCode = 'FAM-' + Math.random().toString(36).substring(2, 6).toUpperCase() + '-' + Math.random().toString(36).substring(2, 6).toUpperCase();
+      localStorage.setItem('life360_circle_invite_code', inviteCode);
+    }
+    inviteCodeEl.textContent = inviteCode;
+
+    btnCircleMenu.addEventListener('click', () => {
+      circleModal.style.display = 'flex';
+    });
+
+    btnCloseCircleModal.addEventListener('click', () => {
+      circleModal.style.display = 'none';
+    });
+
+    circleModal.addEventListener('click', (e) => {
+      if (e.target === circleModal) circleModal.style.display = 'none';
+    });
+
+    document.getElementById('btnCopyInviteCode').addEventListener('click', async () => {
+      try {
+        await navigator.clipboard.writeText(inviteCode);
+        showToast('Código de convite copiado!');
+      } catch {
+        showToast(`Código: ${inviteCode}`);
+      }
+    });
+
+    const doCheckin = () => {
+      const user = getCurrentUser();
+      const payload = {
+        userId: user.id,
+        userName: user.name,
+        placeName: user.placeName || 'Local Atual',
+      };
+
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: 'TRIGGER_CHECKIN', data: payload }));
+      } else {
+        fetch('/api/checkin', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        }).catch((err) => console.error('Erro ao enviar check-in:', err));
+      }
+
+      showToast('Check-in enviado! Sua família sabe que você está bem. ✅');
+      circleModal.style.display = 'none';
+    };
+
+    document.getElementById('btnTopCheckin').addEventListener('click', doCheckin);
+    document.getElementById('btnCircleCheckin').addEventListener('click', doCheckin);
+  }
+
+  // 4c. Chat do Círculo Familiar (tempo real via WebSocket)
+  const renderedChatIds = new Set();
+
+  function setupChat() {
+    document.getElementById('chatForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const input = document.getElementById('chatInput');
+      const text = input.value.trim();
+      if (!text) return;
+
+      const user = getCurrentUser();
+      input.value = '';
+
+      try {
+        await fetch('/api/messages', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userId: user.id,
+            userName: user.name,
+            userColor: '#3B82F6',
+            text,
+          }),
+        });
+      } catch (err) {
+        console.error('Erro ao enviar mensagem:', err);
+        showToast('Erro ao enviar mensagem.');
+      }
+    });
+  }
+
+  async function loadChat() {
+    try {
+      const res = await fetch('/api/messages?limit=80');
+      const messages = await res.json();
+      const container = document.getElementById('chatMessages');
+
+      if (!messages || messages.length === 0) {
+        container.innerHTML = '<div class="loading-state">Nenhuma mensagem ainda.</div>';
+        document.getElementById('chatCount').textContent = '0';
+        return;
+      }
+
+      container.innerHTML = '';
+      renderedChatIds.clear();
+      messages.forEach((m) => appendChatMessage(m, true));
+    } catch (err) {
+      console.error('Erro ao carregar chat:', err);
+    }
+  }
+
+  function appendChatMessage(message, isBulkLoad = false) {
+    const container = document.getElementById('chatMessages');
+    if (!container) return;
+
+    const placeholder = container.querySelector('.loading-state');
+    if (placeholder) placeholder.remove();
+
+    const key = message.id || `${message.userName}-${message.createdAt}-${message.text}`;
+    if (renderedChatIds.has(key)) return;
+    renderedChatIds.add(key);
+
+    const me = getCurrentUser();
+    const isMine = message.userId && message.userId === me.id;
+    const time = message.createdAt
+      ? new Date(message.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      : '';
+
+    const bubble = document.createElement('div');
+    bubble.className = `chat-bubble${isMine ? ' mine' : ''}`;
+    bubble.innerHTML = `
+      <span class="chat-bubble-author" style="color: ${message.userColor || '#3B82F6'};">${message.userName}</span>
+      <span class="chat-bubble-text"></span>
+      <span class="chat-bubble-time">${time}</span>
+    `;
+    // Texto inserido via textContent para evitar injeção de HTML
+    bubble.querySelector('.chat-bubble-text').textContent = message.text;
+
+    container.appendChild(bubble);
+    if (!isBulkLoad) container.scrollTop = container.scrollHeight;
+
+    const countEl = document.getElementById('chatCount');
+    if (countEl) countEl.textContent = renderedChatIds.size;
+  }
+
+  // 4d. Timeline de Alertas de Lugares (entradas e saídas de cercas)
+  function setupAlerts() {
+    document.getElementById('btnRefreshAlerts').addEventListener('click', loadAlerts);
+  }
+
+  async function loadAlerts() {
+    const container = document.getElementById('alertsTimeline');
+    try {
+      const res = await fetch('/api/places/events?limit=30');
+      const events = await res.json();
+
+      if (!events || events.length === 0) {
+        container.innerHTML = '<div class="loading-state">Nenhum alerta de lugar ainda.</div>';
+        return;
+      }
+
+      container.innerHTML = events.map((ev) => {
+        const isEnter = ev.eventType === 'ENTER';
+        const icon = PLACE_ICONS[ev.placeIcon] || '📍';
+        return `
+          <div class="alert-item">
+            <div class="alert-item-icon ${isEnter ? 'enter' : 'exit'}">${icon}</div>
+            <div class="alert-item-body">
+              <div class="alert-item-title">${isEnter ? 'Chegou em' : 'Saiu de'} ${ev.placeName}</div>
+              <div class="alert-item-sub">${ev.userName} • ${formatRelativeTime(ev.recordedAt)}</div>
+            </div>
+          </div>
+        `;
+      }).join('');
+    } catch (err) {
+      console.error('Erro ao carregar alertas:', err);
+      container.innerHTML = '<div class="loading-state">Erro ao carregar alertas.</div>';
+    }
+  }
+
+  // Retorna o membro atual (primeiro do círculo) para ações disparadas pelo próprio usuário
+  function getCurrentUser() {
+    const user = membersData[0] || {};
+    return {
+      id: user.id || 'usr_me',
+      name: user.name || 'Você',
+      avatarUrl: user.avatarUrl || '',
+      location: user.location || { latitude: -23.55052, longitude: -46.633308, battery: 95 },
+    };
   }
 
   // 5. Conexão WebSocket com Reconexão e Alerta de SOS
@@ -227,6 +463,10 @@ document.addEventListener('DOMContentLoaded', () => {
           showToast(msg.alert.message);
         } else if (msg.type === 'SOS_ALERT') {
           triggerSosEmergencyOverlay(msg.alert);
+        } else if (msg.type === 'CHECKIN_ALERT') {
+          showToast(msg.alert?.message || '📍 Um membro fez check-in.');
+        } else if (msg.type === 'CHAT_MESSAGE') {
+          appendChatMessage(msg.message);
         }
       } catch (err) {
         console.error('Erro ao processar mensagem WS:', err);
@@ -311,6 +551,7 @@ document.addEventListener('DOMContentLoaded', () => {
       placesData = await res.json();
       renderPlaces();
       renderPlacesChips();
+      loadAlerts();
     } catch (err) {
       console.error('Erro ao buscar lugares:', err);
     }
@@ -377,6 +618,7 @@ document.addEventListener('DOMContentLoaded', () => {
         <div class="place-chip" onclick="window.zoomToPlace(${p.latitude}, ${p.longitude})">
           <span class="place-chip-dot" style="background: ${color};"></span>
           <span>${icon} ${p.name}</span>
+          <span class="delete-chip-btn" title="Excluir lugar" onclick="event.stopPropagation(); window.deletePlace('${p.id}', '${p.name.replace(/'/g, "\\'")}')">✕</span>
         </div>
       `;
     }).join('');
@@ -384,6 +626,29 @@ document.addEventListener('DOMContentLoaded', () => {
 
   window.zoomToPlace = function(lat, lng) {
     map.flyTo([lat, lng], 17, { animate: true, duration: 1.2 });
+  };
+
+  window.deletePlace = async function (placeId, placeName) {
+    if (!confirm(`Excluir o lugar "${placeName}"? A cerca virtual será removida do mapa.`)) return;
+
+    try {
+      const res = await fetch(`/api/places/${placeId}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error('Falha ao excluir');
+
+      const existing = placeLayers.get(placeId);
+      if (existing) {
+        map.removeLayer(existing.circle);
+        map.removeLayer(existing.labelMarker);
+        placeLayers.delete(placeId);
+      }
+
+      placesData = placesData.filter((p) => p.id !== placeId);
+      renderPlacesChips();
+      showToast(`Lugar "${placeName}" excluído.`);
+    } catch (err) {
+      console.error(err);
+      showToast('Erro ao excluir lugar.');
+    }
   };
 
   // 11. Renderiza Marcador Oficial Estilo Life360 com Anel de Bateria SVG
@@ -888,9 +1153,9 @@ document.addEventListener('DOMContentLoaded', () => {
   async function executeSosDispatch() {
     document.getElementById('sosConfirmModal').style.display = 'none';
 
-    // Pega o primeiro membro ou simula dados do usuário atual
-    const user = membersData[0] || { id: 'usr_main', name: 'Wellington (Você)', color: '#3B82F6' };
-    const loc = user.location || { latitude: -23.55052, longitude: -46.633308, battery: 95 };
+    // Usuário atual (primeiro membro do círculo) com sua posição e bateria
+    const user = getCurrentUser();
+    const loc = user.location;
 
     const payload = {
       userId: user.id,
@@ -1038,4 +1303,5 @@ document.addEventListener('DOMContentLoaded', () => {
   connectWebSocket();
   loadMembers();
   loadPlaces();
+  loadChat();
 });

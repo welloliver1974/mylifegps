@@ -17,13 +17,14 @@
   <!-- Leaflet CSS -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
 
-  <link rel="stylesheet" href="/style.css?v=4">
+  <link rel="stylesheet" href="/style.css?v=6">
 </head>
 <body>
   <div id="app">
     <!-- Barra Superior Flutuante (Estilo App Mobile) -->
     <header class="top-bar">
-      <div class="brand">
+      <!-- Clicar no Círculo abre detalhes do grupo e código de convite -->
+      <div class="brand" id="btnCircleMenu" title="Gerenciar Círculo e Código de Convite" style="cursor: pointer;">
         <div class="brand-icon">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
             <circle cx="12" cy="12" r="9"/>
@@ -43,6 +44,11 @@
       </div>
 
       <div class="top-actions">
+        <!-- Botão Check-in Rápido (Recurso Life360) -->
+        <button class="icon-btn" id="btnTopCheckin" title="Fazer Check-in (Avisar Família)">
+          <span style="font-size: 16px;">📍</span>
+        </button>
+
         <!-- Botão SOS de Emergência -->
         <button class="sos-top-btn" id="btnTopSos" title="Botão de Pânico SOS">
           <span>🚨 SOS</span>
@@ -64,7 +70,7 @@
     <!-- Mapa em Tela Cheia -->
     <div id="map"></div>
 
-    <!-- Controles Flutuantes do Mapa Estilo Life360 -->
+    <!-- Controles Flutuantes do Mapa Estilo Life360 (Direita, 100% Livres de Obstrução) -->
     <div class="map-floating-controls">
       <!-- Botão de Camadas do Mapa -->
       <div class="layer-control-wrap">
@@ -110,7 +116,7 @@
       </div>
     </div>
 
-    <!-- Barra do Player de Replay de Histórico (Floating) -->
+    <!-- Barra do Player de Replay de Histórico (Floating Centralizada) -->
     <div class="replay-player-bar" id="replayPlayerBar" style="display: none;">
       <div class="replay-player-header">
         <div class="replay-badge">REPLAY 360°</div>
@@ -129,11 +135,12 @@
     <!-- Container de Notificações Toast -->
     <div id="toastContainer" class="toast-container"></div>
 
-    <!-- Bottom Sheet Gestual Oficial (Arrastar para cima / baixo) -->
+    <!-- Painel Lateral / Bottom Sheet Gestual Oficial (Lado Esquerdo no Desktop, Gaveta no Mobile) -->
     <aside class="bottom-sheet" id="bottomSheet">
-      <!-- Puxador de Arraste (Touch / Mouse) -->
+      <!-- Puxador de Arraste / Botão Minimizar -->
       <div class="sheet-drag-handle" id="sheetDragHandle">
         <span class="sheet-pill"></span>
+        <button class="sheet-toggle-btn" id="btnSheetToggle" title="Ocultar / Exibir Painel">▾</button>
       </div>
 
       <!-- Pré-visualização Recolhida (Collapsed Bar) -->
@@ -215,8 +222,13 @@
           <!-- Relatório de Segurança de Direção (Driver Report - Recurso Life360 Gold) -->
           <div class="driver-report-card" id="driverReportCard">
             <div class="driver-report-header">
-              <span class="driver-badge">🚗 RELATÓRIO DE DIREÇÃO</span>
+              <span class="driver-badge">🚗 RELATÓRIO DE DIREÇÃO PLATINUM</span>
               <span class="driver-grade" id="driverGrade">Excelente</span>
+            </div>
+            <!-- Detecção de Acidente Ativa (Life360 Platinum) -->
+            <div class="crash-detection-badge">
+              <span class="pulse-dot"></span>
+              <span>🛡️ Detecção de Acidente Ativa 24/7</span>
             </div>
             <div class="driver-stats-grid">
               <div class="driver-stat">
@@ -251,8 +263,60 @@
           </div>
           <div class="places-chips-scroll" id="placesChipsList"></div>
         </div>
+
+        <!-- Chat do Círculo Familiar (Life360) -->
+        <div class="sheet-chat-section">
+          <div class="sheet-section-header">
+            <h2>💬 Chat do Círculo</h2>
+            <span class="badge-count" id="chatCount">0</span>
+          </div>
+          <div class="chat-messages" id="chatMessages">
+            <div class="loading-state">Nenhuma mensagem ainda.</div>
+          </div>
+          <form class="chat-input-row" id="chatForm">
+            <input type="text" id="chatInput" class="chat-input" placeholder="Mensagem para a família..." maxlength="1000" autocomplete="off">
+            <button type="submit" class="chat-send-btn" title="Enviar">➤</button>
+          </form>
+        </div>
+
+        <!-- Timeline de Alertas de Lugares (Entradas/Saídas dos membros) -->
+        <div class="sheet-alerts-section">
+          <div class="sheet-section-header">
+            <h2>🔔 Alertas de Lugares</h2>
+            <button class="small-add-btn" id="btnRefreshAlerts" style="background: var(--bg-tertiary); color: var(--text-secondary);">↻</button>
+          </div>
+          <div class="alerts-timeline" id="alertsTimeline">
+            <div class="loading-state">Carregando alertas...</div>
+          </div>
+        </div>
       </div>
     </aside>
+
+    <!-- Modal do Círculo Familiar (Código de Convite & Membros) -->
+    <div class="modal-overlay" id="circleModal" style="display: none;">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3>Círculo Família</h3>
+          <button class="close-btn" id="btnCloseCircleModal">&times;</button>
+        </div>
+        <div class="circle-modal-body">
+          <div class="invite-code-card">
+            <span class="invite-label">Código de Convite Privado</span>
+            <div class="invite-row">
+              <strong class="invite-code" id="circleInviteCode">FAMILIA-360-VIP</strong>
+              <button class="btn small primary" id="btnCopyInviteCode">Copiar</button>
+            </div>
+            <p class="invite-desc">Compartilhe este código com membros da sua família para que eles apareçam no seu mapa.</p>
+          </div>
+
+          <div class="circle-actions-list">
+            <button class="btn secondary" id="btnCircleCheckin" style="width: 100%; margin-bottom: 8px;">
+              📍 Fazer Check-in Agora (Avisar a todos)
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
 
     <!-- Modal de Cadastro de Novo Lugar -->
     <div class="modal-overlay" id="placeModal" style="display: none;">
@@ -338,7 +402,7 @@
 
   <!-- Leaflet JS -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
-  <script src="/app.js?v=4"></script>
+  <script src="/app.js?v=6"></script>
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {

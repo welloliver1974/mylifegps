@@ -75,3 +75,15 @@ model PlaceEvent {
   @@index([deviceId, recordedAt])
   @@index([placeId, recordedAt])
 }
+
+// Chat do Círculo Familiar (recurso do Life360 liberado sem limites)
+model CircleMessage {
+  id        String   @id @default(uuid())
+  userId    String?
+  userName  String
+  userColor String   @default("#3B82F6")
+  text      String
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+}

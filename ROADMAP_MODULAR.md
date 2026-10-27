@@ -102,5 +102,11 @@
     - **Histórico Ilimitado com Calendário:** Seletor de qualquer data passada (`?from=&to=`) sem expiração de dados.
     - **Relatório de Direção (Driver Report - Life360 Gold):** Cálculo de velocidade máxima, distância total (Haversine), tempo em movimento, eventos de risco e pontuação de direção.
     - **Ação Rápida 'Como Chegar':** Deep link direto para navegação passo a passo no Google Maps.
-    - **Lugares Ilimitados:** Sem limite artificial de locais ou cercas cadastradas.
+    - **Lugares Ilimitados:** Sem limite artificial de locais ou cercas cadastradas (com exclusão no chip).
+    - **Chat do Círculo Familiar:** Mensagens em tempo real via WebSocket com histórico persistido em banco, sem limite de retenção.
+    - **Timeline de Alertas de Lugares:** Histórico visual de todas as entradas e saídas (ENTER/EXIT) dos membros nas cercas virtuais.
+    - **Check-in Rápido:** Aviso instantâneo "estou seguro" para todo o círculo, pelo topo da tela ou pelo menu do círculo.
+    - **Código de Convite do Círculo:** Código privado gerado e copiável para convidar novos membros da família.
+    - **Menu do Círculo Familiar:** Painel com código de convite, check-in e gestão do grupo.
+    - **Layout sem Sobreposição:** Painel lateral à esquerda no desktop (minimizável) e gaveta inferior no celular, liberando 100% dos botões flutuantes da direita.
 - **Critério de Conclusão:** Interface web/PWA e mobile visualmente idêntica à experiência do Life360 original com 100% dos recursos avançados e pagos disponíveis gratuitamente.
