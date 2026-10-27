@@ -16,10 +16,11 @@ async function testTile(label: string, url: string) {
     const res = await fetch(url, { method: 'GET' });
     const contentType = res.headers.get('content-type') || 'desconhecido';
     const bytes = (await res.arrayBuffer()).byteLength;
-    const ok = res.ok && contentType.includes('image');
+    // Tiles de mapa reais com ruas têm 15KB a 40KB; o tile de erro "API key required" tem ~2KB
+    const ok = res.ok && contentType.includes('image') && bytes > 5000;
 
     console.log(`${ok ? '✅' : '❌'} ${label}`);
-    console.log(`   Status: ${res.status} | Tipo: ${contentType} | Tamanho: ${bytes} bytes`);
+    console.log(`   Status: ${res.status} | Tipo: ${contentType} | Tamanho: ${bytes} bytes ${bytes <= 5000 ? '(⚠️ Imagem de erro "API KEY REQUIRED")' : '(Mapa real renderizado)'}`);
     return ok;
   } catch (err: any) {
     console.log(`❌ ${label} -> Erro de rede: ${err.message}`);
@@ -31,27 +32,29 @@ async function run() {
   console.log('=== TESTE DE AUTENTICAÇÃO DOS TILES CARTO ===\n');
   console.log(`Chave lida do .env: ${apiKey.slice(0, 8)}...${apiKey.slice(-4)} (${apiKey.length} caracteres)\n`);
 
-  const zoom = 14, x = 6000, y = 9000;
+  // Centro de SP (zoom 15)
+  const zoom = 15, x = 12139, y = 18590;
 
-  const withKey = await testTile(
-    'basemaps.cartocdn.com COM chave de API',
-    `https://a.basemaps.cartocdn.com/rastertiles/voyager/${zoom}/${x}/${y}.png?api_key=${apiKey}`
+  const darkAllKey = await testTile(
+    'CARTO dark_all COM ?key= (modo escuro nativo)',
+    `https://a.basemaps.cartocdn.com/rastertiles/dark_all/${zoom}/${x}/${y}.png?key=${apiKey}`
   );
 
-  const withoutKey = await testTile(
-    'basemaps.cartocdn.com SEM chave (CDN público)',
-    `https://a.basemaps.cartocdn.com/rastertiles/voyager/${zoom}/${x}/${y}.png`
+  const voyagerKey = await testTile(
+    'CARTO voyager COM ?key= (modo claro)',
+    `https://a.basemaps.cartocdn.com/rastertiles/voyager/${zoom}/${x}/${y}.png?key=${apiKey}`
+  );
+
+  const semChave = await testTile(
+    'CARTO SEM chave (deve falhar e retornar watermark)',
+    `https://a.basemaps.cartocdn.com/rastertiles/dark_all/${zoom}/${x}/${y}.png`
   );
 
   console.log('\n=== CONCLUSÃO ===');
-  if (withKey && withoutKey) {
-    console.log('A chave é aceita, mas o CDN público também funciona sem ela.');
-  } else if (withKey && !withoutKey) {
-    console.log('A chave é obrigatória e está funcionando corretamente.');
-  } else if (!withKey && withoutKey) {
-    console.log('A chave NÃO é aceita pelo CDN de basemaps — o mapa funciona sem chave.');
+  if (darkAllKey && voyagerKey && !semChave) {
+    console.log('🎉 SUCESSO TOTAL: Chave autenticada e mapas reais gerados!');
   } else {
-    console.log('Falha em ambos os casos. Verifique sua conexão com a internet.');
+    console.log('Verifique a saída acima.');
   }
 }
 

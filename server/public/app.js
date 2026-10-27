@@ -14,25 +14,41 @@ document.addEventListener('DOMContentLoaded', () => {
     // Padrão São Paulo ou centro do Brasil caso não haja dados
     map = L.map('map', {
       zoomControl: false,
-      attributionControl: false,
+      attributionControl: true,
     }).setView([-23.55052, -46.633308], 14);
 
-    let tileUrl = 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png';
+    let tileUrl = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
+    let attribution = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>';
+    let subdomains = 'abc';
+
     try {
       const cfgRes = await fetch('/api/config');
       const cfg = await cfgRes.json();
       if (cfg?.cartoApiKey) {
-        tileUrl = `https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png?api_key=${cfg.cartoApiKey}`;
+        // CARTO dark_all nativo para tema escuro, autenticado com ?key=
+        tileUrl = `https://{s}.basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}{r}.png?key=${cfg.cartoApiKey}`;
+        attribution = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>';
+        subdomains = 'abcd';
       }
     } catch (err) {
-      console.warn('Usando tiles padrão da Carto:', err);
+      console.warn('Erro ao obter config do servidor, usando OpenStreetMap:', err);
     }
 
-    // Tiles do CartoDB Voyager com suporte a chave de API
-    L.tileLayer(tileUrl, {
+    const baseLayer = L.tileLayer(tileUrl, {
       maxZoom: 19,
-      subdomains: 'abcd',
+      subdomains,
+      attribution,
     }).addTo(map);
+
+    // Fallback defensivo: se tiles do CARTO falharem em carregar, cai automaticamente no OSM
+    let fallbackTriggered = false;
+    baseLayer.on('tileerror', () => {
+      if (!fallbackTriggered && tileUrl.includes('cartocdn.com')) {
+        fallbackTriggered = true;
+        console.warn('Falha nos tiles CARTO, alternando para OpenStreetMap...');
+        baseLayer.setUrl('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png');
+      }
+    });
 
     // Clique no mapa abre modal para criar lugar na coordenada clicada
     map.on('click', (e) => {

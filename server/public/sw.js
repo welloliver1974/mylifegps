@@ -1,5 +1,11 @@
-const CACHE_NAME = 'life360-v1';
-const ASSETS = ['/', '/index.html', '/style.css', '/app.js', '/manifest.json'];
+const CACHE_NAME = 'life360-v2';
+const ASSETS = [
+  '/',
+  '/index.html',
+  '/style.css?v=2',
+  '/app.js?v=2',
+  '/manifest.json'
+];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(

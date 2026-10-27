@@ -41,9 +41,9 @@ body, html {
   background-color: #0b1120;
 }
 
-/* Customização dos tiles do Leaflet no modo escuro */
+/* Estilo base dos tiles do Leaflet */
 .leaflet-tile {
-  filter: brightness(0.7) invert(1) contrast(3) hue-rotate(200deg) saturate(0.3) brightness(0.7);
+  transition: opacity 0.2s ease-in;
 }
 
 /* Barra Superior Flutuante */
