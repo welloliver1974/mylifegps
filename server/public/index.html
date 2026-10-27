@@ -5,23 +5,23 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>My Life360</title>
   <link rel="manifest" href="/manifest.json">
-  <meta name="theme-color" content="#0F172A">
+  <meta name="theme-color" content="#FFFFFF">
   <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
 
-  <!-- Google Fonts: Inter -->
+  <!-- Google Fonts: Plus Jakarta Sans -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 
   <!-- Leaflet CSS -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
 
-  <link rel="stylesheet" href="/style.css?v=3">
+  <link rel="stylesheet" href="/style.css?v=4">
 </head>
 <body>
   <div id="app">
-    <!-- Barra Superior Flutuante -->
+    <!-- Barra Superior Flutuante (Estilo App Mobile) -->
     <header class="top-bar">
       <div class="brand">
         <div class="brand-icon">
@@ -31,7 +31,10 @@
           </svg>
         </div>
         <div class="brand-text">
-          <h1>My Life360</h1>
+          <div class="circle-name-wrap">
+            <h1>Círculo Família</h1>
+            <span class="chevron-circle">▾</span>
+          </div>
           <span class="live-status" id="wsStatus">
             <span class="status-dot"></span>
             <span class="status-label">Conectando...</span>
@@ -40,6 +43,11 @@
       </div>
 
       <div class="top-actions">
+        <!-- Botão SOS de Emergência -->
+        <button class="sos-top-btn" id="btnTopSos" title="Botão de Pânico SOS">
+          <span>🚨 SOS</span>
+        </button>
+
         <button class="icon-btn" id="btnFitAll" title="Enquadrar todos">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M3 9V5a2 2 0 0 1 2-2h4M15 3h4a2 2 0 0 1 2 2v4M21 15v4a2 2 0 0 1-2 2h-4M9 21H5a2 2 0 0 1-2-2v-4"/>
@@ -102,48 +110,146 @@
       </div>
     </div>
 
+    <!-- Barra do Player de Replay de Histórico (Floating) -->
+    <div class="replay-player-bar" id="replayPlayerBar" style="display: none;">
+      <div class="replay-player-header">
+        <div class="replay-badge">REPLAY 360°</div>
+        <div class="replay-stats">
+          <span id="replayTime">--:--</span> • <span id="replaySpeed">0 km/h</span>
+        </div>
+        <button class="replay-close-btn" id="btnReplayClose" title="Fechar Replay">✕</button>
+      </div>
+      <div class="replay-scrubber-row">
+        <button class="replay-play-btn" id="btnReplayPlay">▶️</button>
+        <input type="range" id="replaySlider" min="0" max="100" value="0" class="replay-slider" />
+        <button class="replay-speed-btn" id="btnReplayRate">1x</button>
+      </div>
+    </div>
+
     <!-- Container de Notificações Toast -->
     <div id="toastContainer" class="toast-container"></div>
 
-    <!-- Gaveta / Lista de Membros da Família -->
-    <aside class="members-drawer" id="membersDrawer">
-      <div class="drawer-handle" id="drawerHandle">
-        <span class="handle-bar"></span>
+    <!-- Bottom Sheet Gestual Oficial (Arrastar para cima / baixo) -->
+    <aside class="bottom-sheet" id="bottomSheet">
+      <!-- Puxador de Arraste (Touch / Mouse) -->
+      <div class="sheet-drag-handle" id="sheetDragHandle">
+        <span class="sheet-pill"></span>
       </div>
 
-      <div class="drawer-header">
-        <h2>Círculo Familiar</h2>
-        <span class="badge" id="memberCount">0 membros</span>
+      <!-- Pré-visualização Recolhida (Collapsed Bar) -->
+      <div class="sheet-collapsed-bar" id="sheetCollapsedBar">
+        <div class="collapsed-avatars" id="collapsedAvatars"></div>
+        <div class="collapsed-summary">
+          <span class="collapsed-title" id="collapsedTitle">Carregando família...</span>
+          <span class="collapsed-subtext" id="collapsedSubtext">Deslize para ver detalhes</span>
+        </div>
+        <button class="sheet-sos-pill" id="btnSheetSos">🚨 SOS</button>
       </div>
 
-      <div class="members-list" id="membersList">
-        <div class="loading-state">Carregando membros...</div>
-      </div>
+      <!-- Conteúdo Interno com Rolagem -->
+      <div class="sheet-scrollable-content" id="sheetContent">
+        <!-- Banner VIP: Recursos Pagos do Life360 Desbloqueados -->
+        <div class="premium-unlocked-banner">
+          <div class="crown-icon">👑</div>
+          <div class="banner-text">
+            <strong>Recursos Life360 Platinum Liberados</strong>
+            <span>Histórico Ilimitado • Relatório de Direção • SOS • Lugares Ilimitados</span>
+          </div>
+        </div>
 
-      <!-- Detalhes do Membro Selecionado -->
-      <div class="member-detail-panel" id="memberDetailPanel" style="display: none;">
-        <button class="back-btn" id="btnBackToList">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M19 12H5M12 19l-7-7 7-7"/>
-          </svg>
-          Voltar para a lista
-        </button>
+        <!-- Seletor de Círculo e Lugares Rápidos -->
+        <div class="sheet-section-header">
+          <h2>Membros da Família</h2>
+          <span class="badge-count" id="memberCount">0</span>
+        </div>
 
-        <div class="detail-header" id="detailHeader"></div>
+        <!-- Lista Principal de Membros -->
+        <div class="members-list" id="membersList">
+          <div class="loading-state">Carregando membros...</div>
+        </div>
 
-        <div class="detail-stats" id="detailStats"></div>
-
-        <div class="detail-actions">
-          <button class="action-btn primary" id="btnShowHistory">
+        <!-- Painel de Detalhes do Membro Selecionado -->
+        <div class="member-detail-panel" id="memberDetailPanel" style="display: none;">
+          <button class="back-btn" id="btnBackToList">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <circle cx="12" cy="12" r="10"/>
-              <polyline points="12 6 12 12 16 14"/>
+              <path d="M19 12H5M12 19l-7-7 7-7"/>
             </svg>
-            Histórico de Hoje
+            Voltar para a lista
           </button>
-          <button class="action-btn secondary" id="btnClearHistory" style="display: none;">
-            Limpar Rastro
+
+          <div class="detail-header" id="detailHeader"></div>
+          <div class="detail-stats" id="detailStats"></div>
+
+          <!-- Ações Rápidas do Membro -->
+          <div class="detail-quick-actions">
+            <!-- Botão Como Chegar (Google Maps / Waze) -->
+            <button class="action-card-btn gps" id="btnNavigateToMember">
+              <span class="action-icon">🧭</span>
+              <div class="action-text">
+                <strong>Como Chegar</strong>
+                <span>Abrir no Google Maps</span>
+              </div>
+            </button>
+
+            <!-- Botão Histórico Ilimitado com Calendário -->
+            <button class="action-card-btn history" id="btnShowHistory">
+              <span class="action-icon">🕒</span>
+              <div class="action-text">
+                <strong>Histórico de Hoje</strong>
+                <span>Ver rota e reproduzir replay</span>
+              </div>
+            </button>
+          </div>
+
+          <!-- Seletor de Data de Histórico Ilimitado (Recurso Pago do Life360) -->
+          <div class="history-date-picker-card">
+            <div class="picker-label">
+              <span>📅 Histórico Ilimitado (Escolha a Data)</span>
+            </div>
+            <div class="picker-inputs">
+              <input type="date" id="historyDateInput" class="date-input" />
+              <button class="btn primary small" id="btnLoadCustomDateHistory">Carregar</button>
+            </div>
+          </div>
+
+          <!-- Relatório de Segurança de Direção (Driver Report - Recurso Life360 Gold) -->
+          <div class="driver-report-card" id="driverReportCard">
+            <div class="driver-report-header">
+              <span class="driver-badge">🚗 RELATÓRIO DE DIREÇÃO</span>
+              <span class="driver-grade" id="driverGrade">Excelente</span>
+            </div>
+            <div class="driver-stats-grid">
+              <div class="driver-stat">
+                <span class="d-label">Velocidade Máxima</span>
+                <span class="d-val" id="dMaxSpeed">-- km/h</span>
+              </div>
+              <div class="driver-stat">
+                <span class="d-label">Distância Percorrida</span>
+                <span class="d-val" id="dDistance">-- km</span>
+              </div>
+              <div class="driver-stat">
+                <span class="d-label">Tempo em Movimento</span>
+                <span class="d-val" id="dTime">-- min</span>
+              </div>
+              <div class="driver-stat">
+                <span class="d-label">Eventos Rápidos</span>
+                <span class="d-val" id="dEvents">0</span>
+              </div>
+            </div>
+          </div>
+
+          <button class="action-btn secondary" id="btnClearHistory" style="display: none; margin-top: 10px;">
+            Limpar Rastro do Mapa
           </button>
+        </div>
+
+        <!-- Seção de Lugares Cadastrados -->
+        <div class="sheet-places-section">
+          <div class="sheet-section-header">
+            <h2>Lugares Cadastrados</h2>
+            <button class="small-add-btn" id="btnAddPlaceFromSheet">+ Adicionar</button>
+          </div>
+          <div class="places-chips-scroll" id="placesChipsList"></div>
         </div>
       </div>
     </aside>
@@ -194,11 +300,45 @@
         </form>
       </div>
     </div>
+
+    <!-- Modal de Confirmação de Disparo de SOS -->
+    <div class="modal-overlay" id="sosConfirmModal" style="display: none;">
+      <div class="modal-content sos-confirm-content">
+        <div class="sos-icon-pulse">🚨</div>
+        <h3>Disparar Alerta SOS?</h3>
+        <p>Um alerta de pânico sonoro e visual em tela cheia com sua localização exata será enviado a todos os membros da família.</p>
+        <div class="sos-countdown" id="sosCountdown">5</div>
+        <div class="modal-actions">
+          <button type="button" class="btn secondary" id="btnCancelSos">Cancelar</button>
+          <button type="button" class="btn danger" id="btnConfirmSosNow">Disparar Agora</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Alerta em Tela Cheia de SOS Recebido (Emergência) -->
+    <div class="sos-emergency-fullscreen" id="sosEmergencyOverlay" style="display: none;">
+      <div class="emergency-alert-box">
+        <div class="emergency-siren-animation">🚨</div>
+        <h2 class="emergency-title">ALERTA DE EMERGÊNCIA / SOS</h2>
+        <p class="emergency-subtitle" id="sosSenderText">Membro acionou o botão de pânico!</p>
+
+        <div class="emergency-stats" id="sosEmergencyStats"></div>
+
+        <div class="emergency-actions">
+          <button class="btn danger large" id="btnSosNavigate">
+            🧭 Navegar Imediatamente (Google Maps)
+          </button>
+          <button class="btn secondary" id="btnSosDismiss">
+            Silenciar Alerta
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 
   <!-- Leaflet JS -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
-  <script src="/app.js?v=3"></script>
+  <script src="/app.js?v=4"></script>
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {

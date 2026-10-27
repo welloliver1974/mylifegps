@@ -5,7 +5,7 @@ import fastifyStatic from '@fastify/static';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { initDb } from './db.js';
-import { registerWsClient } from './services/websocket.js';
+import { registerWsClient, broadcastSosAlert } from './services/websocket.js';
 import { telemetryRoutes } from './routes/telemetry.js';
 import { membersRoutes } from './routes/members.js';
 import { placesRoutes } from './routes/places.js';
@@ -32,7 +32,7 @@ async function bootstrap() {
 
     await fastify.register(websocket);
 
-    // 3. Endpoint WebSocket para streaming do mapa em tempo real
+    // 3. Endpoint WebSocket para streaming do mapa em tempo real e SOS
     fastify.register(async (app) => {
       app.get('/ws', { websocket: true }, (socket) => {
         registerWsClient(socket);
@@ -42,10 +42,21 @@ async function bootstrap() {
             message: 'Conectado ao servidor de telemetria em tempo real.',
           })
         );
+
+        socket.on('message', (raw) => {
+          try {
+            const msg = JSON.parse(raw.toString());
+            if (msg.type === 'TRIGGER_SOS') {
+              broadcastSosAlert(msg.data);
+            }
+          } catch (err) {
+            fastify.log.error(err);
+          }
+        });
       });
     });
 
-    // 4. Rota de Health Check e Configuração Pública
+    // 4. Rota de Health Check, Configuração e Alerta SOS via REST
     fastify.get('/health', async () => {
       return { status: 'online', timestamp: new Date().toISOString() };
     });
@@ -54,6 +65,12 @@ async function bootstrap() {
       return {
         cartoApiKey: process.env.CARTO_API_KEY || '',
       };
+    });
+
+    fastify.post('/api/emergency/sos', async (request, reply) => {
+      const body = request.body as any;
+      broadcastSosAlert(body || {});
+      return reply.send({ success: true, message: 'Alerta de SOS transmitido com sucesso.' });
     });
 
     // 5. Registra Rotas de Telemetria, Membros e Lugares

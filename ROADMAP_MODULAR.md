@@ -89,11 +89,18 @@
 ---
 
 ## BLOCO 7: Aprimoramento Visual & Experiência Life360 (UI/UX do Mapa e App)
-- [/] **Status:** EM ANDAMENTO (Etapas 7.1 e 7.2 Concluídas)
-- **Objetivo:** Transformar a interface visual para replicar fielmente a estética premium do Life360 oficial.
+- [x] **Status:** CONCLUÍDO
+- **Objetivo:** Transformar a interface visual para replicar fielmente a estética premium do Life360 oficial e liberar todas as funcionalidades pagas (Platinum/Gold).
 - **Entregáveis:**
-  - [x] **Estilo de Mapa Estilo Life360:** Mapa Voyager limpo (pastel, verde/azul suave, ruas bem definidas) + seletor flutuante para Satélite Esri e Noturno CARTO.
+  - [x] **Estilo de Mapa Estilo Life360:** Mapa Voyager limpo (pastel, verde/azul suave, ruas bem definidas) + seletor flutuante para Satélite Esri e Noturno CARTO com persistência local.
   - [x] **Avatares Idênticos ao Life360:** Marcador com anel SVG circular de bateria dinâmico (verde/laranja/vermelho), badge de recarga ⚡, tag de velocidade (🚗 km/h) e deslizamento contínuo suave.
   - [x] **Lugares e Cercas Estilizadas:** Ícones ilustrados (Casa 🏠, Trabalho 💼, Escola 🎓, etc.) com pílula flutuante e seletor visual no cadastro.
-  - [ ] **Gaveta Inferior Interativa (Bottom Sheet - Etapa 7.3):** Deslizar suavemente com gestos de toque (arrasto vertical), cartões aprimorados e visual translúcido nativo.
-- **Critério de Conclusão:** Interface web/PWA e mobile visualmente indistinguível da experiência do Life360 original.
+  - [x] **Gaveta Inferior Interativa (Bottom Sheet - Etapa 7.3):** Deslizar suavemente com gestos de toque (arrasto vertical), barra recolhida sincronizada com mini avatares do círculo, visual translúcido nativo.
+  - [x] **Recursos Premium Desbloqueados (Gratuitos e Ilimitados):**
+    - **Botão de Pânico / SOS de Emergência:** Alerta em tela cheia instantâneo via WebSocket e REST com contagem regressiva de 5s, som de emergência e botão direto para traçar rota no Google Maps.
+    - **Replay 360° com Scrubber:** Player de reprodução do trajeto com controle de velocidade (1x, 2x, 4x), barra de progresso e animação do marcador ao longo do trajeto.
+    - **Histórico Ilimitado com Calendário:** Seletor de qualquer data passada (`?from=&to=`) sem expiração de dados.
+    - **Relatório de Direção (Driver Report - Life360 Gold):** Cálculo de velocidade máxima, distância total (Haversine), tempo em movimento, eventos de risco e pontuação de direção.
+    - **Ação Rápida 'Como Chegar':** Deep link direto para navegação passo a passo no Google Maps.
+    - **Lugares Ilimitados:** Sem limite artificial de locais ou cercas cadastradas.
+- **Critério de Conclusão:** Interface web/PWA e mobile visualmente idêntica à experiência do Life360 original com 100% dos recursos avançados e pagos disponíveis gratuitamente.

@@ -1,4 +1,4 @@
-// My Life360 Web / PWA App Core (Estilo Life360 Oficial)
+// My Life360 Web / PWA App Core (Estilo Life360 Oficial + Todos os Recursos Premium Desbloqueados)
 document.addEventListener('DOMContentLoaded', () => {
   let map;
   let currentTileLayer = null;
@@ -8,10 +8,20 @@ document.addEventListener('DOMContentLoaded', () => {
   let memberMarkers = new Map(); // userId -> { marker, accuracyCircle }
   let placeLayers = new Map();   // placeId -> { circle, labelMarker }
   let historyPolyline = null;
+  let replayMarker = null;
+  let replayTimer = null;
+  let replayIndex = 0;
+  let replayPoints = [];
+  let replayPlaying = false;
+  let replaySpeedMultiplier = 1;
+
   let membersData = [];
   let placesData = [];
   let selectedMemberId = null;
   let ws = null;
+
+  let sosCountdownInterval = null;
+  let currentSosCountdown = 5;
 
   // Dicionário de emojis e cores para tipos de lugares
   const PLACE_ICONS = {
@@ -43,7 +53,7 @@ document.addEventListener('DOMContentLoaded', () => {
         maxZoom: 19,
       };
     }
-    // Padrão: Voyager (Life360 Clean - pastel, parques verdes, água azul e ruas suaves)
+    // Padrão: Voyager (Life360 Clean)
     return {
       url: cartoKey
         ? `https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png?key=${cartoKey}`
@@ -69,7 +79,6 @@ document.addEventListener('DOMContentLoaded', () => {
       attribution: cfg.attribution,
     }).addTo(map);
 
-    // Fallback defensivo caso o CDN do CARTO oscile
     let fallbackTriggered = false;
     currentTileLayer.on('tileerror', () => {
       if (!fallbackTriggered && cfg.url.includes('cartocdn.com')) {
@@ -79,7 +88,6 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     });
 
-    // Atualiza visual dos cards de seleção no popover
     document.querySelectorAll('.layer-card').forEach((card) => {
       card.classList.toggle('active', card.dataset.layer === type);
     });
@@ -92,7 +100,6 @@ document.addEventListener('DOMContentLoaded', () => {
       attributionControl: true,
     }).setView([-23.55052, -46.633308], 14);
 
-    // Busca chave CARTO da API pública de configuração
     try {
       const cfgRes = await fetch('/api/config');
       const cfg = await cfgRes.json();
@@ -103,10 +110,8 @@ document.addEventListener('DOMContentLoaded', () => {
       console.warn('Não foi possível obter config do servidor:', err);
     }
 
-    // Aplica a camada inicial (Voyager padrão ou preferência salva)
     switchBaseLayer(currentLayerType);
 
-    // Clique no mapa abre modal para criar lugar na coordenada clicada
     map.on('click', (e) => {
       document.getElementById('placeLat').value = e.latlng.lat.toFixed(6);
       document.getElementById('placeLng').value = e.latlng.lng.toFixed(6);
@@ -114,9 +119,13 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     setupFloatingControls();
+    setupBottomsheetGestures();
+    setupSosFlow();
+    setupReplayPlayer();
+    setupDriverReportAndHistory();
   }
 
-  // 3. Controles Flutuantes do Mapa (Estilo Life360)
+  // 3. Controles Flutuantes do Mapa
   function setupFloatingControls() {
     const popover = document.getElementById('layerPopover');
     const btnLayers = document.getElementById('btnToggleLayers');
@@ -141,13 +150,59 @@ document.addEventListener('DOMContentLoaded', () => {
       });
     });
 
-    // Botões de Zoom e Centralizar
     document.getElementById('btnRecenterFab').addEventListener('click', fitAllMembers);
     document.getElementById('btnZoomIn').addEventListener('click', () => map.zoomIn());
     document.getElementById('btnZoomOut').addEventListener('click', () => map.zoomOut());
   }
 
-  // 4. Conexão WebSocket com reconexão automática
+  // 4. Gestos e Interação do Bottom Sheet (Arrasto Touch / Mouse)
+  function setupBottomsheetGestures() {
+    const sheet = document.getElementById('bottomSheet');
+    const handle = document.getElementById('sheetDragHandle');
+    let startY = 0;
+    let currentY = 0;
+    let isDragging = false;
+
+    const onStart = (clientY) => {
+      isDragging = true;
+      startY = clientY;
+      sheet.classList.add('dragging');
+    };
+
+    const onMove = (clientY) => {
+      if (!isDragging) return;
+      currentY = clientY - startY;
+      if (currentY > 0) {
+        sheet.style.transform = `translateY(${currentY}px)`;
+      }
+    };
+
+    const onEnd = () => {
+      if (!isDragging) return;
+      isDragging = false;
+      sheet.classList.remove('dragging');
+      sheet.style.transform = '';
+      if (currentY > 120) {
+        // Se arrastou para baixo com força, recolhe ou fecha detalhes
+        if (selectedMemberId) {
+          document.getElementById('btnBackToList').click();
+        }
+      }
+      currentY = 0;
+    };
+
+    handle.addEventListener('touchstart', (e) => onStart(e.touches[0].clientY), { passive: true });
+    window.addEventListener('touchmove', (e) => onMove(e.touches[0].clientY), { passive: true });
+    window.addEventListener('touchend', onEnd);
+
+    handle.addEventListener('mousedown', (e) => onStart(e.clientY));
+    window.addEventListener('mousemove', (e) => {
+      if (isDragging) onMove(e.clientY);
+    });
+    window.addEventListener('mouseup', onEnd);
+  }
+
+  // 5. Conexão WebSocket com Reconexão e Alerta de SOS
   function connectWebSocket() {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const wsUrl = `${protocol}//${window.location.host}/ws`;
@@ -170,6 +225,8 @@ document.addEventListener('DOMContentLoaded', () => {
           handleLiveLocation(msg.data);
         } else if (msg.type === 'GEOFENCE_ALERT') {
           showToast(msg.alert.message);
+        } else if (msg.type === 'SOS_ALERT') {
+          triggerSosEmergencyOverlay(msg.alert);
         }
       } catch (err) {
         console.error('Erro ao processar mensagem WS:', err);
@@ -187,7 +244,7 @@ document.addEventListener('DOMContentLoaded', () => {
     };
   }
 
-  // 5. Atualização de Posição em Tempo Real (via WS)
+  // 6. Atualização de Posição em Tempo Real (via WS)
   function handleLiveLocation(locData) {
     const member = membersData.find((m) => m.id === locData.userId);
     if (member) {
@@ -226,18 +283,20 @@ document.addEventListener('DOMContentLoaded', () => {
 
     renderMemberMarker(locData.userId);
     renderMembersList();
+    updateCollapsedBar();
 
     if (selectedMemberId === locData.userId) {
       renderMemberDetails(member || membersData[membersData.length - 1]);
     }
   }
 
-  // 6. Carrega Membros Iniciais da API
+  // 7. Carrega Membros Iniciais da API
   async function loadMembers() {
     try {
       const res = await fetch('/api/members/live');
       membersData = await res.json();
       renderMembersList();
+      updateCollapsedBar();
       membersData.forEach((m) => renderMemberMarker(m.id));
       fitAllMembers();
     } catch (err) {
@@ -245,21 +304,21 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  // 7. Carrega Lugares/Cercas
+  // 8. Carrega Lugares/Cercas
   async function loadPlaces() {
     try {
       const res = await fetch('/api/places');
       placesData = await res.json();
       renderPlaces();
+      renderPlacesChips();
     } catch (err) {
       console.error('Erro ao buscar lugares:', err);
     }
   }
 
-  // 8. Renderiza Cercas no Mapa (Círculo Pastel + Pílula Central com Emoji)
+  // 9. Renderiza Cercas no Mapa
   function renderPlaces() {
     placesData.forEach((place) => {
-      // Remove camada anterior caso exista
       if (placeLayers.has(place.id)) {
         const prev = placeLayers.get(place.id);
         map.removeLayer(prev.circle);
@@ -269,7 +328,6 @@ document.addEventListener('DOMContentLoaded', () => {
       const color = place.color || '#10B981';
       const iconEmoji = PLACE_ICONS[place.icon] || '📍';
 
-      // Círculo translúcido com borda tracejada suave
       const circle = L.circle([place.latitude, place.longitude], {
         color: color,
         fillColor: color,
@@ -279,7 +337,6 @@ document.addEventListener('DOMContentLoaded', () => {
         radius: place.radiusMeters,
       }).addTo(map);
 
-      // Pílula flutuante no centro da cerca com emoji e nome
       const labelHtml = `
         <div class="place-floating-pill" style="border-color: ${color};">
           <span class="place-pill-icon">${iconEmoji}</span>
@@ -303,7 +360,33 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // 9. Renderiza Marcador Oficial Estilo Life360 com Anel de Bateria SVG
+  // 10. Chips de Lugares no Bottom Sheet
+  function renderPlacesChips() {
+    const container = document.getElementById('placesChipsList');
+    if (!container) return;
+
+    if (placesData.length === 0) {
+      container.innerHTML = '<span style="font-size: 12px; color: var(--text-tertiary);">Nenhum lugar cadastrado.</span>';
+      return;
+    }
+
+    container.innerHTML = placesData.map(p => {
+      const icon = PLACE_ICONS[p.icon] || '📍';
+      const color = p.color || '#10B981';
+      return `
+        <div class="place-chip" onclick="window.zoomToPlace(${p.latitude}, ${p.longitude})">
+          <span class="place-chip-dot" style="background: ${color};"></span>
+          <span>${icon} ${p.name}</span>
+        </div>
+      `;
+    }).join('');
+  }
+
+  window.zoomToPlace = function(lat, lng) {
+    map.flyTo([lat, lng], 17, { animate: true, duration: 1.2 });
+  };
+
+  // 11. Renderiza Marcador Oficial Estilo Life360 com Anel de Bateria SVG
   function renderMemberMarker(userId) {
     const member = membersData.find((m) => m.id === userId);
     if (!member || !member.location) return;
@@ -313,20 +396,16 @@ document.addEventListener('DOMContentLoaded', () => {
     const initials = member.name.substring(0, 2).toUpperCase();
     const isSelected = selectedMemberId === userId;
 
-    // Cálculo da bateria e anel SVG
     const rawBatt = member.location.battery;
     const batt = rawBatt !== undefined && rawBatt !== null ? Math.round(rawBatt) : 100;
     const isCharging = !!member.location.isCharging;
 
-    // Cores da bateria: Verde (>50%), Laranja (20-50%), Vermelho (<20%)
     const battColor = batt < 20 ? '#EF4444' : batt < 50 ? '#F59E0B' : '#10B981';
     const battClass = batt < 20 ? 'low' : batt < 50 ? 'medium' : 'high';
 
-    // Perímetro do círculo de raio 24: 2 * PI * 24 = 150.8
     const circumference = 150.8;
     const progressOffset = circumference * (1 - Math.max(0, Math.min(100, batt)) / 100);
 
-    // Velocidade e Status de Movimento
     const speed = member.location.speed ? Math.round(member.location.speed) : 0;
     const isMoving = speed > 5;
 
@@ -339,12 +418,10 @@ document.addEventListener('DOMContentLoaded', () => {
            <span class="tag-text">${member.name}</span>
          </div>`;
 
-    // Template HTML idêntico ao Life360 oficial
     const markerHtml = `
       <div class="life360-avatar-marker ${isSelected ? 'selected' : ''}">
         <div class="marker-radar-ring"></div>
         <div class="marker-avatar-container">
-          <!-- Anel SVG de Bateria -->
           <svg class="battery-svg" viewBox="0 0 58 58">
             <circle class="battery-track" cx="29" cy="29" r="24"></circle>
             <circle class="battery-fill ${isCharging ? 'charging' : ''}"
@@ -353,18 +430,13 @@ document.addEventListener('DOMContentLoaded', () => {
                     stroke-dasharray="150.8"
                     stroke-dashoffset="${progressOffset}"></circle>
           </svg>
-
-          <!-- Foto ou Iniciais -->
           <div class="avatar-photo" style="background-color: ${member.color || '#3B82F6'};">
             ${member.avatarUrl ? `<img src="${member.avatarUrl}" alt="${member.name}" />` : initials}
           </div>
-
-          <!-- Badge de Carga / Bateria -->
           <div class="avatar-battery-pill ${battClass}">
             ${isCharging ? '⚡' : batt + '%'}
           </div>
         </div>
-
         ${statusTagHtml}
       </div>
     `;
@@ -386,7 +458,6 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     } else {
       const marker = L.marker([lat, lng], { icon: customIcon }).addTo(map);
-
       const accuracyCircle = L.circle([lat, lng], {
         radius: member.location.accuracy || 20,
         color: member.color || '#3B82F6',
@@ -400,7 +471,26 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  // 10. Renderiza Lista de Membros na Gaveta
+  // 12. Atualiza Barra Recolhida do Bottom Sheet
+  function updateCollapsedBar() {
+    const avatarsEl = document.getElementById('collapsedAvatars');
+    const titleEl = document.getElementById('collapsedTitle');
+    const subtextEl = document.getElementById('collapsedSubtext');
+
+    if (!avatarsEl) return;
+
+    avatarsEl.innerHTML = membersData.slice(0, 3).map((m) => {
+      const initials = m.name.substring(0, 2).toUpperCase();
+      return `<div class="mini-avatar" style="background-color: ${m.color || '#3B82F6'}">${initials}</div>`;
+    }).join('');
+
+    titleEl.textContent = membersData.length > 0 ? `Círculo (${membersData.length} membros)` : 'Círculo Família';
+
+    const movingCount = membersData.filter(m => m.location?.speed && m.location.speed > 5).length;
+    subtextEl.textContent = movingCount > 0 ? `${movingCount} membro(s) em trânsito` : 'Todos seguros e locais atualizados';
+  }
+
+  // 13. Renderiza Lista de Membros
   function renderMembersList() {
     const listEl = document.getElementById('membersList');
     document.getElementById('memberCount').textContent = `${membersData.length} membro${membersData.length === 1 ? '' : 's'}`;
@@ -441,7 +531,7 @@ document.addEventListener('DOMContentLoaded', () => {
       .join('');
   }
 
-  // 11. Seleciona Membro e Abre Painel de Detalhes
+  // 14. Seleciona Membro e Abre Painel de Detalhes
   window.selectMember = function (userId) {
     selectedMemberId = userId;
     const member = membersData.find((m) => m.id === userId);
@@ -459,6 +549,7 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('membersList').style.display = 'none';
     document.getElementById('memberDetailPanel').style.display = 'flex';
     renderMemberDetails(member);
+    loadDriverReportForMember(userId);
   };
 
   function renderMemberDetails(member) {
@@ -501,22 +592,61 @@ document.addEventListener('DOMContentLoaded', () => {
     `;
   }
 
-  // 12. Traçar Histórico de Hoje
-  document.getElementById('btnShowHistory').addEventListener('click', async () => {
-    if (!selectedMemberId) return;
+  // 15. Relatório de Direção e Histórico (Platinum / Gold Features)
+  function setupDriverReportAndHistory() {
+    // Definir data padrão no input de data (hoje)
+    const todayStr = new Date().toISOString().split('T')[0];
+    const dateInput = document.getElementById('historyDateInput');
+    if (dateInput) dateInput.value = todayStr;
 
-    try {
-      const res = await fetch(`/api/members/${selectedMemberId}/history?limit=300`);
-      const history = await res.json();
-
-      if (historyPolyline) {
-        map.removeLayer(historyPolyline);
-      }
-
-      if (!history || history.length === 0) {
-        showToast('Nenhum histórico encontrado para este membro.');
+    // Botão Como Chegar (Google Maps Nav)
+    document.getElementById('btnNavigateToMember').addEventListener('click', () => {
+      const member = membersData.find(m => m.id === selectedMemberId);
+      if (!member || !member.location) {
+        showToast('Localização do membro indisponível.');
         return;
       }
+      const url = `https://www.google.com/maps/dir/?api=1&destination=${member.location.latitude},${member.location.longitude}`;
+      window.open(url, '_blank');
+    });
+
+    // Botão Carregar Histórico e Iniciar Replay
+    document.getElementById('btnShowHistory').addEventListener('click', () => loadAndPlayHistoryForMember(selectedMemberId));
+
+    document.getElementById('btnLoadCustomDateHistory').addEventListener('click', () => {
+      const customDate = document.getElementById('historyDateInput').value;
+      if (!customDate) {
+        showToast('Selecione uma data válida.');
+        return;
+      }
+      loadAndPlayHistoryForMember(selectedMemberId, customDate);
+    });
+
+    document.getElementById('btnClearHistory').addEventListener('click', clearHistoryOverlay);
+  }
+
+  async function loadAndPlayHistoryForMember(userId, dateStr = null) {
+    if (!userId) return;
+
+    try {
+      let url = `/api/members/${userId}/history?limit=500`;
+      if (dateStr) {
+        const from = `${dateStr}T00:00:00.000Z`;
+        const to = `${dateStr}T23:59:59.999Z`;
+        url = `/api/members/${userId}/history?from=${from}&to=${to}&limit=1000`;
+      }
+
+      const res = await fetch(url);
+      const history = await res.json();
+
+      if (!history || history.length === 0) {
+        showToast('Nenhum registro de histórico encontrado para este período.');
+        return;
+      }
+
+      replayPoints = history;
+
+      if (historyPolyline) map.removeLayer(historyPolyline);
 
       const latlngs = history.map((pt) => [pt.latitude, pt.longitude]);
       historyPolyline = L.polyline(latlngs, {
@@ -527,41 +657,293 @@ document.addEventListener('DOMContentLoaded', () => {
       }).addTo(map);
 
       map.fitBounds(historyPolyline.getBounds(), { padding: [50, 50] });
-
       document.getElementById('btnClearHistory').style.display = 'block';
-      showToast(`Rastro com ${history.length} pontos carregado.`);
+
+      // Abre barra do Player de Replay
+      document.getElementById('replayPlayerBar').style.display = 'block';
+      document.getElementById('replaySlider').max = history.length - 1;
+      document.getElementById('replaySlider').value = 0;
+      replayIndex = 0;
+
+      updateReplayUI();
+      showToast(`Histórico carregado (${history.length} pontos). Replay pronto!`);
     } catch (err) {
       console.error(err);
       showToast('Erro ao carregar histórico.');
     }
-  });
+  }
 
-  document.getElementById('btnClearHistory').addEventListener('click', () => {
+  function loadDriverReportForMember(userId) {
+    fetch(`/api/members/${userId}/history?limit=200`)
+      .then(res => res.json())
+      .then(history => {
+        if (!history || history.length === 0) return;
+
+        let maxSpeed = 0;
+        let totalDistKm = 0;
+        let movingPointsCount = 0;
+        let fastEvents = 0;
+
+        for (let i = 0; i < history.length; i++) {
+          const pt = history[i];
+          const spd = pt.speed ? pt.speed * 3.6 : 0; // m/s para km/h
+          if (spd > maxSpeed) maxSpeed = spd;
+          if (spd > 5) movingPointsCount++;
+          if (spd > 90) fastEvents++;
+
+          if (i > 0) {
+            const prev = history[i - 1];
+            totalDistKm += calcHaversineDist(prev.latitude, prev.longitude, pt.latitude, pt.longitude);
+          }
+        }
+
+        const totalMin = Math.round(movingPointsCount * 1.5); // estimativa de tempo
+
+        document.getElementById('dMaxSpeed').textContent = `${Math.round(maxSpeed)} km/h`;
+        document.getElementById('dDistance').textContent = `${totalDistKm.toFixed(1)} km`;
+        document.getElementById('dTime').textContent = `${totalMin} min`;
+        document.getElementById('dEvents').textContent = fastEvents;
+
+        const gradeEl = document.getElementById('driverGrade');
+        if (maxSpeed > 100 || fastEvents > 2) {
+          gradeEl.textContent = 'Atenção';
+          gradeEl.className = 'driver-grade danger';
+        } else if (maxSpeed > 80) {
+          gradeEl.textContent = 'Bom';
+          gradeEl.className = 'driver-grade warning';
+        } else {
+          gradeEl.textContent = 'Excelente';
+          gradeEl.className = 'driver-grade';
+        }
+      })
+      .catch(err => console.error('Erro ao calcular driver report:', err));
+  }
+
+  function calcHaversineDist(lat1, lon1, lat2, lon2) {
+    const R = 6371; // Raio da Terra em km
+    const dLat = (lat2 - lat1) * (Math.PI / 180);
+    const dLon = (lon2 - lon1) * (Math.PI / 180);
+    const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) *
+      Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c;
+  }
+
+  function clearHistoryOverlay() {
     if (historyPolyline) {
       map.removeLayer(historyPolyline);
       historyPolyline = null;
     }
+    if (replayMarker) {
+      map.removeLayer(replayMarker);
+      replayMarker = null;
+    }
+    stopReplay();
+    document.getElementById('replayPlayerBar').style.display = 'none';
     document.getElementById('btnClearHistory').style.display = 'none';
-  });
+  }
 
-  // Voltar da tela de detalhes para a lista
-  document.getElementById('btnBackToList').addEventListener('click', () => {
-    selectedMemberId = null;
-    document.getElementById('membersList').style.display = 'flex';
-    document.getElementById('memberDetailPanel').style.display = 'none';
-    membersData.forEach((m) => renderMemberMarker(m.id));
-  });
+  // Setup Replay Player controls
+  function setupReplayPlayer() {
+    const playBtn = document.getElementById('btnReplayPlay');
+    const slider = document.getElementById('replaySlider');
+    const rateBtn = document.getElementById('btnReplayRate');
+    const closeBtn = document.getElementById('btnReplayClose');
 
-  // Enquadrar todos os membros na tela
-  function fitAllMembers() {
-    const validLocs = membersData.filter((m) => m.location).map((m) => [m.location.latitude, m.location.longitude]);
-    if (validLocs.length > 0) {
-      map.fitBounds(validLocs, { padding: [60, 60], maxZoom: 15 });
+    playBtn.addEventListener('click', () => {
+      if (replayPlaying) {
+        pauseReplay();
+      } else {
+        startReplay();
+      }
+    });
+
+    slider.addEventListener('input', (e) => {
+      replayIndex = parseInt(e.target.value, 10);
+      updateReplayPosition();
+    });
+
+    rateBtn.addEventListener('click', () => {
+      if (replaySpeedMultiplier === 1) {
+        replaySpeedMultiplier = 2;
+      } else if (replaySpeedMultiplier === 2) {
+        replaySpeedMultiplier = 4;
+      } else {
+        replaySpeedMultiplier = 1;
+      }
+      rateBtn.textContent = `${replaySpeedMultiplier}x`;
+    });
+
+    closeBtn.addEventListener('click', clearHistoryOverlay);
+  }
+
+  function startReplay() {
+    if (!replayPoints || replayPoints.length === 0) return;
+    replayPlaying = true;
+    document.getElementById('btnReplayPlay').textContent = '⏸️';
+
+    const intervalTime = Math.max(100, 600 / replaySpeedMultiplier);
+
+    replayTimer = setInterval(() => {
+      if (replayIndex >= replayPoints.length - 1) {
+        pauseReplay();
+        replayIndex = 0;
+        return;
+      }
+      replayIndex++;
+      document.getElementById('replaySlider').value = replayIndex;
+      updateReplayPosition();
+    }, intervalTime);
+  }
+
+  function pauseReplay() {
+    replayPlaying = false;
+    document.getElementById('btnReplayPlay').textContent = '▶️';
+    if (replayTimer) {
+      clearInterval(replayTimer);
+      replayTimer = null;
     }
   }
-  document.getElementById('btnFitAll').addEventListener('click', fitAllMembers);
 
-  // 13. Modal Novo Lugar & Seletor de Ícones
+  function stopReplay() {
+    pauseReplay();
+    replayIndex = 0;
+  }
+
+  function updateReplayPosition() {
+    if (!replayPoints || replayPoints.length === 0) return;
+    const pt = replayPoints[replayIndex];
+    if (!pt) return;
+
+    const latlng = [pt.latitude, pt.longitude];
+    const speed = pt.speed ? Math.round(pt.speed * 3.6) : 0;
+    const timeStr = new Date(pt.recordedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+
+    document.getElementById('replayTime').textContent = timeStr;
+    document.getElementById('replaySpeed').textContent = `${speed} km/h`;
+
+    if (!replayMarker) {
+      replayMarker = L.marker(latlng, {
+        icon: L.divIcon({
+          html: `<div style="background:#6366F1; color:white; width:32px; height:32px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:14px; box-shadow:0 4px 12px rgba(99,102,241,0.5);">🚗</div>`,
+          className: 'replay-car-icon',
+          iconSize: [32, 32],
+          iconAnchor: [16, 16],
+        })
+      }).addTo(map);
+    } else {
+      replayMarker.setLatLng(latlng);
+    }
+    map.panTo(latlng);
+  }
+
+  function updateReplayUI() {
+    if (!replayPoints || replayPoints.length === 0) return;
+    updateReplayPosition();
+  }
+
+  // 16. Fluxo de SOS e Pânico de Emergência
+  function setupSosFlow() {
+    const btnTopSos = document.getElementById('btnTopSos');
+    const btnSheetSos = document.getElementById('btnSheetSos');
+    const sosConfirmModal = document.getElementById('sosConfirmModal');
+    const btnCancelSos = document.getElementById('btnCancelSos');
+    const btnConfirmSosNow = document.getElementById('btnConfirmSosNow');
+
+    const openConfirmModal = () => {
+      currentSosCountdown = 5;
+      document.getElementById('sosCountdown').textContent = currentSosCountdown;
+      sosConfirmModal.style.display = 'flex';
+
+      sosCountdownInterval = setInterval(() => {
+        currentSosCountdown--;
+        document.getElementById('sosCountdown').textContent = currentSosCountdown;
+        if (currentSosCountdown <= 0) {
+          clearInterval(sosCountdownInterval);
+          executeSosDispatch();
+        }
+      }, 1000);
+    };
+
+    btnTopSos.addEventListener('click', openConfirmModal);
+    btnSheetSos.addEventListener('click', openConfirmModal);
+
+    btnCancelSos.addEventListener('click', () => {
+      if (sosCountdownInterval) clearInterval(sosCountdownInterval);
+      sosConfirmModal.style.display = 'none';
+    });
+
+    btnConfirmSosNow.addEventListener('click', () => {
+      if (sosCountdownInterval) clearInterval(sosCountdownInterval);
+      executeSosDispatch();
+    });
+
+    document.getElementById('btnSosDismiss').addEventListener('click', () => {
+      document.getElementById('sosEmergencyOverlay').style.display = 'none';
+    });
+  }
+
+  async function executeSosDispatch() {
+    document.getElementById('sosConfirmModal').style.display = 'none';
+
+    // Pega o primeiro membro ou simula dados do usuário atual
+    const user = membersData[0] || { id: 'usr_main', name: 'Wellington (Você)', color: '#3B82F6' };
+    const loc = user.location || { latitude: -23.55052, longitude: -46.633308, battery: 95 };
+
+    const payload = {
+      userId: user.id,
+      userName: user.name,
+      userAvatar: user.avatarUrl || '',
+      latitude: loc.latitude,
+      longitude: loc.longitude,
+      battery: loc.battery || 90,
+      message: `🚨 ALERTA DE EMERGÊNCIA: ${user.name} acionou o SOS de pânico!`,
+    };
+
+    // Envia via WebSocket se aberto, ou via REST API
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ type: 'TRIGGER_SOS', data: payload }));
+    } else {
+      try {
+        await fetch('/api/emergency/sos', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+      } catch (err) {
+        console.error('Erro ao enviar SOS via REST:', err);
+      }
+    }
+
+    triggerSosEmergencyOverlay(payload);
+  }
+
+  function triggerSosEmergencyOverlay(alert) {
+    const overlay = document.getElementById('sosEmergencyOverlay');
+    document.getElementById('sosSenderText').textContent = `${alert.userName || 'Membro'} acionou o botão de pânico SOS!`;
+
+    document.getElementById('sosEmergencyStats').innerHTML = `
+      <div class="emergency-stat-item">
+        <div class="e-label">Bateria</div>
+        <div class="e-val">${alert.battery !== undefined ? alert.battery + '%' : '--'}</div>
+      </div>
+      <div class="emergency-stat-item">
+        <div class="e-label">Horário</div>
+        <div class="e-val">${new Date(alert.triggeredAt || Date.now()).toLocaleTimeString()}</div>
+      </div>
+    `;
+
+    document.getElementById('btnSosNavigate').onclick = () => {
+      const url = `https://www.google.com/maps/dir/?api=1&destination=${alert.latitude},${alert.longitude}`;
+      window.open(url, '_blank');
+    };
+
+    overlay.style.display = 'flex';
+  }
+
+  // 17. Modal Novo Lugar & Seletor de Ícones
   const placeModal = document.getElementById('placeModal');
   const radiusInput = document.getElementById('placeRadius');
   const radiusVal = document.getElementById('radiusVal');
@@ -570,7 +952,6 @@ document.addEventListener('DOMContentLoaded', () => {
     radiusVal.textContent = `${radiusInput.value}m`;
   });
 
-  // Seleção visual dos chips de tipo de lugar
   document.querySelectorAll('.icon-chip').forEach((chip) => {
     chip.addEventListener('click', () => {
       document.querySelectorAll('.icon-chip').forEach((c) => c.classList.remove('active'));
@@ -581,6 +962,13 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   document.getElementById('btnAddPlace').addEventListener('click', () => {
+    const center = map.getCenter();
+    document.getElementById('placeLat').value = center.lat.toFixed(6);
+    document.getElementById('placeLng').value = center.lng.toFixed(6);
+    placeModal.style.display = 'flex';
+  });
+
+  document.getElementById('btnAddPlaceFromSheet').addEventListener('click', () => {
     const center = map.getCenter();
     document.getElementById('placeLat').value = center.lat.toFixed(6);
     document.getElementById('placeLng').value = center.lng.toFixed(6);
