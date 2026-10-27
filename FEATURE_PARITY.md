@@ -6,7 +6,7 @@
 
 **Legenda:** ✅ implementado e funcionando · ⚠️ parcial / simplificado · ❌ ausente · 🚫 depende de terceiro (impossível auto-hospedar)
 
-*Última auditoria: 2026-10-27 — perfil de membro e upload de foto real implementados (Bloco 8, etapa 7)*
+*Última auditoria: 2026-10-27 — mensagens diretas 1:1 implementadas (Bloco 8, etapa 8)*
 
 ---
 
@@ -54,9 +54,9 @@
 | Código de convite | ⚠️ | Código gerado e copiável, mas **não há fluxo real de entrada de membro** com validação |
 | **Adicionar/remover membros de verdade** | ❌ | Sem tela de entrada e sem vínculo de usuário |
 | **Editar perfil / foto do membro** | ✅ | Modal com edição de nome, telefone, cor do marcador e upload de foto real (@fastify/multipart) com remoção e preview dinâmico (Etapa 8.7) |
-| **Mensagem direta 1:1** | ❌ | Só chat coletivo |
+| **Mensagem direta 1:1** | ✅ | Tabela `DirectMessage`, rotas `/api/messages/direct/:otherUserId` e `/unread`, abas de canais no chat, avisos em tempo real via WebSocket, notificações push Web e botão de acesso rápido no perfil (Etapa 8.8) |
 | **Reações / curtir mensagens** | ❌ | |
-| **Menções e notificações de chat** | ❌ | |
+| **Menções e notificações de chat** | ⚠️ | Notificações push automáticas para DMs no celular com app fechado via Web Push; menções (@nome) ainda ausentes |
 
 ## Segurança e Emergência
 
@@ -103,9 +103,9 @@
 
 ## Resumo executivo
 
-- **Pronto (pode usar hoje):** mapa ao vivo, cercas, alertas, histórico ilimitado, replay, relatório de direção com viagens, push notifications em segundo plano, SOS com histórico persistido e resolução, perfil de membro com upload de foto real, chat, check-in, lugares ilimitados, estilos de mapa.
-- **Lacunas visíveis ao usuário:** mensagem direta (1:1).
-- **Resolvido nas últimas etapas:** autenticação com login obrigatório em toda a API e no WebSocket, geocoding reverso com endereço e lugares, edição completa de lugares, relatório de direção segmentado por viagens individuais (Life360 Gold), notificações push Web (VAPID) com navegador fechado, histórico persistido de emergências SOS com resolução e edição de perfil de membro com upload de foto real (Etapa 8.7).
+- **Pronto (pode usar hoje):** mapa ao vivo, cercas, alertas, histórico ilimitado, replay, relatório de direção com viagens, push notifications em segundo plano, SOS com histórico persistido e resolução, perfil de membro com upload de foto real, chat coletivo do círculo e mensagens diretas 1:1 privadas com notificações, check-in, lugares ilimitados, estilos de mapa.
+- **Lacunas visíveis ao usuário:** fluxo formal de entrada/saída de membros por código de convite validado.
+- **Resolvido nas últimas etapas:** autenticação com login obrigatório em toda a API e no WebSocket, geocoding reverso com endereço e lugares, edição completa de lugares, relatório de direção segmentado por viagens individuais (Life360 Gold), notificações push Web (VAPID) com navegador fechado, histórico persistido de emergências SOS com resolução, edição de perfil de membro com upload de foto real e mensagens diretas 1:1 privadas com canais segregados e notificações (Etapa 8.8).
 - **Lacunas de plataforma restantes:** telemetria ainda aberta, sem backup automático, sem log de acessos, sem recuperação de senha.
 - **Impossível sem parceiro comercial:** despacho de emergência, monitoramento 24h, proteção de identidade.
 - **Depende de hardware (app mobile):** detecção de acidente, frenagem brusca.

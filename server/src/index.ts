@@ -87,7 +87,7 @@ async function bootstrap() {
           return;
         }
 
-        registerWsClient(socket);
+        registerWsClient(socket, user.id);
         socket.send(
           JSON.stringify({
             type: 'CONNECTED',

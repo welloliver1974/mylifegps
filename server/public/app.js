@@ -469,8 +469,75 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('btnCircleCheckin').addEventListener('click', doCheckin);
   }
 
-  // 4c. Chat do Círculo Familiar (tempo real via WebSocket)
+  // 4c. Chat do Círculo Familiar & Mensagens Diretas 1:1 (Etapa 8.8)
   const renderedChatIds = new Set();
+  let activeChatChannel = 'circle'; // 'circle' ou userId de outro membro
+  let unreadDmsBySender = {};
+
+  async function loadUnreadDms() {
+    try {
+      const res = await apiFetch('/api/messages/unread');
+      if (res.ok) {
+        const data = await res.json();
+        unreadDmsBySender = data.unreadBySender || {};
+        renderChatTabs();
+      }
+    } catch (err) {
+      console.warn('Erro ao carregar mensagens não lidas:', err);
+    }
+  }
+
+  function renderChatTabs() {
+    const container = document.getElementById('chatTabChips');
+    if (!container) return;
+
+    const me = getCurrentUser();
+    let html = `
+      <button type="button" class="chat-tab-chip ${activeChatChannel === 'circle' ? 'active' : ''}" data-channel="circle" onclick="window.switchChatChannel('circle')">
+        👥 Círculo (Todos)
+      </button>
+    `;
+
+    // Filtra membros da família exceto o próprio usuário logado
+    const others = (membersData || []).filter((m) => m.id !== me.id);
+    for (const member of others) {
+      const isSelected = activeChatChannel === member.id;
+      const unread = unreadDmsBySender[member.id] || 0;
+      const initials = (member.name || '--').substring(0, 2).toUpperCase();
+      const avatarHtml = member.avatarUrl
+        ? `<div class="tab-avatar-mini"><img src="${member.avatarUrl}" alt="${member.name}" /></div>`
+        : `<div class="tab-avatar-mini" style="background-color: ${member.color || '#3B82F6'};">${initials}</div>`;
+
+      html += `
+        <button type="button" class="chat-tab-chip ${isSelected ? 'active' : ''}" data-channel="${member.id}" onclick="window.switchChatChannel('${member.id}')">
+          ${avatarHtml}
+          <span>${member.name}</span>
+          ${unread > 0 ? `<span class="tab-unread-badge">${unread}</span>` : ''}
+        </button>
+      `;
+    }
+
+    container.innerHTML = html;
+  }
+
+  window.switchChatChannel = (channelId) => {
+    activeChatChannel = channelId;
+    renderChatTabs();
+
+    const input = document.getElementById('chatInput');
+    if (channelId === 'circle') {
+      input.placeholder = 'Mensagem para a família...';
+    } else {
+      const target = (membersData || []).find((m) => m.id === channelId);
+      input.placeholder = `Mensagem privada para ${target?.name || 'membro'}...`;
+      if (unreadDmsBySender[channelId]) {
+        delete unreadDmsBySender[channelId];
+        renderChatTabs();
+      }
+    }
+
+    loadChat();
+  };
 
   function setupChat() {
     document.getElementById('chatForm').addEventListener('submit', async (e) => {
@@ -483,31 +550,56 @@ document.addEventListener('DOMContentLoaded', () => {
       input.value = '';
 
       try {
-        await apiFetch('/api/messages', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            userId: user.id,
-            userName: user.name,
-            userColor: '#3B82F6',
-            text,
-          }),
-        });
+        if (activeChatChannel === 'circle') {
+          await apiFetch('/api/messages', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              userId: user.id,
+              userName: user.name,
+              userColor: user.color || '#3B82F6',
+              text,
+            }),
+          });
+        } else {
+          const res = await apiFetch(`/api/messages/direct/${activeChatChannel}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text }),
+          });
+          if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            throw new Error(err.error || 'Falha ao enviar DM');
+          }
+        }
       } catch (err) {
         console.error('Erro ao enviar mensagem:', err);
-        showToast('Erro ao enviar mensagem.');
+        showToast(`Erro ao enviar mensagem: ${err.message}`);
       }
     });
+
+    renderChatTabs();
+    loadUnreadDms();
   }
 
   async function loadChat() {
     try {
-      const res = await apiFetch('/api/messages?limit=80');
-      const messages = await res.json();
       const container = document.getElementById('chatMessages');
+      if (!container) return;
+
+      let url = '/api/messages?limit=80';
+      if (activeChatChannel !== 'circle') {
+        url = `/api/messages/direct/${activeChatChannel}?limit=100`;
+      }
+
+      const res = await apiFetch(url);
+      const messages = await res.json();
 
       if (!messages || messages.length === 0) {
-        container.innerHTML = '<div class="loading-state">Nenhuma mensagem ainda.</div>';
+        const emptyMsg = activeChatChannel === 'circle'
+          ? 'Nenhuma mensagem no círculo ainda.'
+          : 'Nenhuma mensagem direta ainda. Inicie a conversa!';
+        container.innerHTML = `<div class="loading-state">${emptyMsg}</div>`;
         document.getElementById('chatCount').textContent = '0';
         return;
       }
@@ -515,6 +607,7 @@ document.addEventListener('DOMContentLoaded', () => {
       container.innerHTML = '';
       renderedChatIds.clear();
       messages.forEach((m) => appendChatMessage(m, true));
+      container.scrollTop = container.scrollHeight;
     } catch (err) {
       console.error('Erro ao carregar chat:', err);
     }
@@ -527,24 +620,40 @@ document.addEventListener('DOMContentLoaded', () => {
     const placeholder = container.querySelector('.loading-state');
     if (placeholder) placeholder.remove();
 
-    const key = message.id || `${message.userName}-${message.createdAt}-${message.text}`;
+    const isDm = Boolean(message.receiverId);
+    const key = message.id || `${message.userName || message.senderName}-${message.createdAt}-${message.text}`;
     if (renderedChatIds.has(key)) return;
     renderedChatIds.add(key);
 
     const me = getCurrentUser();
-    const isMine = message.userId && message.userId === me.id;
+    const isMine = isDm
+      ? message.senderId === me.id
+      : Boolean(message.userId && message.userId === me.id);
+
+    const authorName = isDm
+      ? (isMine ? 'Você' : (message.senderName || 'Membro'))
+      : (message.userName || 'Membro da Família');
+
+    const authorColor = isDm
+      ? (message.senderColor || '#3B82F6')
+      : (message.userColor || '#3B82F6');
+
     const time = message.createdAt
       ? new Date(message.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
       : '';
 
+    const readIndicator = isDm && isMine
+      ? `<span class="chat-read-status" title="${message.read ? 'Lida' : 'Entregue'}">${message.read ? '✓✓' : '✓'}</span>`
+      : '';
+
     const bubble = document.createElement('div');
-    bubble.className = `chat-bubble${isMine ? ' mine' : ''}`;
+    bubble.className = `chat-bubble${isMine ? ' mine' : ''}${isDm ? ' dm-bubble' : ''}`;
+    bubble.setAttribute('data-msg-id', message.id || '');
     bubble.innerHTML = `
-      <span class="chat-bubble-author" style="color: ${message.userColor || '#3B82F6'};">${message.userName}</span>
+      <span class="chat-bubble-author" style="color: ${authorColor};">${authorName}${isDm ? ' (Privado)' : ''}</span>
       <span class="chat-bubble-text"></span>
-      <span class="chat-bubble-time">${time}</span>
+      <span class="chat-bubble-time">${time}${readIndicator}</span>
     `;
-    // Texto inserido via textContent para evitar injeção de HTML
     bubble.querySelector('.chat-bubble-text').textContent = message.text;
 
     container.appendChild(bubble);
@@ -635,7 +744,36 @@ document.addEventListener('DOMContentLoaded', () => {
         } else if (msg.type === 'CHECKIN_ALERT') {
           showToast(msg.alert?.message || '📍 Um membro fez check-in.');
         } else if (msg.type === 'CHAT_MESSAGE') {
-          appendChatMessage(msg.message);
+          if (activeChatChannel === 'circle') {
+            appendChatMessage(msg.message);
+          } else {
+            showToast(`💬 Nova mensagem no Círculo de ${msg.message.userName}`);
+          }
+        } else if (msg.type === 'DIRECT_MESSAGE') {
+          const dm = msg.message;
+          const me = getCurrentUser();
+          const otherId = dm.senderId === me.id ? dm.receiverId : dm.senderId;
+
+          if (activeChatChannel === otherId) {
+            appendChatMessage(dm);
+            if (dm.senderId !== me.id) {
+              // Marca como lida no servidor em segundo plano
+              apiFetch(`/api/messages/direct/${otherId}?limit=1`).catch(() => {});
+            }
+          } else {
+            unreadDmsBySender[dm.senderId] = (unreadDmsBySender[dm.senderId] || 0) + 1;
+            renderChatTabs();
+            showToast(`💬 Mensagem privada de ${dm.senderName}`);
+          }
+        } else if (msg.type === 'DM_READ') {
+          const data = msg.data;
+          const me = getCurrentUser();
+          if (activeChatChannel === data.senderId && data.receiverId === me.id) {
+            document.querySelectorAll('.chat-read-status').forEach((el) => {
+              el.textContent = '✓✓';
+              el.title = 'Lida';
+            });
+          }
         }
       } catch (err) {
         console.error('Erro ao processar mensagem WS:', err);
@@ -748,6 +886,7 @@ document.addEventListener('DOMContentLoaded', () => {
       updateCollapsedBar();
       membersData.forEach((m) => renderMemberMarker(m.id));
       fitAllMembers();
+      renderChatTabs();
     } catch (err) {
       console.error('Erro ao buscar membros:', err);
     }
@@ -1206,6 +1345,21 @@ document.addEventListener('DOMContentLoaded', () => {
       const url = `https://www.google.com/maps/dir/?api=1&destination=${member.location.latitude},${member.location.longitude}`;
       window.open(url, '_blank');
     });
+
+    // Botão Mensagem Direta 1:1 com o membro selecionado
+    const btnDm = document.getElementById('btnDirectMessageMember');
+    if (btnDm) {
+      btnDm.addEventListener('click', () => {
+        if (!selectedMemberId) return;
+        window.switchChatChannel(selectedMemberId);
+        const chatSec = document.querySelector('.sheet-chat-section');
+        if (chatSec) {
+          chatSec.scrollIntoView({ behavior: 'smooth' });
+          const input = document.getElementById('chatInput');
+          if (input) input.focus();
+        }
+      });
+    }
 
     // Botão Carregar Histórico e Iniciar Replay
     document.getElementById('btnShowHistory').addEventListener('click', () => loadAndPlayHistoryForMember(selectedMemberId));
@@ -2270,6 +2424,7 @@ document.addEventListener('DOMContentLoaded', () => {
       loadMembers();
       loadPlaces();
       loadChat();
+      loadUnreadDms();
       loadSosHistory();
       connectWebSocket();
       updatePushNotificationUI();
@@ -2282,6 +2437,7 @@ document.addEventListener('DOMContentLoaded', () => {
     loadMembers();
     loadPlaces();
     loadChat();
+    loadUnreadDms();
     loadSosHistory();
     setupPushNotifications();
   }

@@ -114,7 +114,7 @@
 ---
 
 ## BLOCO 8: Paridade Total & Segurança de Produção
-- [/] **Status:** EM ANDAMENTO (Etapas 8.1 a 8.7 concluídas — Próxima: Etapa 8.8)
+- [/] **Status:** EM ANDAMENTO (Etapas 8.1 a 8.8 concluídas — Próxima: Etapa 8.9)
 - **Objetivo:** Fechar as lacunas de paridade real com o Life360 oficial e tornar o app seguro para produção e uso diário da família.
 - **Referência obrigatória:** [`FEATURE_PARITY.md`](FEATURE_PARITY.md) — auditoria item por item (fonte de verdade).
 
@@ -162,9 +162,16 @@
   - Modal `#profileModal` com edição de nome, telefone, seletor de cor com 8 opções e botão `✏️ Editar` no cabeçalho do membro.
   - Upload com preview dinâmico no círculo de avatar, suporte a remoção de foto e renderização de fotos reais nos marcadores do mapa Leaflet, na lista de membros e na barra colapsada. Cache PWA `life360-v13`.
 
-- [ ] **Etapa 8.8: Mensagem Direta 1:1 no Círculo (PRÓXIMA)**
-  - **Objetivo:** Conversas privadas entre dois membros além do chat coletivo do círculo.
-  - **Arquivos:** Tabela `DirectMessage` no Prisma + rotas `/api/messages/direct` + abas de conversa ("Círculo" e membros individuais) no modal de chat da interface.
+- [x] **Etapa 8.8: Mensagem Direta 1:1 no Círculo (CONCLUÍDO)**
+  - Modelo `DirectMessage` no Prisma com índices para remetente, destinatário e status de leitura (`prisma/schema.prisma`).
+  - Rotas `GET /api/messages/unread`, `GET /api/messages/direct/:otherUserId` e `POST /api/messages/direct/:otherUserId` em `server/src/routes/messages.ts`.
+  - Eventos WebSocket sintonizados: `DIRECT_MESSAGE` com roteamento privado apenas para remetente e destinatário conectados, e `DM_READ` com atualização de recibos de leitura.
+  - Disparo automático de Web Push para o destinatário da mensagem com tag e deep-link.
+  - Abas dinâmicas de canais de chat no Bottom Sheet (`#chatTabChips`) com mini-avatares dos membros e badges de mensagens não lidas.
+  - Botão de acesso rápido "💬 Mensagem Direta" no painel de detalhes do membro (`#btnDirectMessageMember`). Cache PWA `life360-v14`.
+
+- [ ] **Etapa 8.9: Segurança e Robustez de Infraestrutura (PRÓXIMA)**
+  - **Objetivo:** Proteger ingestão de GPS (`/api/telemetry` com API key por aparelho), rotina de backup diário do SQLite (WAL checkpoint + cópia segura com retenção) e log de acessos.
 
 - [ ] **Etapa 8.9: Segurança e Robustez de Infraestrutura**
   - **Objetivo:** Proteger ingestão de GPS (`/api/telemetry` com API key por aparelho), rotina de backup diário do SQLite (WAL checkpoint + cópia segura com retenção) e log de acessos.

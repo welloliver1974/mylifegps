@@ -17,7 +17,7 @@
   <!-- Leaflet CSS -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
 
-  <link rel="stylesheet" href="/style.css?v=13">
+  <link rel="stylesheet" href="/style.css?v=14">
 </head>
 <body>
   <!-- Tela de Autenticação (Login / Configuração Inicial) -->
@@ -248,6 +248,15 @@
                 <span>Ver rota e reproduzir replay</span>
               </div>
             </button>
+
+            <!-- Botão Mensagem Direta 1:1 (Etapa 8.8) -->
+            <button class="action-card-btn chat-dm" id="btnDirectMessageMember">
+              <span class="action-icon">💬</span>
+              <div class="action-text">
+                <strong>Mensagem Direta</strong>
+                <span>Conversar em particular</span>
+              </div>
+            </button>
           </div>
 
           <!-- Seletor de Data de Histórico Ilimitado (Recurso Pago do Life360) -->
@@ -320,14 +329,22 @@
         <!-- Chat do Círculo Familiar (Life360) -->
         <div class="sheet-chat-section">
           <div class="sheet-section-header">
-            <h2>💬 Chat do Círculo</h2>
+            <h2>💬 Chat da Família</h2>
             <span class="badge-count" id="chatCount">0</span>
           </div>
+
+          <!-- Abas / Canais de Chat: Círculo Coletivo e DMs 1:1 (Etapa 8.8) -->
+          <div class="chat-tab-chips" id="chatTabChips">
+            <button type="button" class="chat-tab-chip active" data-channel="circle" id="chatTabCircle">
+              👥 Círculo (Todos)
+            </button>
+          </div>
+
           <div class="chat-messages" id="chatMessages">
             <div class="loading-state">Nenhuma mensagem ainda.</div>
           </div>
           <form class="chat-input-row" id="chatForm">
-            <input type="text" id="chatInput" class="chat-input" placeholder="Mensagem para a família..." maxlength="1000" autocomplete="off">
+            <input type="text" id="chatInput" class="chat-input" placeholder="Mensagem para o círculo..." maxlength="1000" autocomplete="off">
             <button type="submit" class="chat-send-btn" title="Enviar">➤</button>
           </form>
         </div>
@@ -540,7 +557,7 @@
 
   <!-- Leaflet JS -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
-  <script src="/app.js?v=13"></script>
+  <script src="/app.js?v=14"></script>
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {

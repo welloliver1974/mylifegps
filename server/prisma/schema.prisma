@@ -16,13 +16,15 @@ model User {
   email        String?    @unique
   passwordHash String?    // Nulo para membros rastreados que nunca acessam o painel
   role         String     @default("member") // "admin" | "member"
-  devices           Device[]
-  sessions          AuthSession[]
-  pushSubscriptions PushSubscription[]
-  sosEvents         SosEvent[]         @relation("SosUser")
-  resolvedSosEvents SosEvent[]         @relation("SosResolver")
-  createdAt         DateTime   @default(now())
-  updatedAt         DateTime   @updatedAt
+  devices                Device[]
+  sessions               AuthSession[]
+  pushSubscriptions      PushSubscription[]
+  sosEvents              SosEvent[]         @relation("SosUser")
+  resolvedSosEvents      SosEvent[]         @relation("SosResolver")
+  sentDirectMessages     DirectMessage[]    @relation("SentDMs")
+  receivedDirectMessages DirectMessage[]    @relation("ReceivedDMs")
+  createdAt              DateTime   @default(now())
+  updatedAt              DateTime   @updatedAt
 }
 
 // Sessões de acesso ao painel (tokens revogáveis, com expiração)
@@ -158,3 +160,20 @@ model SosEvent {
   @@index([userId, createdAt])
   @@index([status])
 }
+
+// Mensagens Diretas 1:1 entre membros do círculo familiar (Etapa 8.8)
+model DirectMessage {
+  id         String    @id @default(uuid())
+  senderId   String
+  sender     User      @relation("SentDMs", fields: [senderId], references: [id], onDelete: Cascade)
+  receiverId String
+  receiver   User      @relation("ReceivedDMs", fields: [receiverId], references: [id], onDelete: Cascade)
+  text       String
+  read       Boolean   @default(false)
+  readAt     DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@index([senderId, receiverId, createdAt])
+  @@index([receiverId, read])
+}
+
