@@ -1,6 +1,7 @@
 # Dependências
 node_modules/
 dist/
+.expo/
 
 # Banco de dados e ambiente local
 *.db
@@ -8,6 +9,8 @@ dist/
 *.db-wal
 *.db-shm
 .env
+.env.*
+!.env.example
 
 # Binários pesados de APK e descompilações volumosas
 *.apk
