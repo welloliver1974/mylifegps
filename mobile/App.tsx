@@ -14,6 +14,7 @@ import {
   StatusBar as RNStatusBar,
   PanResponder,
   Animated,
+  Vibration,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { WebView } from 'react-native-webview';
@@ -189,6 +190,7 @@ export default function App() {
               <Text style={styles.loadingText}>Conectando ao círculo familiar...</Text>
             </View>
           )}
+          applicationNameForUserAgent="MyLife360App/1.0"
           onError={() => {
             Alert.alert(
               'Falha de Conexão',
@@ -201,6 +203,14 @@ export default function App() {
               if (msg && msg.type === 'FORCE_LOCATION_UPDATE') {
                 console.log('[NativeBridge] Comando FORCE_LOCATION_UPDATE recebido da página web');
                 await forceImmediateLocationUpdate();
+              } else if (msg && msg.type === 'TEST_NOTIFICATION') {
+                Alert.alert(
+                  msg.title || '🔔 My Life360',
+                  msg.body || 'O rastreamento em segundo plano e alertas nativos estão ativos neste aparelho!'
+                );
+                try {
+                  Vibration.vibrate(400);
+                } catch {}
               }
             } catch {
               // Ignora mensagens que não sejam JSON

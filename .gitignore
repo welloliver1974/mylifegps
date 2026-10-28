@@ -34,3 +34,6 @@ server/public/uploads/avatars/*
 server/backups/
 backups/
 
+# Capturas de tela e arquivos temporários de suporte
+WhatsApp Image*.jpeg
+

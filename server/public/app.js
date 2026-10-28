@@ -704,6 +704,7 @@ document.addEventListener('DOMContentLoaded', () => {
         btnAdmin.style.display = currentAuthUser?.role === 'admin' ? 'block' : 'none';
       }
       loadCircleData();
+      updatePushNotificationUI();
       circleModal.style.display = 'flex';
     });
 
@@ -2873,27 +2874,44 @@ document.addEventListener('DOMContentLoaded', () => {
     const testBtn = document.getElementById('btnTestPushNotification');
     if (!toggleBtn) return;
 
+    // 1. Se estiver rodando dentro do App Android (APK com WebView nativo)
+    const isNativeApp = !!(window.ReactNativeWebView || /MyLife360App/i.test(navigator.userAgent));
+    if (isNativeApp) {
+      toggleBtn.classList.add('push-active');
+      toggleBtn.textContent = '🟢 Notificações Nativas do App Ativas';
+      toggleBtn.title = 'Rastreamento em segundo plano e alertas gerenciados nativamente pelo Android';
+      toggleBtn.disabled = false;
+      if (testBtn) {
+        testBtn.style.display = 'block';
+        testBtn.textContent = '📲 Testar Notificação no Celular';
+      }
+      return;
+    }
+
+    // 2. Se for navegador comum, mas não suportar a Web Push API (ex: iOS sem PWA ou anônimo)
     if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
-      toggleBtn.textContent = '❌ Push não suportado neste navegador';
-      toggleBtn.disabled = true;
+      toggleBtn.classList.remove('push-active');
+      toggleBtn.textContent = 'ℹ️ Notificações Web Indisponíveis';
+      toggleBtn.title = 'Para notificações em segundo plano neste navegador, acesse pelo Google Chrome ou instale o App Android';
+      toggleBtn.disabled = false;
       if (testBtn) testBtn.style.display = 'none';
       return;
     }
 
+    // 3. Navegador comum com suporte a Web Push API (Chrome / Edge / Firefox)
     try {
       const reg = window.swRegistration || (await navigator.serviceWorker.ready);
       const sub = await reg.pushManager.getSubscription();
       if (sub && Notification.permission === 'granted') {
+        toggleBtn.classList.add('push-active');
         toggleBtn.textContent = '🔔 Notificações Ativas (Toque para desativar)';
-        toggleBtn.style.backgroundColor = '#ECFDF5';
-        toggleBtn.style.color = '#059669';
-        toggleBtn.style.borderColor = '#A7F3D0';
-        if (testBtn) testBtn.style.display = 'block';
+        if (testBtn) {
+          testBtn.style.display = 'block';
+          testBtn.textContent = '📲 Testar Notificação Push';
+        }
       } else {
+        toggleBtn.classList.remove('push-active');
         toggleBtn.textContent = '🔔 Ativar Notificações no Celular';
-        toggleBtn.style.backgroundColor = '';
-        toggleBtn.style.color = '';
-        toggleBtn.style.borderColor = '';
         if (testBtn) testBtn.style.display = 'none';
       }
     } catch (err) {
@@ -2903,8 +2921,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
   async function togglePushNotifications() {
     const toggleBtn = document.getElementById('btnTogglePushNotifications');
+    const isNativeApp = !!(window.ReactNativeWebView || /MyLife360App/i.test(navigator.userAgent));
+
+    if (isNativeApp) {
+      showToast('🟢 O My Life360 gerencia o rastreamento e alertas nativamente pelo Android!');
+      return;
+    }
+
     if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
-      showToast('Push não é suportado pelo seu navegador.');
+      showToast('Este navegador não suporta a Web Push API. Abra pelo Google Chrome ou use o App Android.');
       return;
     }
 
@@ -2974,6 +2999,19 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   async function testPushNotification() {
+    const isNativeApp = !!(window.ReactNativeWebView || /MyLife360App/i.test(navigator.userAgent));
+    if (isNativeApp && window.ReactNativeWebView?.postMessage) {
+      window.ReactNativeWebView.postMessage(
+        JSON.stringify({
+          type: 'TEST_NOTIFICATION',
+          title: '🔔 Notificação My Life360',
+          body: 'O rastreamento em segundo plano e alertas nativos estão 100% operacionais neste aparelho!',
+        })
+      );
+      showToast('Disparado no celular!');
+      return;
+    }
+
     try {
       showToast('Enviando notificação de teste...');
       const res = await apiFetch('/api/push/test', { method: 'POST' });
