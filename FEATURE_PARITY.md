@@ -53,7 +53,7 @@
 | Check-in ("estou seguro") | ✅ | Topo da tela e menu do círculo |
 | Código de convite | ✅ | Modelos `Circle` e `CircleMember` no SQLite, códigos `FAM-XXXX-XXXX` sem ambiguidade, validação na API, regeneração por admin e tela de entrada por convite (Etapa 9.1) |
 | **Personalizar / editar nome do círculo** | ✅ | `PUT /api/circle/name` com campo de edição no modal do círculo para admins e atualização em tempo real no topo |
-| **Tema Escuro (Dark Mode)** | ✅ | Alternador no topo e menu, tokens CSS dedicados `:root[data-theme="dark"]`, overrides completos e sincronização com mapa escuro CARTO |
+| **Tema Escuro (Dark Mode)** | ✅ | Alternador no topo e menu, tokens CSS dedicados `:root[data-theme="dark"]`, overrides completos em painéis/modais, desacoplado dos tiles do mapa (mantém contraste ideal) e cache PWA `life360-v20` |
 | **Adicionar/remover membros de verdade** | ✅ | Cadastro com código via `/api/auth/register-with-invite`, entrada via `/api/circle/join`, remoção de membros por admin via `DELETE /api/circle/members/:id`, listagem com badges de papel no modal e isolamento completo por círculo em `/api/members/live` (Etapa 9.1) |
 | **Editar perfil / foto do membro** | ✅ | Modal com edição de nome, telefone, cor do marcador e upload de foto real (@fastify/multipart) com remoção e preview dinâmico (Etapa 8.7) |
 | **Mensagem direta 1:1** | ✅ | Tabela `DirectMessage`, rotas `/api/messages/direct/:otherUserId` e `/unread`, abas de canais no chat, avisos em tempo real via WebSocket, notificações push Web e botão de acesso rápido no perfil (Etapa 8.8) |

@@ -220,7 +220,7 @@
     - **Respiro no controle do mapa:** espaçamento vertical aumentado para 96px, descolando os botões flutuantes da barra superior do círculo.
     - **Botão flutuante de engrenagem ⚙️ livre:** reposicionado acima da gaveta inferior (`bottom: 110px`) e tornado arrastável com `PanResponder`, liberando a barra inferior.
     - **Minimização no desktop/notebook elegante:** gaveta recolhe 100% da tela sem sobras e exibe pílula flutuante estilizada `[ 👥 Círculo ▸ ]` para reabertura suave.
-    - **Tema Dark (Modo Escuro):** botão de alternância no topo e no menu, tokens escuros completos e sincronização com mapa CARTO dark. Cache PWA `life360-v19`.
+    - **Tema Dark (Modo Escuro):** botão de alternância no topo e no menu, tokens escuros completos e desacoplamento do mapa (mantém o estilo Voyager claro por padrão para máxima legibilidade de trajetos e marcadores, com opção Noturno manual no seletor de camadas). Cache PWA `life360-v20`.
     - **Edição do nome do círculo:** campo de edição com validação para administradores via `PUT /api/circle/name`, atualizando instantaneamente no topo.
 
 - [ ] **Etapa 9.3: Etapa 8.10 — Detecção de acidente real (acelerômetro)**
