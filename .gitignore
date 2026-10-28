@@ -30,3 +30,7 @@ server/public/uploads/*
 server/public/uploads/avatars/*
 !server/public/uploads/avatars/.gitkeep
 
+# Backups do SQLite (contêm dados da família, nunca versionar)
+server/backups/
+backups/
+

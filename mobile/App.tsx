@@ -24,6 +24,7 @@ import {
 export default function App() {
   const [serverUrl, setServerUrl] = useState('http://192.168.1.100:3000');
   const [deviceId, setDeviceId] = useState('celular-01');
+  const [deviceApiKey, setDeviceApiKey] = useState('');
   const [isTracking, setIsTracking] = useState(false);
   const [showConfig, setShowConfig] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -37,17 +38,19 @@ export default function App() {
     try {
       const savedUrl = await AsyncStorage.getItem('server_url');
       const savedDevice = await AsyncStorage.getItem('device_id');
+      const savedKey = await AsyncStorage.getItem('device_api_key');
       const savedSync = await AsyncStorage.getItem('last_sync');
 
       if (savedUrl) setServerUrl(savedUrl);
       if (savedDevice) setDeviceId(savedDevice);
+      if (savedKey) setDeviceApiKey(savedKey);
       if (savedSync) setLastSync(savedSync);
 
       const hasStarted = await Location.hasStartedLocationUpdatesAsync(LOCATION_TASK_NAME);
       setIsTracking(hasStarted);
 
       // Se ainda não configurou, abre a tela de ajustes no primeiro acesso
-      if (!savedUrl || !savedDevice) {
+      if (!savedUrl || !savedDevice || !savedKey) {
         setShowConfig(true);
       }
     } catch (e) {
@@ -61,6 +64,7 @@ export default function App() {
     try {
       await AsyncStorage.setItem('server_url', serverUrl.trim());
       await AsyncStorage.setItem('device_id', deviceId.trim());
+      await AsyncStorage.setItem('device_api_key', deviceApiKey.trim());
       setShowConfig(false);
       Alert.alert('Sucesso', 'Configurações salvas!');
     } catch (e: any) {
@@ -157,6 +161,19 @@ export default function App() {
                 placeholder="Ex: wellington-galaxy-s23"
                 placeholderTextColor="#64748B"
                 autoCapitalize="none"
+              />
+            </View>
+
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Chave de Telemetria (painel → Dispositivos)</Text>
+              <TextInput
+                style={styles.input}
+                value={deviceApiKey}
+                onChangeText={setDeviceApiKey}
+                placeholder="l360_..."
+                placeholderTextColor="#64748B"
+                autoCapitalize="none"
+                autoCorrect={false}
               />
             </View>
 

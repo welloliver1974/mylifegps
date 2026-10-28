@@ -16,6 +16,10 @@ import { authRoutes } from './routes/auth.js';
 import { geocodingRoutes } from './routes/geocoding.js';
 import { pushRoutes } from './routes/push.js';
 import { emergencyRoutes } from './routes/emergency.js';
+import { devicesRoutes } from './routes/devices.js';
+import { adminRoutes } from './routes/admin.js';
+import { recordAccess, pruneAccessLogs } from './services/audit.js';
+import { startBackupScheduler } from './services/backup.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -55,6 +59,8 @@ async function bootstrap() {
 
     // 3. Guarda de autenticação para todas as rotas /api (exceto login e telemetria)
     fastify.addHook('onRequest', async (request, reply) => {
+      (request as any)._startTime = Date.now();
+
       const url = request.raw.url || '';
 
       if (!url.startsWith('/api/')) return;
@@ -70,6 +76,23 @@ async function bootstrap() {
 
       (request as any).authUser = user;
       (request as any).user = user;
+    });
+
+    // 3b. Auditoria de acessos (Etapa 8.9) — grava o resultado de cada chamada de API
+    fastify.addHook('onResponse', async (request, reply) => {
+      const startedAt = (request as any)._startTime;
+      const user = (request as any).authUser || (request as any).user;
+
+      recordAccess({
+        userId: user?.id || null,
+        userName: user?.name || null,
+        method: request.method,
+        path: request.raw.url || '',
+        statusCode: reply.statusCode,
+        ip: request.ip,
+        userAgent: request.headers['user-agent'] || null,
+        durationMs: startedAt ? Date.now() - startedAt : null,
+      }).catch(() => {});
     });
 
     // 4. Rotas de autenticação (públicas por prefixo)
@@ -163,6 +186,8 @@ async function bootstrap() {
     await fastify.register(geocodingRoutes);
     await fastify.register(pushRoutes);
     await fastify.register(emergencyRoutes);
+    await fastify.register(devicesRoutes);
+    await fastify.register(adminRoutes);
 
     // 8. Serve arquivos estáticos do Painel Web / PWA (Mapa e Interface)
     await fastify.register(fastifyStatic, {
@@ -176,6 +201,22 @@ async function bootstrap() {
     await fastify.listen({ port, host });
     console.log(`🚀 Servidor My Life360 ativo em http://${host}:${port}`);
     console.log(`📡 WebSocket ativo em ws://${host}:${port}/ws`);
+
+    // 9. Rotinas de segurança em segundo plano (Etapa 8.9)
+    if (process.env.TELEMETRY_REQUIRE_KEY === 'false') {
+      console.warn('⚠️ TELEMETRY_REQUIRE_KEY=false — ingestão de GPS está ABERTA (insegura).');
+    } else {
+      console.log('🔐 Ingestão de telemetria protegida por chave por aparelho.');
+    }
+
+    startBackupScheduler();
+
+    // Limpa o log de acessos antigo na subida e uma vez por dia
+    pruneAccessLogs().catch((err) => console.error('[Audit] Falha ao limpar logs antigos:', err));
+    setInterval(
+      () => pruneAccessLogs().catch((err) => console.error('[Audit] Falha ao limpar logs antigos:', err)),
+      24 * 60 * 60 * 1000
+    );
   } catch (err) {
     fastify.log.error(err);
     process.exit(1);

@@ -1,9 +1,9 @@
-const CACHE_NAME = 'life360-v14';
+const CACHE_NAME = 'life360-v15';
 const ASSETS = [
   '/',
   '/index.html',
-  '/style.css?v=14',
-  '/app.js?v=14',
+  '/style.css?v=15',
+  '/app.js?v=15',
   '/manifest.json'
 ];
 

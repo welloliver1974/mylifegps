@@ -114,7 +114,7 @@
 ---
 
 ## BLOCO 8: Paridade Total & Segurança de Produção
-- [/] **Status:** EM ANDAMENTO (Etapas 8.1 a 8.8 concluídas — Próxima: Etapa 8.9)
+- [/] **Status:** EM ANDAMENTO (Etapas 8.1 a 8.9 concluídas — Próxima: Etapa 8.10, app mobile com sensor de acidente)
 - **Objetivo:** Fechar as lacunas de paridade real com o Life360 oficial e tornar o app seguro para produção e uso diário da família.
 - **Referência obrigatória:** [`FEATURE_PARITY.md`](FEATURE_PARITY.md) — auditoria item por item (fonte de verdade).
 
@@ -170,11 +170,16 @@
   - Abas dinâmicas de canais de chat no Bottom Sheet (`#chatTabChips`) com mini-avatares dos membros e badges de mensagens não lidas.
   - Botão de acesso rápido "💬 Mensagem Direta" no painel de detalhes do membro (`#btnDirectMessageMember`). Cache PWA `life360-v14`.
 
-- [ ] **Etapa 8.9: Segurança e Robustez de Infraestrutura (PRÓXIMA)**
-  - **Objetivo:** Proteger ingestão de GPS (`/api/telemetry` com API key por aparelho), rotina de backup diário do SQLite (WAL checkpoint + cópia segura com retenção) e log de acessos.
-
-- [ ] **Etapa 8.9: Segurança e Robustez de Infraestrutura**
-  - **Objetivo:** Proteger ingestão de GPS (`/api/telemetry` com API key por aparelho), rotina de backup diário do SQLite (WAL checkpoint + cópia segura com retenção) e log de acessos.
+- [x] **Etapa 8.9: Segurança e Robustez de Infraestrutura (CONCLUÍDO)**
+  - **Ingestão de GPS autenticada:** `/api/telemetry` agora exige chave por aparelho (`l360_...`) validada com `crypto.timingSafeEqual`. A chave é aceita via header `x-device-key`/`x-api-key`, query `?key=`/`?apiKey=` (compatível com Traccar) ou no corpo JSON. `TELEMETRY_MASTER_KEY` opcional para setups com URL única; `TELEMETRY_REQUIRE_KEY=false` como escape consciente para migração.
+  - **Modelo `Device.apiKey`** já existente, agora com CRUD completo em `server/src/routes/devices.ts`: `GET /api/devices` (chave completa + mascarada + status online), `POST /api/devices` (gera chave), `PUT /api/devices/:id`, `POST /api/devices/:id/rotate-key` (revoga a anterior na hora) e `DELETE /api/devices/:id`.
+  - **Backup automático do SQLite** em `server/src/services/backup.ts`: `PRAGMA wal_checkpoint(TRUNCATE)` + cópia, com fallback `VACUUM INTO`, verificação do cabeçalho `SQLite format 3`, retenção de 14 dias e agendador (primeira execução em 30 s, depois a cada 24 h). Desligável com `BACKUP_ENABLED=false`.
+  - **Auditoria de acessos** em `server/src/services/audit.ts` com hook `onResponse` do Fastify: grava usuário, método, rota, status, IP, user-agent e duração. Telemetria bem-sucedida é excluída de propósito (evita milhares de linhas/dia); retenção de 30 dias com poda diária.
+  - **Modelo `AccessLog`** no Prisma com índices por data, usuário e status.
+  - **Rotas exclusivas de admin** em `server/src/routes/admin.ts`: `POST /api/admin/backup`, `GET /api/admin/backups`, `POST /api/admin/backups/prune`, `GET /api/admin/logs`, `GET /api/admin/logs/summary`, `POST /api/admin/logs/prune` — todas com guarda `role === 'admin'` (403 para membros comuns).
+  - **Interface:** modal `#devicesModal` (📱 Dispositivos Conectados: cards com nome, identificador, membro, status online, chave mascarada com revelar/copiar, rotacionar e excluir, além de formulário de novo aparelho) e modal `#adminModal` (🛡️ Painel de Segurança & Backups com abas de backups e auditoria, resumo de 24 h e filtro de erros).
+  - **App mobile:** `locationTask.ts` envia a chave em `x-device-key` e trata 401 com aviso explícito; `App.tsx` ganhou o campo "Chave de Telemetria" persistido em AsyncStorage.
+  - Cache PWA `life360-v15`. **10/10 testes automatizados aprovados** (telemetria 401 sem chave / 401 com chave errada / 201 com chave correta, rotação revogando a anterior, 403 para não-admin, backup gerado e validado por cabeçalho, listagem, auditoria gravando e exclusão de aparelho).
 
 - [ ] **Etapa 8.10: App Mobile Dedicado com Detecção de Acidente Real**
   - **Objetivo:** Sensor de desaceleração brusca no app Expo usando `expo-sensors` (acelerômetro) para acionar `CRASH_DETECTED` real em caso de impacto veicular.

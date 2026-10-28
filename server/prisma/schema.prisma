@@ -177,3 +177,21 @@ model DirectMessage {
   @@index([receiverId, read])
 }
 
+// Registro de acessos à API (auditoria e segurança - Etapa 8.9)
+model AccessLog {
+  id         String   @id @default(uuid())
+  userId     String?
+  userName   String?
+  method     String
+  path       String
+  statusCode Int
+  ip         String?
+  userAgent  String?
+  durationMs Int?
+  createdAt  DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([userId, createdAt])
+  @@index([statusCode])
+}
+

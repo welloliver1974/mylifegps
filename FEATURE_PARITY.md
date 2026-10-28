@@ -6,7 +6,7 @@
 
 **Legenda:** ✅ implementado e funcionando · ⚠️ parcial / simplificado · ❌ ausente · 🚫 depende de terceiro (impossível auto-hospedar)
 
-*Última auditoria: 2026-10-27 — mensagens diretas 1:1 implementadas (Bloco 8, etapa 8)*
+*Última auditoria: 2026-10-27 — segurança de infraestrutura concluída: telemetria autenticada por aparelho, backup automático, auditoria de acessos e gestão de dispositivos (Bloco 8, etapa 9)*
 
 ---
 
@@ -91,21 +91,22 @@
 | PWA instalável no celular | ✅ | manifest + service worker |
 | Mapa funciona offline (cache de assets) | ⚠️ | Assets em cache; tiles dependem de rede |
 | **Autenticação / login** | ✅ | E-mail + senha (bcrypt), sessões revogáveis de 30 dias, `/api/*` e `/ws` protegidos |
-| **Permissões por papel (admin/membro)** | ⚠️ | Campo `role` existe e o primeiro usuário vira admin; ainda sem regras por papel nas rotas |
+| **Permissões por papel (admin/membro)** | ✅ | `role` no `User`; rotas `/api/admin/*` (backup e auditoria) devolvem 403 para membros comuns. Ainda não há papéis intermediários além de admin/membro |
 | **HTTPS / túnel seguro** | ⚠️ | Depende do Cloudflare Tunnel na VPS |
-| **Backup automático do banco** | ❌ | |
+| **Backup automático do banco** | ✅ | WAL checkpoint + cópia com fallback `VACUUM INTO`, verificação de cabeçalho, retenção de 14 dias, agendador de 24 h e botão de backup manual no painel (Etapa 8.9) |
 | **Notificações push (VAPID)** | ✅ | Web Push W3C com chaves VAPID, service worker em segundo plano, alertas de cerca (ENTER/EXIT), SOS e check-in mesmo com navegador fechado (Etapa 8.5) |
-| **Auditoria / log de acessos** | ❌ | |
-| **Ingestão de telemetria autenticada** | ⚠️ | `/api/telemetry` segue aberta para o Traccar Client; qualquer um que conheça a URL pode injetar coordenadas falsas |
+| **Auditoria / log de acessos** | ✅ | Modelo `AccessLog` + hook `onResponse`: usuário, método, rota, status, IP, user-agent e duração; retenção de 30 dias; visualizador com resumo de 24 h e filtro de erros (Etapa 8.9) |
+| **Ingestão de telemetria autenticada** | ✅ | Chave por aparelho (`l360_...`) validada com `timingSafeEqual`, aceita por header, query ou corpo; rotação de chave revoga a anterior na hora; `TELEMETRY_REQUIRE_KEY=false` só como escape consciente (Etapa 8.9) |
 | **Recuperação de senha** | ❌ | Sem e-mail configurado; redefinição hoje exige acesso ao banco |
+| **Gestão de aparelhos pelo painel** | ✅ | Modal "📱 Dispositivos Conectados": cadastro, chave mascarada com revelar/copiar, status online, rotacionar chave e excluir (Etapa 8.9) |
 
 ---
 
 ## Resumo executivo
 
 - **Pronto (pode usar hoje):** mapa ao vivo, cercas, alertas, histórico ilimitado, replay, relatório de direção com viagens, push notifications em segundo plano, SOS com histórico persistido e resolução, perfil de membro com upload de foto real, chat coletivo do círculo e mensagens diretas 1:1 privadas com notificações, check-in, lugares ilimitados, estilos de mapa.
-- **Lacunas visíveis ao usuário:** fluxo formal de entrada/saída de membros por código de convite validado.
-- **Resolvido nas últimas etapas:** autenticação com login obrigatório em toda a API e no WebSocket, geocoding reverso com endereço e lugares, edição completa de lugares, relatório de direção segmentado por viagens individuais (Life360 Gold), notificações push Web (VAPID) com navegador fechado, histórico persistido de emergências SOS com resolução, edição de perfil de membro com upload de foto real e mensagens diretas 1:1 privadas com canais segregados e notificações (Etapa 8.8).
-- **Lacunas de plataforma restantes:** telemetria ainda aberta, sem backup automático, sem log de acessos, sem recuperação de senha.
+- **Lacunas visíveis ao usuário:** fluxo formal de entrada/saída de membros por código de convite validado; reações/menções no chat; nota de direção histórica semanal/mensal.
+- **Resolvido nas últimas etapas:** autenticação com login obrigatório em toda a API e no WebSocket, geocoding reverso com endereço e lugares, edição completa de lugares, relatório de direção segmentado por viagens individuais (Life360 Gold), notificações push Web (VAPID) com navegador fechado, histórico persistido de emergências SOS com resolução, edição de perfil de membro com upload de foto real, mensagens diretas 1:1 privadas com canais segregados (Etapa 8.8) e, na Etapa 8.9, ingestão de GPS autenticada por aparelho, backup automático do SQLite com retenção, auditoria de acessos com painel administrativo e gestão de aparelhos/chaves.
+- **Lacunas de plataforma restantes:** sem recuperação de senha (exige e-mail configurado); HTTPS ainda depende do Cloudflare Tunnel; o deploy na VPS Oracle Cloud ainda não foi executado.
 - **Impossível sem parceiro comercial:** despacho de emergência, monitoramento 24h, proteção de identidade.
 - **Depende de hardware (app mobile):** detecção de acidente, frenagem brusca.

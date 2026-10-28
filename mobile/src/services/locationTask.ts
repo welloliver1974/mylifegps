@@ -26,6 +26,7 @@ export async function sendTelemetryToServer(location: Location.LocationObject) {
   try {
     const serverUrl = await AsyncStorage.getItem('server_url');
     const deviceId = await AsyncStorage.getItem('device_id');
+    const deviceKey = await AsyncStorage.getItem('device_api_key');
 
     if (!serverUrl || !deviceId) {
       console.log('[BackgroundLocation] Servidor ou DeviceID não configurados.');
@@ -60,15 +61,23 @@ export async function sendTelemetryToServer(location: Location.LocationObject) {
 
     const endpoint = `${serverUrl.replace(/\/$/, '')}/api/telemetry`;
 
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    // Chave de telemetria do aparelho (obrigatória no servidor desde a Etapa 8.9)
+    if (deviceKey) {
+      headers['x-device-key'] = deviceKey;
+    }
+
     const response = await fetch(endpoint, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers,
       body: JSON.stringify(payload),
     });
 
     if (response.ok) {
       console.log('[BackgroundLocation] Coordenada enviada com sucesso:', location.coords.latitude, location.coords.longitude);
       await AsyncStorage.setItem('last_sync', new Date().toISOString());
+    } else if (response.status === 401) {
+      console.warn('[BackgroundLocation] Chave de telemetria inválida ou ausente. Verifique a configuração.');
     } else {
       console.warn('[BackgroundLocation] Servidor respondeu com status:', response.status);
     }

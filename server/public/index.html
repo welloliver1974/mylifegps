@@ -17,7 +17,7 @@
   <!-- Leaflet CSS -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
 
-  <link rel="stylesheet" href="/style.css?v=14">
+  <link rel="stylesheet" href="/style.css?v=15">
 </head>
 <body>
   <!-- Tela de Autenticação (Login / Configuração Inicial) -->
@@ -405,6 +405,14 @@
             <button class="btn secondary" id="btnCircleCheckin" style="width: 100%; margin-bottom: 8px;">
               📍 Fazer Check-in Agora (Avisar a todos)
             </button>
+            <!-- Gestão de Aparelhos & Chaves GPS (Etapa 8.9) -->
+            <button class="btn secondary" id="btnOpenDevicesModal" style="width: 100%; margin-bottom: 8px;">
+              📱 Dispositivos & Chaves GPS
+            </button>
+            <!-- Painel de Administração & Segurança (Etapa 8.9) -->
+            <button class="btn secondary" id="btnOpenAdminModal" style="width: 100%; margin-bottom: 8px;">
+              🛡️ Painel de Segurança & Backups
+            </button>
             <button class="btn secondary" id="btnLogout" style="width: 100%; color: var(--accent-red);">
               🚪 Sair da Conta
             </button>
@@ -553,11 +561,122 @@
         </div>
       </div>
     </div>
+    <!-- Modal de Dispositivos Conectados & Chaves GPS (Etapa 8.9) -->
+    <div class="modal-overlay" id="devicesModal" style="display: none;">
+      <div class="modal-content devices-modal-content">
+        <div class="modal-header">
+          <div>
+            <h3>📱 Dispositivos Conectados</h3>
+            <p class="modal-header-sub">Chaves de API para conexão segura do app mobile e Traccar</p>
+          </div>
+          <button class="close-btn" id="btnCloseDevicesModal">&times;</button>
+        </div>
+
+        <!-- Formulário de Novo Aparelho (recolhível) -->
+        <div class="new-device-box">
+          <button type="button" class="btn small secondary" id="btnToggleNewDeviceForm" style="width: 100%; margin-bottom: 8px;">
+            ➕ Conectar Novo Aparelho
+          </button>
+          <form id="newDeviceForm" style="display: none;" class="new-device-form">
+            <div class="form-group">
+              <label for="newDeviceName">Nome do Aparelho</label>
+              <input type="text" id="newDeviceName" placeholder="Ex: Galaxy S23 Wellington" required />
+            </div>
+            <div class="form-group">
+              <label for="newDeviceIdentifier">Identificador Único (opcional)</label>
+              <input type="text" id="newDeviceIdentifier" placeholder="Deixe em branco para auto-gerar" />
+            </div>
+            <div class="form-group">
+              <label for="newDeviceUserId">Membro Associado</label>
+              <select id="newDeviceUserId" class="device-user-select">
+                <option value="">(Nenhum / Não associado)</option>
+              </select>
+            </div>
+            <div class="modal-actions" style="margin-top: 10px;">
+              <button type="button" class="btn small secondary" id="btnCancelNewDevice">Cancelar</button>
+              <button type="submit" class="btn small primary" id="btnSaveNewDevice">Salvar e Gerar Chave</button>
+            </div>
+          </form>
+        </div>
+
+        <div class="devices-list" id="devicesList">
+          <div class="loading-state">Carregando dispositivos...</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal do Painel de Administração & Segurança (Etapa 8.9) -->
+    <div class="modal-overlay" id="adminModal" style="display: none;">
+      <div class="modal-content admin-modal-content">
+        <div class="modal-header">
+          <div>
+            <h3>🛡️ Painel de Segurança & Backups</h3>
+            <p class="modal-header-sub">Backups do SQLite e auditoria de acessos à API</p>
+          </div>
+          <button class="close-btn" id="btnCloseAdminModal">&times;</button>
+        </div>
+
+        <div class="admin-tabs">
+          <button type="button" class="admin-tab-btn active" id="tabBtnBackups" data-tab="backups">💾 Backups do Banco</button>
+          <button type="button" class="admin-tab-btn" id="tabBtnLogs" data-tab="logs">📜 Auditoria de Acessos</button>
+        </div>
+
+        <!-- Aba 1: Backups -->
+        <div class="admin-tab-pane active" id="adminPaneBackups">
+          <div class="admin-info-card">
+            <div class="admin-info-row">
+              <span><strong>Frequência:</strong> A cada 24 horas</span>
+              <span><strong>Retenção:</strong> 14 dias</span>
+              <span><strong>Status:</strong> <span class="badge-online">🟢 Ativo (WAL Checkpoint)</span></span>
+            </div>
+            <div class="admin-backup-actions" style="margin-top: 12px; display: flex; gap: 8px; flex-wrap: wrap;">
+              <button type="button" class="btn small primary" id="btnCreateBackupNow">💾 Fazer Backup Manual Agora</button>
+              <button type="button" class="btn small secondary" id="btnPruneBackups">🧹 Limpar Antigos</button>
+            </div>
+          </div>
+
+          <h4 style="margin: 14px 0 8px; font-size: 13px; font-weight: 800; color: var(--text-primary);">Backups Disponíveis</h4>
+          <div class="backups-list" id="backupsList">
+            <div class="loading-state">Carregando backups...</div>
+          </div>
+        </div>
+
+        <!-- Aba 2: Logs de Auditoria -->
+        <div class="admin-tab-pane" id="adminPaneLogs" style="display: none;">
+          <div class="admin-summary-cards" id="adminSummaryCards">
+            <div class="admin-summary-card">
+              <span class="summary-label">Total (24h)</span>
+              <strong class="summary-val" id="logSummaryTotal">--</strong>
+            </div>
+            <div class="admin-summary-card">
+              <span class="summary-label">Erros (24h)</span>
+              <strong class="summary-val error" id="logSummaryErrors">--</strong>
+            </div>
+            <div class="admin-summary-card">
+              <span class="summary-label">Falhas Login</span>
+              <strong class="summary-val warn" id="logSummaryFailedLogins">--</strong>
+            </div>
+          </div>
+
+          <div class="logs-filter-row">
+            <label class="logs-checkbox-label">
+              <input type="checkbox" id="chkLogsOnlyErrors" />
+              <span>Mostrar apenas erros</span>
+            </label>
+            <button type="button" class="btn small secondary" id="btnRefreshLogs">↻ Atualizar</button>
+          </div>
+
+          <div class="audit-logs-list" id="auditLogsList">
+            <div class="loading-state">Carregando registros de auditoria...</div>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 
   <!-- Leaflet JS -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
-  <script src="/app.js?v=14"></script>
+  <script src="/app.js?v=15"></script>
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {

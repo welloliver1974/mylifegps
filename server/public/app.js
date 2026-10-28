@@ -28,6 +28,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // ---------- Autenticação ----------
   const AUTH_TOKEN_KEY = 'life360_auth_token';
   let authToken = localStorage.getItem(AUTH_TOKEN_KEY) || '';
+  let currentAuthUser = null;
   let authMode = 'login'; // 'login' | 'setup'
   let appStarted = false;
 
@@ -46,6 +47,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function handleUnauthorized() {
     authToken = '';
+    currentAuthUser = null;
     localStorage.removeItem(AUTH_TOKEN_KEY);
     showAuthScreen('login', 'Sua sessão expirou. Entre novamente.');
   }
@@ -108,6 +110,8 @@ document.addEventListener('DOMContentLoaded', () => {
     try {
       const res = await apiFetch('/api/auth/me');
       if (res.ok) {
+        const data = await res.json();
+        currentAuthUser = data.user || null;
         hideAuthScreen();
         return true;
       }
@@ -150,6 +154,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         authToken = data.token;
+        currentAuthUser = data.user || null;
         localStorage.setItem(AUTH_TOKEN_KEY, authToken);
         document.getElementById('authPassword').value = '';
         hideAuthScreen();
@@ -172,6 +177,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     authToken = '';
+    currentAuthUser = null;
     localStorage.removeItem(AUTH_TOKEN_KEY);
     document.getElementById('circleModal').style.display = 'none';
 
@@ -288,6 +294,8 @@ document.addEventListener('DOMContentLoaded', () => {
     setupProfileModal();
     setupReplayPlayer();
     setupDriverReportAndHistory();
+    setupDevicesModal();
+    setupAdminModal();
   }
 
   // 3. Controles Flutuantes do Mapa
@@ -423,6 +431,10 @@ document.addEventListener('DOMContentLoaded', () => {
     inviteCodeEl.textContent = inviteCode;
 
     btnCircleMenu.addEventListener('click', () => {
+      const btnAdmin = document.getElementById('btnOpenAdminModal');
+      if (btnAdmin) {
+        btnAdmin.style.display = currentAuthUser?.role === 'admin' ? 'block' : 'none';
+      }
       circleModal.style.display = 'flex';
     });
 
@@ -2414,6 +2426,452 @@ document.addEventListener('DOMContentLoaded', () => {
     window.onServiceWorkerReady = () => updatePushNotificationUI();
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.ready.then(() => updatePushNotificationUI());
+    }
+  }
+
+  // Sanitizador simples para inserção segura no DOM
+  function escapeHtml(str) {
+    if (str === null || str === undefined) return '';
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
+  // ==========================================================
+  // 19. Dispositivos & Chaves de Telemetria GPS (Etapa 8.9)
+  // ==========================================================
+  const revealedDeviceKeys = new Set();
+
+  async function loadDevices() {
+    const listEl = document.getElementById('devicesList');
+    if (!listEl) return;
+
+    try {
+      const res = await apiFetch('/api/devices');
+      if (!res.ok) {
+        listEl.innerHTML = '<div class="loading-state">Erro ao carregar dispositivos.</div>';
+        return;
+      }
+
+      const devices = await res.json();
+      if (!devices || devices.length === 0) {
+        listEl.innerHTML = `
+          <div class="loading-state">
+            Nenhum aparelho conectado.<br>
+            <span style="font-size: 11px; color: var(--text-tertiary);">
+              Clique em "+ Conectar Novo Aparelho" acima para autorizar o envio de GPS.
+            </span>
+          </div>`;
+        return;
+      }
+
+      listEl.innerHTML = devices
+        .map((d) => {
+          const isRevealed = revealedDeviceKeys.has(d.id);
+          const keyDisplay = isRevealed ? (d.apiKey || d.maskedApiKey) : d.maskedApiKey;
+          const eyeIcon = isRevealed ? '🔒 Ocultar' : '👁️ Revelar';
+          const onlineClass = d.online ? 'online' : 'offline';
+          const onlineText = d.online
+            ? '🟢 Online'
+            : d.minutesAgo !== null
+            ? `⚪ Visto há ${d.minutesAgo} min`
+            : '⚪ Nunca visto';
+          const userBadge = d.user
+            ? `<span class="device-user-badge">👤 ${escapeHtml(d.user.name)}</span>`
+            : '<span class="device-user-badge" style="background:#F1F5F9; color:#64748B;">Sem membro</span>';
+
+          return `
+            <div class="device-card" data-device-id="${d.id}">
+              <div class="device-card-header">
+                <div class="device-title-wrap">
+                  <span class="device-name">${escapeHtml(d.name)}</span>
+                  <span class="device-identifier">ID: ${escapeHtml(d.identifier)}</span>
+                  ${userBadge}
+                </div>
+                <span class="device-online-badge ${onlineClass}">${onlineText}</span>
+              </div>
+              <div class="device-key-box">
+                <span class="key-text" id="devKey_${d.id}">${escapeHtml(keyDisplay)}</span>
+                <button type="button" class="device-key-btn" onclick="window.toggleRevealDeviceKey('${d.id}')">${eyeIcon}</button>
+                <button type="button" class="device-key-btn" onclick="window.copyDeviceKey('${d.id}', '${d.apiKey}')">📋 Copiar</button>
+              </div>
+              <div class="device-actions-row">
+                <button type="button" class="btn small secondary" onclick="window.rotateDeviceKey('${d.id}', '${escapeHtml(d.name)}')">🔑 Rotacionar Chave</button>
+                <button type="button" class="btn small secondary" style="color: var(--accent-red);" onclick="window.deleteDevice('${d.id}', '${escapeHtml(d.name)}')">🗑️ Excluir</button>
+              </div>
+            </div>`;
+        })
+        .join('');
+    } catch (err) {
+      console.error('Erro ao carregar dispositivos:', err);
+      listEl.innerHTML = '<div class="loading-state">Falha de conexão com o servidor.</div>';
+    }
+  }
+
+  window.toggleRevealDeviceKey = (id) => {
+    if (revealedDeviceKeys.has(id)) {
+      revealedDeviceKeys.delete(id);
+    } else {
+      revealedDeviceKeys.add(id);
+    }
+    loadDevices();
+  };
+
+  window.copyDeviceKey = async (id, fullKey) => {
+    try {
+      await navigator.clipboard.writeText(fullKey);
+      showToast('Chave de telemetria copiada! Cole no app mobile ou Traccar.');
+    } catch {
+      showToast(`Chave: ${fullKey}`);
+    }
+  };
+
+  window.rotateDeviceKey = async (id, name) => {
+    if (!confirm(`Deseja gerar uma nova chave de envio para "${name}"? O aparelho precisará atualizar a chave para continuar transmitindo.`)) {
+      return;
+    }
+    try {
+      const res = await apiFetch(`/api/devices/${id}/rotate-key`, { method: 'POST' });
+      if (res.ok) {
+        showToast('Nova chave gerada com sucesso! 🔑');
+        revealedDeviceKeys.add(id);
+        loadDevices();
+      } else {
+        const err = await res.json();
+        showToast(err.error || 'Erro ao rotacionar chave.');
+      }
+    } catch (err) {
+      showToast('Falha ao comunicar com o servidor.');
+    }
+  };
+
+  window.deleteDevice = async (id, name) => {
+    if (!confirm(`Remover o aparelho "${name}"? Todo o histórico de localização deste aparelho será excluído.`)) {
+      return;
+    }
+    try {
+      const res = await apiFetch(`/api/devices/${id}`, { method: 'DELETE' });
+      if (res.ok) {
+        showToast('Aparelho removido com sucesso.');
+        loadDevices();
+      } else {
+        const err = await res.json();
+        showToast(err.error || 'Erro ao remover aparelho.');
+      }
+    } catch (err) {
+      showToast('Falha ao comunicar com o servidor.');
+    }
+  };
+
+  function setupDevicesModal() {
+    const modal = document.getElementById('devicesModal');
+    const openBtn = document.getElementById('btnOpenDevicesModal');
+    const closeBtn = document.getElementById('btnCloseDevicesModal');
+    const toggleFormBtn = document.getElementById('btnToggleNewDeviceForm');
+    const form = document.getElementById('newDeviceForm');
+    const cancelFormBtn = document.getElementById('btnCancelNewDevice');
+    const userSelect = document.getElementById('newDeviceUserId');
+
+    if (!modal) return;
+
+    function populateMemberSelect() {
+      if (!userSelect) return;
+      const currentVal = userSelect.value;
+      userSelect.innerHTML = '<option value="">(Nenhum / Não associado)</option>' +
+        membersData.map((m) => `<option value="${m.id}">${escapeHtml(m.name)}</option>`).join('');
+      if (currentVal) userSelect.value = currentVal;
+    }
+
+    if (openBtn) {
+      openBtn.addEventListener('click', () => {
+        populateMemberSelect();
+        modal.style.display = 'flex';
+        loadDevices();
+      });
+    }
+
+    if (closeBtn) {
+      closeBtn.addEventListener('click', () => {
+        modal.style.display = 'none';
+      });
+    }
+
+    modal.addEventListener('click', (e) => {
+      if (e.target === modal) modal.style.display = 'none';
+    });
+
+    if (toggleFormBtn) {
+      toggleFormBtn.addEventListener('click', () => {
+        const isHidden = form.style.display === 'none';
+        form.style.display = isHidden ? 'flex' : 'none';
+        toggleFormBtn.textContent = isHidden ? '▲ Recolher Formulário' : '➕ Conectar Novo Aparelho';
+      });
+    }
+
+    if (cancelFormBtn) {
+      cancelFormBtn.addEventListener('click', () => {
+        form.reset();
+        form.style.display = 'none';
+        toggleFormBtn.textContent = '➕ Conectar Novo Aparelho';
+      });
+    }
+
+    if (form) {
+      form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const saveBtn = document.getElementById('btnSaveNewDevice');
+        const name = document.getElementById('newDeviceName').value.trim();
+        const identifier = document.getElementById('newDeviceIdentifier').value.trim();
+        const userId = userSelect.value || null;
+
+        if (!name) return;
+        saveBtn.disabled = true;
+
+        try {
+          const res = await apiFetch('/api/devices', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              name,
+              identifier: identifier || undefined,
+              userId: userId || undefined,
+            }),
+          });
+
+          const data = await res.json();
+          if (res.ok) {
+            showToast('Aparelho conectado! Copie a chave gerada.');
+            form.reset();
+            form.style.display = 'none';
+            toggleFormBtn.textContent = '➕ Conectar Novo Aparelho';
+            revealedDeviceKeys.add(data.id);
+            await loadDevices();
+          } else {
+            showToast(data.error || 'Erro ao cadastrar aparelho.');
+          }
+        } catch (err) {
+          console.error('Erro ao criar dispositivo:', err);
+          showToast('Falha de conexão ao criar dispositivo.');
+        } finally {
+          saveBtn.disabled = false;
+        }
+      });
+    }
+  }
+
+  // ==========================================================
+  // 20. Painel de Administração, Backups & Auditoria (Etapa 8.9)
+  // ==========================================================
+  async function loadBackups() {
+    const listEl = document.getElementById('backupsList');
+    if (!listEl) return;
+
+    try {
+      const res = await apiFetch('/api/admin/backups');
+      if (!res.ok) {
+        listEl.innerHTML = '<div class="loading-state">Erro ao listar backups (requer perfil admin).</div>';
+        return;
+      }
+      const data = await res.json();
+      const backups = data.backups || [];
+
+      if (backups.length === 0) {
+        listEl.innerHTML = '<div class="loading-state">Nenhum backup em disco ainda. O agendador criará backups diários automaticamente.</div>';
+        return;
+      }
+
+      listEl.innerHTML = backups
+        .map((b) => {
+          const dateStr = new Date(b.createdAt).toLocaleString('pt-BR');
+          return `
+            <div class="backup-item">
+              <div>
+                <div class="backup-item-title">📦 ${escapeHtml(b.filename)}</div>
+                <div class="backup-item-meta">${dateStr} • <strong>${b.sizeMb} MB</strong> • SQLite format 3</div>
+              </div>
+              <span class="badge-online">Íntegro</span>
+            </div>`;
+        })
+        .join('');
+    } catch (err) {
+      console.error('Erro ao listar backups:', err);
+      listEl.innerHTML = '<div class="loading-state">Falha ao consultar backups.</div>';
+    }
+  }
+
+  async function loadAuditSummary() {
+    try {
+      const res = await apiFetch('/api/admin/logs/summary');
+      if (!res.ok) return;
+      const data = await res.json();
+      const totalEl = document.getElementById('logSummaryTotal');
+      const errEl = document.getElementById('logSummaryErrors');
+      const failEl = document.getElementById('logSummaryFailedLogins');
+      if (totalEl) totalEl.textContent = data.total24h ?? '--';
+      if (errEl) errEl.textContent = data.errors24h ?? '0';
+      if (failEl) failEl.textContent = data.failedLogins24h ?? '0';
+    } catch (err) {
+      console.error('Erro ao carregar resumo de logs:', err);
+    }
+  }
+
+  async function loadAuditLogs(onlyErrors = false) {
+    const listEl = document.getElementById('auditLogsList');
+    if (!listEl) return;
+
+    try {
+      const url = `/api/admin/logs?limit=80${onlyErrors ? '&onlyErrors=true' : ''}`;
+      const res = await apiFetch(url);
+      if (!res.ok) {
+        listEl.innerHTML = '<div class="loading-state">Erro ao carregar logs.</div>';
+        return;
+      }
+      const data = await res.json();
+      const logs = Array.isArray(data) ? data : (data.logs || []);
+
+      if (!logs || logs.length === 0) {
+        listEl.innerHTML = '<div class="loading-state">Nenhum registro de acesso encontrado.</div>';
+        return;
+      }
+
+      listEl.innerHTML = logs
+        .map((l) => {
+          const timeStr = new Date(l.createdAt).toLocaleTimeString('pt-BR');
+          const statusPrefix = Math.floor(l.statusCode / 100);
+          const statusClass = `s-${statusPrefix}xx`;
+          const durationStr = l.durationMs !== null ? `${l.durationMs}ms` : '--';
+          const ipStr = l.ip || 'local';
+          const userStr = l.userName ? ` (${escapeHtml(l.userName)})` : '';
+
+          return `
+            <div class="log-item">
+              <div style="display: flex; align-items: center; gap: 8px; min-width: 0;">
+                <span class="log-badge-method ${l.method}">${l.method}</span>
+                <span class="log-badge-status ${statusClass}">${l.statusCode}</span>
+                <span style="font-family: monospace; font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 220px;" title="${escapeHtml(l.path)}">
+                  ${escapeHtml(l.path)}
+                </span>
+              </div>
+              <div style="font-size: 10px; color: var(--text-tertiary); text-align: right; white-space: nowrap;">
+                <span>${durationStr} • ${escapeHtml(ipStr)}${userStr}</span><br>
+                <span>${timeStr}</span>
+              </div>
+            </div>`;
+        })
+        .join('');
+    } catch (err) {
+      console.error('Erro ao carregar logs:', err);
+      listEl.innerHTML = '<div class="loading-state">Falha de conexão com os logs.</div>';
+    }
+  }
+
+  function setupAdminModal() {
+    const modal = document.getElementById('adminModal');
+    const openBtn = document.getElementById('btnOpenAdminModal');
+    const closeBtn = document.getElementById('btnCloseAdminModal');
+    const tabBackups = document.getElementById('tabBtnBackups');
+    const tabLogs = document.getElementById('tabBtnLogs');
+    const paneBackups = document.getElementById('adminPaneBackups');
+    const paneLogs = document.getElementById('adminPaneLogs');
+    const btnCreateBackup = document.getElementById('btnCreateBackupNow');
+    const btnPruneBackups = document.getElementById('btnPruneBackups');
+    const chkOnlyErrors = document.getElementById('chkLogsOnlyErrors');
+    const btnRefreshLogs = document.getElementById('btnRefreshLogs');
+
+    if (!modal) return;
+
+    function switchAdminTab(tab) {
+      if (tab === 'backups') {
+        tabBackups.classList.add('active');
+        tabLogs.classList.remove('active');
+        paneBackups.style.display = 'block';
+        paneLogs.style.display = 'none';
+        loadBackups();
+      } else {
+        tabLogs.classList.add('active');
+        tabBackups.classList.remove('active');
+        paneLogs.style.display = 'block';
+        paneBackups.style.display = 'none';
+        loadAuditSummary();
+        loadAuditLogs(chkOnlyErrors?.checked || false);
+      }
+    }
+
+    if (tabBackups) tabBackups.addEventListener('click', () => switchAdminTab('backups'));
+    if (tabLogs) tabLogs.addEventListener('click', () => switchAdminTab('logs'));
+
+    if (openBtn) {
+      openBtn.addEventListener('click', () => {
+        if (currentAuthUser && currentAuthUser.role !== 'admin') {
+          showToast('Apenas administradores podem acessar este painel.');
+          return;
+        }
+        modal.style.display = 'flex';
+        switchAdminTab('backups');
+      });
+    }
+
+    if (closeBtn) {
+      closeBtn.addEventListener('click', () => {
+        modal.style.display = 'none';
+      });
+    }
+
+    modal.addEventListener('click', (e) => {
+      if (e.target === modal) modal.style.display = 'none';
+    });
+
+    if (btnCreateBackup) {
+      btnCreateBackup.addEventListener('click', async () => {
+        btnCreateBackup.disabled = true;
+        btnCreateBackup.textContent = 'Criando backup...';
+        try {
+          const res = await apiFetch('/api/admin/backup', { method: 'POST' });
+          const data = await res.json();
+          if (res.ok) {
+            showToast(`✅ Backup criado: ${data.backup?.filename || 'OK'}`);
+            loadBackups();
+          } else {
+            showToast(data.error || 'Erro ao criar backup.');
+          }
+        } catch (err) {
+          showToast('Falha ao comunicar com o servidor.');
+        } finally {
+          btnCreateBackup.disabled = false;
+          btnCreateBackup.textContent = '💾 Fazer Backup Manual Agora';
+        }
+      });
+    }
+
+    if (btnPruneBackups) {
+      btnPruneBackups.addEventListener('click', async () => {
+        if (!confirm('Deseja podar backups com mais de 14 dias de retenção?')) return;
+        try {
+          const res = await apiFetch('/api/admin/backups/prune', { method: 'POST' });
+          const data = await res.json();
+          showToast(`🧹 Limpeza concluída: ${data.deletedCount} removidos.`);
+          loadBackups();
+        } catch {
+          showToast('Falha ao podar backups.');
+        }
+      });
+    }
+
+    if (chkOnlyErrors) {
+      chkOnlyErrors.addEventListener('change', () => {
+        loadAuditLogs(chkOnlyErrors.checked);
+      });
+    }
+
+    if (btnRefreshLogs) {
+      btnRefreshLogs.addEventListener('click', () => {
+        loadAuditSummary();
+        loadAuditLogs(chkOnlyErrors?.checked || false);
+        showToast('Logs atualizados.');
+      });
     }
   }
 
