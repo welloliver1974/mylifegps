@@ -199,11 +199,11 @@ export default function App() {
             </View>
 
             <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>Identificador deste Celular</Text>
+              <Text style={styles.inputLabel}>Identificador deste Celular (opcional)</Text>
               <TextInput
                 style={styles.input}
                 value={deviceId}
-                onChangeText={setDeviceId}
+                onChangeText={(val) => setDeviceId(val.trim())}
                 placeholder="Ex: celular-wellington"
                 placeholderTextColor="#64748B"
                 autoCapitalize="none"
@@ -215,7 +215,7 @@ export default function App() {
               <TextInput
                 style={styles.input}
                 value={deviceApiKey}
-                onChangeText={setDeviceApiKey}
+                onChangeText={(val) => setDeviceApiKey(val.trim().replace(/^["']|["']$/g, ''))}
                 placeholder="l360_..."
                 placeholderTextColor="#64748B"
                 autoCapitalize="none"

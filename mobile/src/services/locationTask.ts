@@ -46,8 +46,12 @@ export async function sendTelemetryToServer(location: Location.LocationObject): 
       // Ignora erro de leitura de bateria em emuladores ou dispositivos sem sensor
     }
 
+    const cleanKey = (deviceKey || '').trim().replace(/^["']|["']$/g, '');
+    const cleanId = (deviceId || '').trim();
+
     const payload = {
-      deviceIdentifier: deviceId,
+      deviceIdentifier: cleanId,
+      apiKey: cleanKey,
       latitude: location.coords.latitude,
       longitude: location.coords.longitude,
       altitude: location.coords.altitude,
@@ -62,8 +66,8 @@ export async function sendTelemetryToServer(location: Location.LocationObject): 
     const endpoint = `${serverUrl.replace(/\/$/, '')}/api/telemetry`;
 
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-    if (deviceKey) {
-      headers['x-device-key'] = deviceKey;
+    if (cleanKey) {
+      headers['x-device-key'] = cleanKey;
     }
 
     const response = await fetch(endpoint, {
@@ -77,9 +81,15 @@ export async function sendTelemetryToServer(location: Location.LocationObject): 
       await AsyncStorage.setItem('last_sync', new Date().toISOString());
       return { ok: true, status: response.status };
     } else {
-      const errorText = await response.text().catch(() => '');
-      console.warn('[BackgroundLocation] Servidor respondeu com status:', response.status, errorText);
-      return { ok: false, status: response.status, error: errorText || `Status HTTP ${response.status}` };
+      let parsedError = '';
+      try {
+        const json = await response.json();
+        parsedError = json.error || json.message || '';
+      } catch {
+        parsedError = await response.text().catch(() => '');
+      }
+      console.warn('[BackgroundLocation] Servidor respondeu com status:', response.status, parsedError);
+      return { ok: false, status: response.status, error: parsedError || `Status HTTP ${response.status}` };
     }
   } catch (err: any) {
     console.error('[BackgroundLocation] Falha ao enviar telemetria:', err.message);
@@ -114,15 +124,10 @@ export async function testTelemetryConnection(): Promise<{ success: boolean; mes
         success: true,
         message: `Coordenada enviada com sucesso!\nLat: ${loc.coords.latitude.toFixed(5)}, Lon: ${loc.coords.longitude.toFixed(5)}`,
       };
-    } else if (res.status === 401) {
-      return {
-        success: false,
-        message: 'Aparelho não autorizado (401). Verifique se o Identificador e a Chave batem com o cadastrado no painel web.',
-      };
     } else {
       return {
         success: false,
-        message: `Servidor retornou erro: ${res.error || res.status}`,
+        message: res.error || `Erro de autorização (${res.status}). Verifique a chave no painel web.`,
       };
     }
   } catch (err: any) {

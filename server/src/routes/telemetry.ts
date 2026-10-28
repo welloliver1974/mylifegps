@@ -18,7 +18,7 @@ function safeEqual(a: string, b: string): boolean {
 
 /**
  * Extrai a chave de telemetria de onde o cliente conseguir enviar:
- * header `x-device-key` / `x-api-key`, query `key`/`apiKey` ou corpo `apiKey`.
+ * header `x-device-key` / `x-api-key` / `authorization`, query `key`/`apiKey`, ou corpo `apiKey`/`key`/`deviceApiKey`.
  */
 function extractDeviceKey(request: any, body?: any): string | undefined {
   const headers = request.headers || {};
@@ -26,12 +26,17 @@ function extractDeviceKey(request: any, body?: any): string | undefined {
   const candidates = [
     headers['x-device-key'],
     headers['x-api-key'],
+    headers['authorization'],
     query.key,
     query.apiKey,
     body?.apiKey,
+    body?.key,
+    body?.deviceApiKey,
   ];
   for (const candidate of candidates) {
-    if (typeof candidate === 'string' && candidate.trim()) return candidate.trim();
+    if (typeof candidate === 'string' && candidate.trim()) {
+      return candidate.replace(/^Bearer\s+/i, '').replace(/^["']|["']$/g, '').trim();
+    }
   }
   return undefined;
 }
@@ -41,10 +46,32 @@ type AuthResult =
   | { ok: false; status: number; error: string };
 
 async function authorizeDevice(deviceIdentifier: string, key: string | undefined): Promise<AuthResult> {
-  const device = await prisma.device.findUnique({ where: { deviceIdentifier } });
+  const cleanId = String(deviceIdentifier || '').trim();
+  const cleanKey = String(key || '').trim().replace(/^["']|["']$/g, '');
 
-  if (MASTER_KEY && key && safeEqual(key, MASTER_KEY)) {
+  if (MASTER_KEY && cleanKey && safeEqual(cleanKey, MASTER_KEY)) {
+    let device = cleanId ? await prisma.device.findUnique({ where: { deviceIdentifier: cleanId } }) : null;
     return { ok: true, device }; // Chave mestra: aparelho pode ser auto-registrado
+  }
+
+  // 1. Busca primeiro pela chave única de telemetria (l360_...).
+  // Cada aparelho cadastrado possui uma chave criptográfica única no banco.
+  let device = cleanKey ? await prisma.device.findUnique({ where: { apiKey: cleanKey } }) : null;
+
+  // 2. Se não encontrou pela chave, busca pelo identificador exato informado
+  if (!device && cleanId) {
+    device = await prisma.device.findUnique({ where: { deviceIdentifier: cleanId } });
+  }
+
+  // 3. Se ainda não encontrou, busca tolerante no identificador ou nome (case-insensitive)
+  if (!device && cleanId) {
+    const allDevices = await prisma.device.findMany();
+    device =
+      allDevices.find(
+        (d) =>
+          d.deviceIdentifier.toLowerCase() === cleanId.toLowerCase() ||
+          d.name.toLowerCase() === cleanId.toLowerCase()
+      ) || null;
   }
 
   if (!device) {
@@ -55,7 +82,7 @@ async function authorizeDevice(deviceIdentifier: string, key: string | undefined
       ok: false,
       status: 401,
       error:
-        'Aparelho não registrado. Abra o painel, cadastre o aparelho em "Dispositivos" e use a chave gerada na configuração do app.',
+        'Aparelho não registrado. Abra o painel web em "Dispositivos & Chaves GPS", copie a Chave de Telemetria (l360_...) gerada e cole no app.',
     };
   }
 
@@ -63,11 +90,11 @@ async function authorizeDevice(deviceIdentifier: string, key: string | undefined
     return { ok: true, device };
   }
 
-  if (!key) {
-    return { ok: false, status: 401, error: 'Chave de telemetria ausente (header x-device-key ou ?key=).' };
+  if (!cleanKey) {
+    return { ok: false, status: 401, error: 'Chave de telemetria ausente. Copie a chave (l360_...) do painel web.' };
   }
 
-  if (!safeEqual(key, device.apiKey)) {
+  if (!safeEqual(cleanKey, device.apiKey)) {
     return { ok: false, status: 401, error: 'Chave de telemetria inválida para este aparelho.' };
   }
 
@@ -79,15 +106,19 @@ export async function telemetryRoutes(fastify: FastifyInstance) {
   fastify.post('/api/telemetry', async (request, reply) => {
     const body = request.body as any;
 
-    if (!body?.deviceIdentifier || body?.latitude === undefined || body?.longitude === undefined) {
-      return reply.status(400).send({ error: 'deviceIdentifier, latitude e longitude são obrigatórios' });
+    if (body?.latitude === undefined || body?.longitude === undefined) {
+      return reply.status(400).send({ error: 'latitude e longitude são obrigatórios' });
     }
 
-    const deviceIdentifier = String(body.deviceIdentifier);
-    const auth = await authorizeDevice(deviceIdentifier, extractDeviceKey(request, body));
+    const rawKey = extractDeviceKey(request, body);
+    const rawIdentifier = String(body.deviceIdentifier || body.deviceId || body.identifier || '');
+    const auth = await authorizeDevice(rawIdentifier, rawKey);
     if (!auth.ok) {
       return reply.status(auth.status).send({ error: auth.error });
     }
+
+    // Usa o deviceIdentifier oficial do banco para garantir que as posições fiquem vinculadas ao mesmo aparelho
+    const deviceIdentifier = auth.device?.deviceIdentifier || rawIdentifier || 'device-default';
 
     const result = await processTelemetry({
       deviceIdentifier,
