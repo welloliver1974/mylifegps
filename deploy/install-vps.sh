@@ -71,7 +71,18 @@ passo "3/9  PM2"
 if command -v pm2 >/dev/null 2>&1; then
   ok "PM2 já instalado: $(pm2 -v)"
 else
-  $SUDO npm install -g pm2 >/dev/null
+  NPM_BIN="$(command -v npm 2>/dev/null || true)"
+  if [ -z "$NPM_BIN" ]; then
+    erro "npm não foi encontrado no PATH. Rode: sudo apt-get install -y npm"
+    exit 1
+  fi
+  # Se o diretório do npm for gravável pelo usuário atual (ex: nvm/asdf),
+  # instala sem sudo para não quebrar permissões locais.
+  if [ -w "$(dirname "$NPM_BIN")" ]; then
+    "$NPM_BIN" install -g pm2 >/dev/null
+  else
+    $SUDO env PATH="$PATH" "$NPM_BIN" install -g pm2 >/dev/null
+  fi
   ok "PM2 instalado: $(pm2 -v)"
 fi
 
@@ -182,17 +193,23 @@ if [ ! -f "$ECOSYSTEM" ]; then
   erro "Não encontrei $ECOSYSTEM"
   exit 1
 fi
+PM2_BIN="$(command -v pm2 2>/dev/null || echo "pm2")"
 cd "$APP_DIR/server"
-if pm2 describe my-life360-server >/dev/null 2>&1; then
-  pm2 reload "$ECOSYSTEM" --update-env
+if "$PM2_BIN" describe my-life360-server >/dev/null 2>&1; then
+  "$PM2_BIN" reload "$ECOSYSTEM" --update-env
 else
-  pm2 start "$ECOSYSTEM"
+  "$PM2_BIN" start "$ECOSYSTEM"
 fi
-pm2 save --force >/dev/null
-if ! $SUDO env PATH="$PATH" pm2 startup systemd -u "$APP_USER" --hp "$APP_HOME" >/dev/null 2>&1; then
-  aviso "Ative o boot automático depois: sudo env PATH=\$PATH pm2 startup systemd -u $APP_USER --hp $APP_HOME"
-else
+"$PM2_BIN" save --force >/dev/null
+
+STARTUP_CMD="$("$PM2_BIN" startup systemd -u "$APP_USER" --hp "$APP_HOME" 2>/dev/null | grep 'sudo env PATH' || true)"
+if [ -n "$STARTUP_CMD" ]; then
+  eval "$STARTUP_CMD" >/dev/null 2>&1 || true
   ok "PM2 configurado para iniciar no boot."
+elif $SUDO env PATH="$PATH" "$PM2_BIN" startup systemd -u "$APP_USER" --hp "$APP_HOME" >/dev/null 2>&1; then
+  ok "PM2 configurado para iniciar no boot."
+else
+  aviso "Ative o boot automático depois rodando: pm2 startup"
 fi
 
 # ---------------------------------------------------------------- health
