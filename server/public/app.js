@@ -4,6 +4,11 @@ document.addEventListener('DOMContentLoaded', () => {
   let currentTileLayer = null;
   let cartoKey = '';
   let currentLayerType = localStorage.getItem('life360_map_layer') || 'voyager';
+  // Se o mapa foi alterado para 'dark' anteriormente pelo tema, restaura para o padrão Voyager (Life360 Clean)
+  if (currentLayerType === 'dark') {
+    currentLayerType = 'voyager';
+    localStorage.setItem('life360_map_layer', 'voyager');
+  }
 
   let memberMarkers = new Map(); // userId -> { marker, accuracyCircle }
   let placeLayers = new Map();   // placeId -> { circle, labelMarker }
@@ -32,7 +37,7 @@ document.addEventListener('DOMContentLoaded', () => {
     return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
   }
 
-  function applyTheme(theme, syncMapLayer = false) {
+  function applyTheme(theme) {
     document.documentElement.setAttribute('data-theme', theme);
     localStorage.setItem('life360_theme', theme);
 
@@ -44,18 +49,10 @@ document.addEventListener('DOMContentLoaded', () => {
     if (btn) {
       btn.title = theme === 'dark' ? 'Alternar para Modo Claro' : 'Alternar para Modo Escuro';
     }
-
-    if (syncMapLayer && map) {
-      if (theme === 'dark' && currentLayerType === 'voyager') {
-        switchBaseLayer('dark');
-      } else if (theme === 'light' && currentLayerType === 'dark') {
-        switchBaseLayer('voyager');
-      }
-    }
   }
 
-  // Aplica tema imediatamente ao carregar a página
-  applyTheme(getPreferredTheme(), false);
+  // Aplica tema imediatamente ao carregar a página (sem alterar os tiles do mapa)
+  applyTheme(getPreferredTheme());
 
   // ---------- Autenticação ----------
   const AUTH_TOKEN_KEY = 'life360_auth_token';
@@ -851,15 +848,15 @@ document.addEventListener('DOMContentLoaded', () => {
     const toggle = () => {
       const current = document.documentElement.getAttribute('data-theme') || 'light';
       const next = current === 'dark' ? 'light' : 'dark';
-      applyTheme(next, true);
-      showToast(next === 'dark' ? '🌙 Modo Escuro ativado' : '☀️ Modo Claro ativado');
+      applyTheme(next);
+      showToast(next === 'dark' ? '🌙 Modo Escuro ativado (Interface)' : '☀️ Modo Claro ativado');
     };
 
     if (btnTop) btnTop.addEventListener('click', toggle);
     if (btnModal) btnModal.addEventListener('click', toggle);
 
     // Garante que o ícone reflita o tema salvo
-    applyTheme(getPreferredTheme(), false);
+    applyTheme(getPreferredTheme());
   }
 
   // 4c. Chat do Círculo Familiar & Mensagens Diretas 1:1 (Etapa 8.8)
