@@ -2,6 +2,7 @@
   "expo": {
     "name": "My Life360",
     "slug": "my-life360-mobile",
+    "owner": "welloliveiras-team",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -15,7 +16,10 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.wellington.mylife360",
       "infoPlist": {
-        "UIBackgroundModes": ["location", "fetch"],
+        "UIBackgroundModes": [
+          "location",
+          "fetch"
+        ],
         "NSLocationAlwaysAndWhenInUseUsageDescription": "O My Life360 precisa de acesso à localização para compartilhar sua posição com o seu círculo familiar em tempo real.",
         "NSLocationWhenInUseUsageDescription": "O My Life360 precisa de sua localização para exibir sua posição no mapa."
       }
@@ -39,7 +43,12 @@
         "VIBRATE",
         "INTERNET",
         "ACCESS_NETWORK_STATE",
-        "REQUEST_IGNORE_BATTERY_OPTIMIZATIONS"
+        "REQUEST_IGNORE_BATTERY_OPTIMIZATIONS",
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.ACCESS_BACKGROUND_LOCATION",
+        "android.permission.FOREGROUND_SERVICE",
+        "android.permission.FOREGROUND_SERVICE_LOCATION"
       ]
     },
     "plugins": [
@@ -51,6 +60,11 @@
           "isAndroidForegroundServiceEnabled": true
         }
       ]
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "ac668138-026b-4045-8658-25b2609d1b86"
+      }
+    }
   }
 }
