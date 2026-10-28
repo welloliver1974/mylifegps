@@ -123,17 +123,11 @@ else
   cd "$APP_DIR"
 fi
 
-# ---------------------------------------------------------------- 7. deps
-passo "7/9  Dependências, Prisma e build"
+# ---------------------------------------------------------------- 7. deps e .env
+passo "7/9  Dependências e Configuração (.env)"
 cd "$APP_DIR/server"
 npm ci --no-audit --no-fund
-npx prisma generate >/dev/null
-npx prisma db push --skip-generate
-npm run build
-ok "Build concluído."
 
-# ---------------------------------------------------------------- 8. .env
-passo "8/9  Arquivo de ambiente (server/.env)"
 ENV_FILE="$APP_DIR/server/.env"
 if [ -f "$ENV_FILE" ]; then
   ok ".env já existe — mantido intacto (não sobrescrevo segredos)."
@@ -185,6 +179,15 @@ EOF
   ok ".env criado com permissão 600 (só o dono lê)."
   ok "Chaves VAPID novas geradas nesta máquina."
 fi
+
+# ---------------------------------------------------------------- 8. prisma e build
+passo "8/9  Prisma e Build do Servidor"
+cd "$APP_DIR/server"
+export DATABASE_URL="file:./prod.db"
+npx prisma generate >/dev/null
+npx prisma db push --skip-generate
+npm run build
+ok "Banco SQLite inicializado e build concluído."
 
 # ---------------------------------------------------------------- 9. pm2
 passo "9/9  Iniciando o serviço no PM2"
