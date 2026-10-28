@@ -25,6 +25,38 @@ document.addEventListener('DOMContentLoaded', () => {
   let sosCountdownInterval = null;
   let currentSosCountdown = 5;
 
+  // ---------- Gerenciamento de Tema (Claro / Escuro) ----------
+  function getPreferredTheme() {
+    const saved = localStorage.getItem('life360_theme');
+    if (saved === 'dark' || saved === 'light') return saved;
+    return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  }
+
+  function applyTheme(theme, syncMapLayer = false) {
+    document.documentElement.setAttribute('data-theme', theme);
+    localStorage.setItem('life360_theme', theme);
+
+    const icon = document.getElementById('themeToggleIcon');
+    if (icon) {
+      icon.textContent = theme === 'dark' ? '☀️' : '🌙';
+    }
+    const btn = document.getElementById('btnToggleTheme');
+    if (btn) {
+      btn.title = theme === 'dark' ? 'Alternar para Modo Claro' : 'Alternar para Modo Escuro';
+    }
+
+    if (syncMapLayer && map) {
+      if (theme === 'dark' && currentLayerType === 'voyager') {
+        switchBaseLayer('dark');
+      } else if (theme === 'light' && currentLayerType === 'dark') {
+        switchBaseLayer('voyager');
+      }
+    }
+  }
+
+  // Aplica tema imediatamente ao carregar a página
+  applyTheme(getPreferredTheme(), false);
+
   // ---------- Autenticação ----------
   const AUTH_TOKEN_KEY = 'life360_auth_token';
   let authToken = localStorage.getItem(AUTH_TOKEN_KEY) || '';
@@ -353,6 +385,7 @@ document.addEventListener('DOMContentLoaded', () => {
       setupFloatingControls();
       setupBottomsheetGestures();
       setupCircleMenu();
+      setupThemeToggle();
       setupChat();
       setupAlerts();
       setupSosFlow();
@@ -440,6 +473,31 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const isDesktop = () => window.matchMedia('(min-width: 768px)').matches;
 
+    const desktopReopenBtn = document.getElementById('btnDesktopReopenSheet');
+
+    const updateDesktopReopenState = () => {
+      if (!isDesktop()) {
+        if (desktopReopenBtn) desktopReopenBtn.style.display = 'none';
+        return;
+      }
+      const isCollapsed = sheet.classList.contains('collapsed-desktop');
+      if (desktopReopenBtn) {
+        desktopReopenBtn.style.display = isCollapsed ? 'inline-flex' : 'none';
+      }
+    };
+
+    if (desktopReopenBtn) {
+      desktopReopenBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        sheet.classList.remove('collapsed-desktop');
+        toggleBtn.textContent = '▾';
+        toggleBtn.title = 'Minimizar painel';
+        desktopReopenBtn.style.display = 'none';
+      });
+    }
+
+    window.addEventListener('resize', updateDesktopReopenState);
+
     const onStart = (clientX, clientY) => {
       isDragging = true;
       startX = clientX;
@@ -471,6 +529,7 @@ document.addEventListener('DOMContentLoaded', () => {
         sheet.classList.add('collapsed-desktop');
         toggleBtn.textContent = '▸';
         toggleBtn.title = 'Exibir painel';
+        updateDesktopReopenState();
       } else if (!isDesktop() && currentY > 110) {
         sheet.classList.add('peek-mobile');
         toggleBtn.textContent = '▴';
@@ -497,6 +556,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const collapsed = sheet.classList.toggle('collapsed-desktop');
         toggleBtn.textContent = collapsed ? '▸' : '▾';
         toggleBtn.title = collapsed ? 'Exibir painel' : 'Ocultar painel';
+        updateDesktopReopenState();
       } else {
         const peeked = sheet.classList.toggle('peek-mobile');
         toggleBtn.textContent = peeked ? '▴' : '▾';
@@ -510,6 +570,7 @@ document.addEventListener('DOMContentLoaded', () => {
         sheet.classList.remove('collapsed-desktop');
         toggleBtn.textContent = '▾';
         toggleBtn.title = 'Ocultar painel';
+        updateDesktopReopenState();
       }
     });
   }
@@ -527,11 +588,26 @@ document.addEventListener('DOMContentLoaded', () => {
       const inviteCodeEl = document.getElementById('circleInviteCode');
       if (inviteCodeEl) inviteCodeEl.textContent = data.inviteCode || 'INDISPONÍVEL';
 
+      const circleDisplayName = data.name || 'Família';
       const titleEl = document.getElementById('circleModalTitle');
-      if (titleEl) titleEl.textContent = 'Círculo ' + (data.name || 'Família');
+      if (titleEl) titleEl.textContent = 'Círculo ' + circleDisplayName;
 
       const topTitle = document.querySelector('.circle-name-wrap h1');
-      if (topTitle) topTitle.textContent = 'Círculo ' + (data.name || 'Família');
+      if (topTitle) topTitle.textContent = 'Círculo ' + circleDisplayName;
+
+      const desktopReopenLabel = document.getElementById('desktopReopenCircleName');
+      if (desktopReopenLabel) desktopReopenLabel.textContent = circleDisplayName;
+
+      const editBox = document.getElementById('circleNameEditBox');
+      const inputName = document.getElementById('inputCircleName');
+      if (editBox && inputName) {
+        if (data.myRole === 'admin') {
+          editBox.style.display = 'block';
+          inputName.value = circleDisplayName;
+        } else {
+          editBox.style.display = 'none';
+        }
+      }
 
       const btnRegenerate = document.getElementById('btnRegenerateInviteCode');
       if (btnRegenerate) {
@@ -729,6 +805,61 @@ document.addEventListener('DOMContentLoaded', () => {
 
     document.getElementById('btnTopCheckin').addEventListener('click', doCheckin);
     document.getElementById('btnCircleCheckin').addEventListener('click', doCheckin);
+
+    // Salvar novo nome do círculo (Admin)
+    const btnSaveCircleName = document.getElementById('btnSaveCircleName');
+    if (btnSaveCircleName) {
+      btnSaveCircleName.addEventListener('click', async () => {
+        const inputName = document.getElementById('inputCircleName');
+        const newName = (inputName?.value || '').trim();
+        if (!newName) {
+          showToast('O nome do círculo não pode ficar vazio.');
+          return;
+        }
+
+        btnSaveCircleName.disabled = true;
+        btnSaveCircleName.textContent = 'Salvando...';
+        try {
+          const res = await apiFetch('/api/circle/name', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name: newName }),
+          });
+          const json = await res.json();
+          if (!res.ok) {
+            showToast(json.error || 'Erro ao renomear círculo.');
+            return;
+          }
+          showToast(`Nome do círculo atualizado para "${json.name || newName}"! 🎉`);
+          await loadCircleData();
+        } catch (err) {
+          console.error(err);
+          showToast('Falha de conexão ao renomear círculo.');
+        } finally {
+          btnSaveCircleName.disabled = false;
+          btnSaveCircleName.textContent = 'Salvar';
+        }
+      });
+    }
+  }
+
+  // 4b2. Alternador de Tema Claro / Escuro
+  function setupThemeToggle() {
+    const btnTop = document.getElementById('btnToggleTheme');
+    const btnModal = document.getElementById('btnModalToggleTheme');
+
+    const toggle = () => {
+      const current = document.documentElement.getAttribute('data-theme') || 'light';
+      const next = current === 'dark' ? 'light' : 'dark';
+      applyTheme(next, true);
+      showToast(next === 'dark' ? '🌙 Modo Escuro ativado' : '☀️ Modo Claro ativado');
+    };
+
+    if (btnTop) btnTop.addEventListener('click', toggle);
+    if (btnModal) btnModal.addEventListener('click', toggle);
+
+    // Garante que o ícone reflita o tema salvo
+    applyTheme(getPreferredTheme(), false);
   }
 
   // 4c. Chat do Círculo Familiar & Mensagens Diretas 1:1 (Etapa 8.8)

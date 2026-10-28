@@ -215,6 +215,13 @@
     - Tela de ajustes com botão de teste imediato de telemetria ("📡 Testar Envio de Coordenada") e chave por aparelho (`x-device-key`).
     - Build pré-configurado no `eas.json` com perfil `preview` (`buildType: "apk"`) para geração direta do arquivo `.apk` instalável no celular via `npm run build:apk`.
     - Documentação completa em `mobile/README.md`.
+  - **Refinamentos de UI/UX e Usabilidade (App Mobile + Web/Notebook):**
+    - **Aba Círculo no celular sem corte:** safe-area-inset no Android (`StatusBar.currentHeight`), responsividade e elipse de texto no cabeçalho.
+    - **Respiro no controle do mapa:** espaçamento vertical aumentado para 96px, descolando os botões flutuantes da barra superior do círculo.
+    - **Botão flutuante de engrenagem ⚙️ livre:** reposicionado acima da gaveta inferior (`bottom: 110px`) e tornado arrastável com `PanResponder`, liberando a barra inferior.
+    - **Minimização no desktop/notebook elegante:** gaveta recolhe 100% da tela sem sobras e exibe pílula flutuante estilizada `[ 👥 Círculo ▸ ]` para reabertura suave.
+    - **Tema Dark (Modo Escuro):** botão de alternância no topo e no menu, tokens escuros completos e sincronização com mapa CARTO dark. Cache PWA `life360-v19`.
+    - **Edição do nome do círculo:** campo de edição com validação para administradores via `PUT /api/circle/name`, atualizando instantaneamente no topo.
 
 - [ ] **Etapa 9.3: Etapa 8.10 — Detecção de acidente real (acelerômetro)**
   - `expo-sensors` no app mobile; limiar de desaceleração brusca → evento `CRASH_DETECTED` real via WebSocket, com confirmação/cancelamento na tela antes de virar SOS.

@@ -17,7 +17,7 @@
   <!-- Leaflet CSS -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
 
-  <link rel="stylesheet" href="/style.css?v=18">
+  <link rel="stylesheet" href="/style.css?v=19">
 </head>
 <body>
   <!-- Tela de Autenticação (Login / Configuração Inicial / Convite) -->
@@ -104,6 +104,11 @@
         <!-- Botão SOS de Emergência -->
         <button class="sos-top-btn" id="btnTopSos" title="Botão de Pânico SOS">
           <span>🚨 SOS</span>
+        </button>
+
+        <!-- Botão Alternar Tema Claro / Escuro -->
+        <button class="icon-btn" id="btnToggleTheme" title="Alternar Modo Escuro / Claro">
+          <span id="themeToggleIcon" style="font-size: 15px;">🌙</span>
         </button>
 
         <button class="icon-btn" id="btnFitAll" title="Enquadrar todos">
@@ -389,6 +394,13 @@
       </div>
     </aside>
 
+    <!-- Botão Flutuante de Reabertura do Painel no Desktop (Aparece ao Minimizar) -->
+    <button class="desktop-sheet-reopen-tab" id="btnDesktopReopenSheet" title="Exibir Painel do Círculo" style="display: none;">
+      <span class="reopen-icon">👥</span>
+      <span class="reopen-label" id="desktopReopenCircleName">Círculo</span>
+      <span class="reopen-chevron">▸</span>
+    </button>
+
     <!-- Modal do Círculo Familiar (Código de Convite & Membros) -->
     <div class="modal-overlay" id="circleModal" style="display: none;">
       <div class="modal-content">
@@ -397,6 +409,17 @@
           <button class="close-btn" id="btnCloseCircleModal">&times;</button>
         </div>
         <div class="circle-modal-body">
+          <!-- Edição do Nome do Círculo (Admin) -->
+          <div class="circle-name-edit-box" id="circleNameEditBox" style="display: none; background: var(--bg-secondary); border-radius: 14px; padding: 12px; border: 1px solid var(--border-color); margin-bottom: 12px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+              <span style="font-weight: 700; font-size: 0.82rem; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.5px;">✏️ Nome do Círculo</span>
+            </div>
+            <div style="display: flex; gap: 8px;">
+              <input type="text" id="inputCircleName" placeholder="Ex: Família Oliveira" maxlength="32" style="flex: 1; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--border-color); background: var(--bg-primary); color: var(--text-primary); font-size: 13.5px; font-weight: 600;">
+              <button type="button" class="btn small primary" id="btnSaveCircleName">Salvar</button>
+            </div>
+          </div>
+
           <div class="invite-code-card">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
               <span class="invite-label" style="margin-bottom: 0;">Código de Convite do Círculo</span>
@@ -441,6 +464,9 @@
             </button>
             <button class="btn secondary" id="btnCircleCheckin" style="width: 100%; margin-bottom: 8px;">
               📍 Fazer Check-in Agora (Avisar a todos)
+            </button>
+            <button class="btn secondary" id="btnModalToggleTheme" style="width: 100%; margin-bottom: 8px;">
+              🌓 Alternar Tema Claro / Escuro
             </button>
             <!-- Gestão de Aparelhos & Chaves GPS (Etapa 8.9) -->
             <button class="btn secondary" id="btnOpenDevicesModal" style="width: 100%; margin-bottom: 8px;">
@@ -713,7 +739,7 @@
 
   <!-- Leaflet JS -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
-  <script src="/app.js?v=18"></script>
+  <script src="/app.js?v=19"></script>
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {

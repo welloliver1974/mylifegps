@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   StyleSheet,
   View,
@@ -10,6 +10,10 @@ import {
   SafeAreaView,
   ActivityIndicator,
   Alert,
+  Platform,
+  StatusBar as RNStatusBar,
+  PanResponder,
+  Animated,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { WebView } from 'react-native-webview';
@@ -33,6 +37,36 @@ export default function App() {
   const [isLoading, setIsLoading] = useState(true);
   const [isTesting, setIsTesting] = useState(false);
   const [lastSync, setLastSync] = useState<string | null>(null);
+
+  // Botão flutuante arrastável para não cobrir a gaveta inferior
+  const pan = useRef(new Animated.ValueXY({ x: 0, y: 0 })).current;
+  const isDraggingRef = useRef(false);
+
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: (_, gestureState) => {
+        return Math.abs(gestureState.dx) > 3 || Math.abs(gestureState.dy) > 3;
+      },
+      onPanResponderGrant: () => {
+        isDraggingRef.current = false;
+        pan.setOffset({
+          x: (pan.x as any)._value,
+          y: (pan.y as any)._value,
+        });
+        pan.setValue({ x: 0, y: 0 });
+      },
+      onPanResponderMove: (_, gestureState) => {
+        if (Math.abs(gestureState.dx) > 3 || Math.abs(gestureState.dy) > 3) {
+          isDraggingRef.current = true;
+        }
+        Animated.event([null, { dx: pan.x, dy: pan.y }], { useNativeDriver: false })(_, gestureState);
+      },
+      onPanResponderRelease: () => {
+        pan.flattenOffset();
+      },
+    })
+  ).current;
 
   useEffect(() => {
     loadSettings();
@@ -163,14 +197,28 @@ export default function App() {
         />
       </View>
 
-      {/* Botão Flutuante de Configurações */}
-      <TouchableOpacity
-        style={[styles.floatingButton, isTracking && styles.floatingButtonActive]}
-        onPress={() => setShowConfig(true)}
-        activeOpacity={0.8}
+      {/* Botão Flutuante de Configurações (Posicionado acima da barra inferior e livremente arrastável) */}
+      <Animated.View
+        style={[
+          styles.floatingButtonWrap,
+          {
+            transform: [{ translateX: pan.x }, { translateY: pan.y }],
+          },
+        ]}
+        {...panResponder.panHandlers}
       >
-        <Text style={styles.floatingButtonText}>⚙️</Text>
-      </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.floatingButton, isTracking && styles.floatingButtonActive]}
+          onPress={() => {
+            if (!isDraggingRef.current) {
+              setShowConfig(true);
+            }
+          }}
+          activeOpacity={0.8}
+        >
+          <Text style={styles.floatingButtonText}>⚙️</Text>
+        </TouchableOpacity>
+      </Animated.View>
 
       {/* Modal de Configuração do Aparelho */}
       <Modal visible={showConfig} animationType="slide" transparent>
@@ -282,6 +330,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#0F172A',
+    paddingTop: Platform.OS === 'android' ? (RNStatusBar.currentHeight || 0) : 0,
   },
   mapContainer: {
     flex: 1,
@@ -301,10 +350,13 @@ const styles = StyleSheet.create({
     color: '#94A3B8',
     fontSize: 14,
   },
-  floatingButton: {
+  floatingButtonWrap: {
     position: 'absolute',
-    bottom: 24,
-    right: 20,
+    bottom: 110,
+    right: 18,
+    zIndex: 9999,
+  },
+  floatingButton: {
     width: 50,
     height: 50,
     borderRadius: 25,
