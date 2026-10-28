@@ -187,8 +187,13 @@ async function bootstrap() {
     });
 
     fastify.get('/api/config', async () => {
+      const raw = process.env.CARTO_API_KEY || '';
+      const cartoApiKey = raw
+        .replace(/^CARTO_API_KEY\s*=\s*/i, '')
+        .replace(/^["']|["']$/g, '')
+        .trim();
       return {
-        cartoApiKey: process.env.CARTO_API_KEY || '',
+        cartoApiKey,
       };
     });
 

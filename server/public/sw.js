@@ -1,9 +1,9 @@
-const CACHE_NAME = 'life360-v17';
+const CACHE_NAME = 'life360-v18';
 const ASSETS = [
   '/',
   '/index.html',
-  '/style.css?v=17',
-  '/app.js?v=17',
+  '/style.css?v=18',
+  '/app.js?v=18',
   '/manifest.json'
 ];
 
@@ -28,6 +28,21 @@ self.addEventListener('fetch', (event) => {
   if (event.request.url.includes('/api/') || event.request.url.includes('/ws')) {
     return;
   }
+
+  // Para navegação HTML, busca primeiro na rede para sempre carregar a versão mais recente
+  if (event.request.mode === 'navigate') {
+    event.respondWith(
+      fetch(event.request)
+        .then((response) => {
+          const clone = response.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
+          return response;
+        })
+        .catch(() => caches.match(event.request))
+    );
+    return;
+  }
+
   event.respondWith(
     caches.match(event.request).then((response) => response || fetch(event.request))
   );

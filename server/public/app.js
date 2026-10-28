@@ -244,6 +244,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // 1. Configurações dos Provedores de Mapa
   function getTileConfig(type) {
+    const cleanKey = encodeURIComponent(
+      String(cartoKey || '')
+        .replace(/^CARTO_API_KEY\s*=\s*/i, '')
+        .replace(/^["']|["']$/g, '')
+        .trim()
+    );
+
     if (type === 'satellite') {
       return {
         url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
@@ -254,8 +261,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     if (type === 'dark') {
       return {
-        url: cartoKey
-          ? `https://{s}.basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}{r}.png?key=${cartoKey}`
+        url: cleanKey
+          ? `https://{s}.basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}{r}.png?key=${cleanKey}`
           : 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
         attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
         subdomains: 'abcd',
@@ -264,8 +271,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     // Padrão: Voyager (Life360 Clean)
     return {
-      url: cartoKey
-        ? `https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png?key=${cartoKey}`
+      url: cleanKey
+        ? `https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png?key=${cleanKey}`
         : 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
       attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
       subdomains: 'abcd',
@@ -320,7 +327,10 @@ document.addEventListener('DOMContentLoaded', () => {
         if (cfgRes.ok) {
           const cfg = await cfgRes.json();
           if (cfg?.cartoApiKey) {
-            cartoKey = cfg.cartoApiKey;
+            cartoKey = String(cfg.cartoApiKey)
+              .replace(/^CARTO_API_KEY\s*=\s*/i, '')
+              .replace(/^["']|["']$/g, '')
+              .trim();
           }
         }
       } catch (err) {
