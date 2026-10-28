@@ -17,7 +17,7 @@
   <!-- Leaflet CSS -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
 
-  <link rel="stylesheet" href="/style.css?v=20">
+  <link rel="stylesheet" href="/style.css?v=21">
 </head>
 <body>
   <!-- Tela de Autenticação (Login / Configuração Inicial / Convite) -->
@@ -247,6 +247,15 @@
 
           <!-- Ações Rápidas do Membro -->
           <div class="detail-quick-actions">
+            <!-- Botão Atualizar Agora (Recurso Life360 - Etapa 9.4) -->
+            <button class="action-card-btn refresh-location" id="btnRequestLocationUpdate" title="Solicitar localização em tempo real do aparelho">
+              <span class="action-icon" id="btnRequestLocationIcon">🔄</span>
+              <div class="action-text">
+                <strong id="btnRequestLocationTitle">Atualizar Agora</strong>
+                <span id="btnRequestLocationSub">Solicitar GPS em tempo real</span>
+              </div>
+            </button>
+
             <!-- Botão Como Chegar (Google Maps / Waze) -->
             <button class="action-card-btn gps" id="btnNavigateToMember">
               <span class="action-icon">🧭</span>
@@ -739,7 +748,7 @@
 
   <!-- Leaflet JS -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
-  <script src="/app.js?v=20"></script>
+  <script src="/app.js?v=21"></script>
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {

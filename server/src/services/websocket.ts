@@ -192,3 +192,34 @@ export function broadcastDmRead(payload: {
   }
 }
 
+// Dispara solicitação de atualização forçada de localização ("Atualizar agora" - Etapa 9.4)
+export function broadcastLocationUpdateRequest(payload: {
+  userId: string;
+  userName: string;
+  requestedBy: string;
+  requestedAt: string;
+}) {
+  const message = JSON.stringify({
+    type: 'LOCATION_UPDATE_REQUEST',
+    data: payload,
+  });
+
+  for (const client of clients) {
+    if (client.readyState === WebSocket.OPEN) {
+      client.send(message);
+    }
+  }
+
+  // Notifica o membro alvo via Web Push silencioso/alta prioridade caso o app esteja fechado
+  if (payload.userId) {
+    sendPushToUser(payload.userId, {
+      title: '📍 Atualização Solicitada',
+      body: `${payload.requestedBy || 'Um familiar'} solicitou sua posição em tempo real.`,
+      icon: '/icon-192.png',
+      badge: '/icon-192.png',
+      tag: 'location-update-request',
+      data: { url: '/', type: 'request_location_update' },
+    }).catch((err) => console.error('[Push Request Update Error]', err));
+  }
+}
+

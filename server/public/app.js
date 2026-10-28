@@ -1120,6 +1120,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const msg = JSON.parse(event.data);
         if (msg.type === 'LOCATION_UPDATE') {
           handleLiveLocation(msg.data);
+        } else if (msg.type === 'LOCATION_UPDATE_REQUEST') {
+          handleIncomingLocationUpdateRequest(msg.data);
         } else if (msg.type === 'GEOFENCE_ALERT') {
           showToast(msg.alert.message);
         } else if (msg.type === 'SOS_ALERT') {
@@ -1265,6 +1267,9 @@ document.addEventListener('DOMContentLoaded', () => {
     if (selectedMemberId === locData.userId) {
       renderMemberDetails(member || membersData[membersData.length - 1]);
     }
+
+    // Se havia uma solicitação de "Atualizar agora" pendente para este membro, conclui o feedback visual
+    onLocationUpdateReceived(locData.userId);
   }
 
   // 6.5 Enquadra todos os membros e lugares no mapa
@@ -1662,6 +1667,9 @@ document.addEventListener('DOMContentLoaded', () => {
           <h3 style="font-size: 18px; font-weight: 700;">${member.name}</h3>
           <p style="font-size: 12px; color: var(--text-secondary);">${member.activeDevice?.name || 'Celular Principal'}${member.phone ? ` • ${member.phone}` : ''}</p>
         </div>
+        <button class="detail-refresh-btn" id="btnHeaderRefreshLocation" onclick="window.requestMemberLocationUpdate('${member.id}')" title="Atualizar localização agora">
+          🔄 Atualizar
+        </button>
         <button class="detail-edit-profile-btn" onclick="window.openProfileModal('${member.id}')" title="Editar perfil e foto">
           ✏️ Editar
         </button>
@@ -1755,12 +1763,161 @@ document.addEventListener('DOMContentLoaded', () => {
     `;
   }
 
+  // ==========================================================
+  // 14.5 "Atualizar Agora" - Solicitação de Posição Remota (Etapa 9.4)
+  // ==========================================================
+  let pendingLocationUpdateMemberId = null;
+  let pendingLocationUpdateTimeout = null;
+
+  async function requestMemberLocationUpdate(userId) {
+    const targetId = userId || selectedMemberId;
+    if (!targetId) return;
+
+    const member = membersData.find((m) => m.id === targetId);
+    const memberName = member?.name || 'Membro';
+
+    const btn = document.getElementById('btnRequestLocationUpdate');
+    const titleEl = document.getElementById('btnRequestLocationTitle');
+    const subEl = document.getElementById('btnRequestLocationSub');
+    const headerBtn = document.getElementById('btnHeaderRefreshLocation');
+
+    if (btn) {
+      btn.classList.add('loading');
+      btn.disabled = true;
+    }
+    if (titleEl) titleEl.textContent = 'Solicitando...';
+    if (subEl) subEl.textContent = `Aguardando GPS de ${memberName}`;
+    if (headerBtn) {
+      headerBtn.classList.add('loading');
+      headerBtn.innerHTML = '<span>🔄</span> Solicitando...';
+    }
+
+    pendingLocationUpdateMemberId = targetId;
+    showToast(`📡 Solicitando posição em tempo real de ${memberName}...`);
+
+    // Timeout de 20s para informar caso o aparelho esteja offline ou sem GPS ativo
+    if (pendingLocationUpdateTimeout) clearTimeout(pendingLocationUpdateTimeout);
+    pendingLocationUpdateTimeout = setTimeout(() => {
+      if (pendingLocationUpdateMemberId === targetId) {
+        resetLocationUpdateButton(false, 'Sem resposta imediata');
+        showToast(`⚠️ ${memberName} ainda não respondeu. A posição atualizará assim que o aparelho transmitir.`);
+        pendingLocationUpdateMemberId = null;
+      }
+    }, 20000);
+
+    try {
+      const res = await apiFetch(`/api/members/${targetId}/request-update`, {
+        method: 'POST',
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        showToast(data.error || 'Erro ao solicitar atualização.');
+        resetLocationUpdateButton(false);
+      }
+    } catch (err) {
+      console.error('Erro ao solicitar atualização:', err);
+      showToast('Falha na comunicação ao solicitar localização.');
+      resetLocationUpdateButton(false);
+    }
+  }
+  window.requestMemberLocationUpdate = requestMemberLocationUpdate;
+
+  function onLocationUpdateReceived(userId) {
+    if (pendingLocationUpdateMemberId && pendingLocationUpdateMemberId === userId) {
+      if (pendingLocationUpdateTimeout) clearTimeout(pendingLocationUpdateTimeout);
+      pendingLocationUpdateMemberId = null;
+
+      const member = membersData.find((m) => m.id === userId);
+      const memberName = member?.name || 'Membro';
+      const accuracy = member?.location?.accuracy ? ` (±${Math.round(member.location.accuracy)}m)` : '';
+
+      showToast(`🟢 Localização de ${memberName} atualizada com sucesso!${accuracy}`);
+      resetLocationUpdateButton(true, 'Atualizado agora mesmo!');
+    }
+  }
+
+  function resetLocationUpdateButton(isSuccess = false, customSub = null) {
+    const btn = document.getElementById('btnRequestLocationUpdate');
+    const titleEl = document.getElementById('btnRequestLocationTitle');
+    const subEl = document.getElementById('btnRequestLocationSub');
+    const headerBtn = document.getElementById('btnHeaderRefreshLocation');
+
+    if (btn) {
+      btn.classList.remove('loading');
+      btn.disabled = false;
+      if (isSuccess) {
+        btn.classList.add('success');
+        setTimeout(() => btn.classList.remove('success'), 4000);
+      }
+    }
+    if (titleEl) titleEl.textContent = isSuccess ? '🟢 Atualizado!' : 'Atualizar Agora';
+    if (subEl) subEl.textContent = customSub || (isSuccess ? 'Posição obtida com sucesso' : 'Solicitar GPS em tempo real');
+
+    if (headerBtn) {
+      headerBtn.classList.remove('loading');
+      headerBtn.innerHTML = isSuccess ? '🟢 Atualizado' : '🔄 Atualizar';
+      setTimeout(() => {
+        if (headerBtn) headerBtn.innerHTML = '🔄 Atualizar';
+      }, 4000);
+    }
+
+    if (isSuccess) {
+      setTimeout(() => {
+        if (titleEl) titleEl.textContent = 'Atualizar Agora';
+        if (subEl) subEl.textContent = 'Solicitar GPS em tempo real';
+      }, 5000);
+    }
+  }
+
+  // Quando este próprio dispositivo recebe uma ordem de atualização de outro membro
+  function handleIncomingLocationUpdateRequest(data) {
+    const me = getCurrentUser();
+    if (me && data && data.userId === me.id) {
+      console.log(`[RemoteUpdate] Ordem de atualização recebida de ${data.requestedBy || 'Familiar'}`);
+      if ('geolocation' in navigator) {
+        navigator.geolocation.getCurrentPosition(
+          (pos) => {
+            const payload = {
+              latitude: pos.coords.latitude,
+              longitude: pos.coords.longitude,
+              accuracy: pos.coords.accuracy,
+              speed: pos.coords.speed ? Math.round(pos.coords.speed * 3.6) : 0,
+              heading: pos.coords.heading,
+              altitude: pos.coords.altitude,
+            };
+            apiFetch('/api/telemetry', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(payload),
+            }).catch((err) => console.warn('[RemoteUpdate] Falha no envio de telemetria:', err));
+          },
+          (err) => console.warn('[RemoteUpdate] Falha ao obter posição:', err.message),
+          { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+        );
+      }
+
+      // Notifica o wrapper nativo do React Native (WebView) se estiver rodando dentro do APK
+      if (window.ReactNativeWebView && window.ReactNativeWebView.postMessage) {
+        window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'FORCE_LOCATION_UPDATE' }));
+      }
+    }
+  }
+
   // 15. Relatório de Direção e Histórico (Platinum / Gold Features)
   function setupDriverReportAndHistory() {
     // Definir data padrão no input de data (hoje)
     const todayStr = new Date().toISOString().split('T')[0];
     const dateInput = document.getElementById('historyDateInput');
     if (dateInput) dateInput.value = todayStr;
+
+    // Botão Atualizar Agora (Recurso Life360 - Etapa 9.4)
+    const btnRequestLoc = document.getElementById('btnRequestLocationUpdate');
+    if (btnRequestLoc) {
+      btnRequestLoc.addEventListener('click', () => {
+        if (!selectedMemberId) return;
+        requestMemberLocationUpdate(selectedMemberId);
+      });
+    }
 
     // Botão Como Chegar (Google Maps Nav)
     document.getElementById('btnNavigateToMember').addEventListener('click', () => {

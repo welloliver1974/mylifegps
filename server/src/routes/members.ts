@@ -5,6 +5,7 @@ import { fileURLToPath } from 'url';
 import { prisma } from '../db.js';
 import { calculateDistanceMeters } from '../services/geofence.js';
 import { segmentPointsIntoTrips } from '../services/tripDetection.js';
+import { broadcastLocationUpdateRequest } from '../services/websocket.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -392,6 +393,46 @@ export async function membersRoutes(fastify: FastifyInstance) {
       success: true,
       user: updated,
       message: 'Foto de perfil removida. Voltando às iniciais coloridas.',
+    });
+  });
+
+  // Solicita atualização imediata de localização do membro ("Atualizar agora" - Etapa 9.4)
+  fastify.post('/api/members/:id/request-update', async (request, reply) => {
+    const { id } = request.params as { id: string };
+
+    const targetUser = await prisma.user.findUnique({
+      where: { id },
+      include: {
+        devices: {
+          orderBy: { lastSeenAt: 'desc' },
+          take: 1,
+        },
+      },
+    });
+
+    if (!targetUser) {
+      return reply.status(404).send({ error: 'Membro não encontrado' });
+    }
+
+    const authUser = (request as any).authUser || (request as any).user;
+    const requestedByName = authUser?.name || 'Membro do Círculo';
+
+    broadcastLocationUpdateRequest({
+      userId: targetUser.id,
+      userName: targetUser.name,
+      requestedBy: requestedByName,
+      requestedAt: new Date().toISOString(),
+    });
+
+    return reply.send({
+      success: true,
+      message: `Solicitação de localização enviada para ${targetUser.name}!`,
+      requestedAt: new Date().toISOString(),
+      target: {
+        id: targetUser.id,
+        name: targetUser.name,
+        activeDevice: targetUser.devices[0]?.name || null,
+      },
     });
   });
 }

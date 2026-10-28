@@ -135,9 +135,31 @@ export async function testTelemetryConnection(): Promise<{ success: boolean; mes
   }
 }
 
+/**
+ * Captura imediata de alta precisão ("Atualizar agora" — Etapa 9.4).
+ * Disparada quando um familiar solicita a posição pelo painel web.
+ */
+export async function forceImmediateLocationUpdate(): Promise<{ ok: boolean; error?: string }> {
+  try {
+    const { status } = await Location.requestForegroundPermissionsAsync();
+    if (status !== 'granted') {
+      return { ok: false, error: 'Permissão de localização não concedida.' };
+    }
+
+    const loc = await Location.getCurrentPositionAsync({
+      accuracy: Location.Accuracy.Highest,
+    });
+
+    const res = await sendTelemetryToServer(loc);
+    return { ok: res.ok, error: res.error };
+  } catch (err: any) {
+    console.error('[ForceUpdate] Falha na captura imediata:', err?.message);
+    return { ok: false, error: err?.message || 'Falha ao obter posição.' };
+  }
+}
+
 // Inicia o rastreamento em segundo plano com Foreground Service discreto
-export async function startLocationTracking() {
-  const { status: fgStatus } = await Location.requestForegroundPermissionsAsync();
+export async function startLocationTracking() {  const { status: fgStatus } = await Location.requestForegroundPermissionsAsync();
   if (fgStatus !== 'granted') {
     throw new Error('Permissão de localização em primeiro plano negada.');
   }

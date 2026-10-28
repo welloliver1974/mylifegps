@@ -22,7 +22,7 @@
 | Velocidade / "em trânsito" | ✅ | Tag `🚗 km/h` acima de 5 km/h |
 | Precisão do GPS | ✅ | Círculo de acurácia + stat no painel |
 | **Endereço do local atual** | ✅ | Nominatim/OSM com cache SQLite (`GeocodingCache`) e detecção de cerca |
-| **"Atualizar agora" (forçar posição)** | ❌ | Depende de comando remoto ao aparelho |
+| **"Atualizar agora" (forçar posição)** | ✅ | WebSocket + Push VAPID + WebView Bridge disparando GPS de alta precisão em tempo real (Etapa 9.4) |
 | Enquadrar todos na tela | ✅ | Botão flutuante |
 | "Como Chegar" / navegação | ✅ | Deep link Google Maps |
 | Histórico de localização | ✅ | **Ilimitado**, sem retenção |

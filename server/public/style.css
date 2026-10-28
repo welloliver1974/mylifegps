@@ -945,6 +945,40 @@ body, html {
   letter-spacing: -0.4px;
 }
 
+.detail-refresh-btn,
+.detail-edit-profile-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-light);
+  color: var(--text-primary);
+  border-radius: 999px;
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.2s ease;
+}
+
+.detail-refresh-btn:hover,
+.detail-edit-profile-btn:hover {
+  background: var(--bg-hover);
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+.detail-refresh-btn.loading {
+  opacity: 0.75;
+  cursor: wait;
+}
+
+.detail-refresh-btn.loading span {
+  display: inline-block;
+  animation: spinActionIcon 1s linear infinite;
+}
+
 .detail-address-card {
   display: flex;
   align-items: center;
@@ -1052,6 +1086,26 @@ body, html {
   box-shadow: var(--shadow-sm);
 }
 
+.action-card-btn.refresh-location {
+  background: #F0FDF4;
+  border-color: #BBF7D0;
+}
+
+.action-card-btn.refresh-location.loading .action-icon {
+  display: inline-block;
+  animation: spinActionIcon 1s linear infinite;
+}
+
+.action-card-btn.refresh-location.success {
+  background: #DCFCE7;
+  border-color: #86EFAC;
+}
+
+@keyframes spinActionIcon {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
 .action-card-btn.gps {
   background: #EFF6FF;
   border-color: #BFDBFE;
@@ -1060,6 +1114,11 @@ body, html {
 .action-card-btn.history {
   background: #F5F3FF;
   border-color: #DDD6FE;
+}
+
+.action-card-btn.chat-dm {
+  background: #F0F9FF;
+  border-color: #BAE6FD;
 }
 
 .action-icon {
@@ -3373,6 +3432,26 @@ input[type="range"]::-moz-range-thumb {
 [data-theme="dark"] .sos-filter-chip.active {
   background: #EF4444;
   color: #FFFFFF;
+}
+
+[data-theme="dark"] .action-card-btn.refresh-location {
+  background: rgba(16, 185, 129, 0.12);
+  border-color: rgba(16, 185, 129, 0.28);
+}
+
+[data-theme="dark"] .action-card-btn.gps {
+  background: rgba(59, 130, 246, 0.12);
+  border-color: rgba(59, 130, 246, 0.28);
+}
+
+[data-theme="dark"] .action-card-btn.history {
+  background: rgba(124, 58, 237, 0.12);
+  border-color: rgba(124, 58, 237, 0.28);
+}
+
+[data-theme="dark"] .action-card-btn.chat-dm {
+  background: rgba(14, 165, 233, 0.12);
+  border-color: rgba(14, 165, 233, 0.28);
 }
 
 [data-theme="dark"] .sos-event-item {

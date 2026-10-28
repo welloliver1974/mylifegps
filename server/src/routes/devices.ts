@@ -1,6 +1,7 @@
 import { FastifyInstance } from 'fastify';
 import crypto from 'crypto';
 import { prisma } from '../db.js';
+import { broadcastLocationUpdateRequest } from '../services/websocket.js';
 
 function generateApiKey(): string {
   return `l360_${crypto.randomBytes(24).toString('hex')}`;
@@ -162,6 +163,36 @@ export async function devicesRoutes(fastify: FastifyInstance) {
     return reply.send({
       success: true,
       message: 'Aparelho removido. O histórico de localização dele também foi apagado.',
+    });
+  });
+
+  // Solicita atualização imediata de localização de um aparelho ("Atualizar agora" - Etapa 9.4)
+  fastify.post('/api/devices/:id/request-update', async (request, reply) => {
+    const { id } = request.params as { id: string };
+
+    const device = await prisma.device.findUnique({
+      where: { id },
+      include: { user: true },
+    });
+
+    if (!device) {
+      return reply.status(404).send({ error: 'Aparelho não encontrado' });
+    }
+
+    const authUser = (request as any).authUser || (request as any).user;
+    const callerName = authUser?.name || 'Familiar';
+
+    broadcastLocationUpdateRequest({
+      userId: device.userId,
+      userName: device.user?.name || device.name,
+      requestedBy: callerName,
+      requestedAt: new Date().toISOString(),
+    });
+
+    return reply.send({
+      success: true,
+      message: `Solicitação enviada para o aparelho ${device.name}!`,
+      requestedAt: new Date().toISOString(),
     });
   });
 }

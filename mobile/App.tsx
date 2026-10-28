@@ -23,6 +23,7 @@ import {
   startLocationTracking,
   stopLocationTracking,
   testTelemetryConnection,
+  forceImmediateLocationUpdate,
   LOCATION_TASK_NAME,
 } from './src/services/locationTask';
 
@@ -193,6 +194,17 @@ export default function App() {
               'Falha de Conexão',
               `Não foi possível carregar ${serverUrl}.\nVerifique sua conexão ou toque no ícone ⚙️ para conferir o endereço da VPS.`
             );
+          }}
+          onMessage={async (event) => {
+            try {
+              const msg = JSON.parse(event.nativeEvent.data);
+              if (msg && msg.type === 'FORCE_LOCATION_UPDATE') {
+                console.log('[NativeBridge] Comando FORCE_LOCATION_UPDATE recebido da página web');
+                await forceImmediateLocationUpdate();
+              }
+            } catch {
+              // Ignora mensagens que não sejam JSON
+            }
           }}
         />
       </View>
