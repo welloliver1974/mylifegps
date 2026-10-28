@@ -18,16 +18,20 @@ import * as Location from 'expo-location';
 import {
   startLocationTracking,
   stopLocationTracking,
+  testTelemetryConnection,
   LOCATION_TASK_NAME,
 } from './src/services/locationTask';
 
+const DEFAULT_SERVER_URL = 'https://life360.housecloud.tec.br';
+
 export default function App() {
-  const [serverUrl, setServerUrl] = useState('http://192.168.1.100:3000');
-  const [deviceId, setDeviceId] = useState('celular-01');
+  const [serverUrl, setServerUrl] = useState(DEFAULT_SERVER_URL);
+  const [deviceId, setDeviceId] = useState('');
   const [deviceApiKey, setDeviceApiKey] = useState('');
   const [isTracking, setIsTracking] = useState(false);
   const [showConfig, setShowConfig] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [isTesting, setIsTesting] = useState(false);
   const [lastSync, setLastSync] = useState<string | null>(null);
 
   useEffect(() => {
@@ -41,7 +45,12 @@ export default function App() {
       const savedKey = await AsyncStorage.getItem('device_api_key');
       const savedSync = await AsyncStorage.getItem('last_sync');
 
-      if (savedUrl) setServerUrl(savedUrl);
+      if (savedUrl) {
+        setServerUrl(savedUrl);
+      } else {
+        setServerUrl(DEFAULT_SERVER_URL);
+        await AsyncStorage.setItem('server_url', DEFAULT_SERVER_URL);
+      }
       if (savedDevice) setDeviceId(savedDevice);
       if (savedKey) setDeviceApiKey(savedKey);
       if (savedSync) setLastSync(savedSync);
@@ -49,8 +58,8 @@ export default function App() {
       const hasStarted = await Location.hasStartedLocationUpdatesAsync(LOCATION_TASK_NAME);
       setIsTracking(hasStarted);
 
-      // Se ainda não configurou, abre a tela de ajustes no primeiro acesso
-      if (!savedUrl || !savedDevice || !savedKey) {
+      // Se ainda não configurou o identificador e a chave, abre a tela de ajustes na 1ª vez
+      if (!savedDevice || !savedKey) {
         setShowConfig(true);
       }
     } catch (e) {
@@ -66,9 +75,31 @@ export default function App() {
       await AsyncStorage.setItem('device_id', deviceId.trim());
       await AsyncStorage.setItem('device_api_key', deviceApiKey.trim());
       setShowConfig(false);
-      Alert.alert('Sucesso', 'Configurações salvas!');
+      Alert.alert('Configurações Salvas', 'Os parâmetros do aparelho foram atualizados com sucesso.');
     } catch (e: any) {
-      Alert.alert('Erro', e.message);
+      Alert.alert('Erro ao Salvar', e.message);
+    }
+  }
+
+  async function handleTestConnection() {
+    setIsTesting(true);
+    try {
+      // Salva previamente os valores em memória temporariamente
+      await AsyncStorage.setItem('server_url', serverUrl.trim());
+      await AsyncStorage.setItem('device_id', deviceId.trim());
+      await AsyncStorage.setItem('device_api_key', deviceApiKey.trim());
+
+      const res = await testTelemetryConnection();
+      if (res.success) {
+        setLastSync(new Date().toISOString());
+        Alert.alert('🟢 Sucesso no Envio', res.message);
+      } else {
+        Alert.alert('🔴 Falha na Comunicação', res.message);
+      }
+    } catch (err: any) {
+      Alert.alert('Erro', err?.message || 'Falha no teste');
+    } finally {
+      setIsTesting(false);
     }
   }
 
@@ -77,14 +108,17 @@ export default function App() {
       if (value) {
         await startLocationTracking();
         setIsTracking(true);
-        Alert.alert('Rastreamento Ativado', 'Seu celular está transmitindo coordenadas em segundo plano com economia de bateria.');
+        Alert.alert(
+          'Rastreamento Ativado',
+          'Seu celular está transmitindo coordenadas em segundo plano com economia de bateria (My Life360).'
+        );
       } else {
         await stopLocationTracking();
         setIsTracking(false);
         Alert.alert('Rastreamento Pausado', 'O envio em segundo plano foi interrompido.');
       }
     } catch (err: any) {
-      Alert.alert('Erro de Permissão', err.message);
+      Alert.alert('Permissão Necessária', err.message);
       setIsTracking(false);
     }
   }
@@ -92,7 +126,7 @@ export default function App() {
   if (isLoading) {
     return (
       <View style={styles.centerContainer}>
-        <ActivityIndicator size="large" color="#3B82F6" />
+        <ActivityIndicator size="large" color="#762EEB" />
         <Text style={styles.loadingText}>Iniciando My Life360...</Text>
       </View>
     );
@@ -100,24 +134,30 @@ export default function App() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar style="light" />
+      <StatusBar style="light" backgroundColor="#762EEB" />
 
       {/* Mapa do Círculo Familiar (WebView integrada com o servidor da VPS) */}
       <View style={styles.mapContainer}>
         <WebView
           source={{ uri: serverUrl }}
           style={styles.webview}
+          geolocationEnabled={true}
+          javaScriptEnabled={true}
+          domStorageEnabled={true}
+          allowFileAccess={true}
+          allowsBackForwardNavigationGestures={true}
+          pullToRefreshEnabled={true}
           startInLoadingState
           renderLoading={() => (
             <View style={styles.centerContainer}>
-              <ActivityIndicator size="large" color="#3B82F6" />
-              <Text style={styles.loadingText}>Conectando ao mapa da VPS...</Text>
+              <ActivityIndicator size="large" color="#762EEB" />
+              <Text style={styles.loadingText}>Conectando ao círculo familiar...</Text>
             </View>
           )}
           onError={() => {
             Alert.alert(
               'Falha de Conexão',
-              `Não foi possível carregar a URL ${serverUrl}. Verifique se a VPS está online e o endereço está correto.`
+              `Não foi possível carregar ${serverUrl}.\nVerifique sua conexão ou toque no ícone ⚙️ para conferir o endereço da VPS.`
             );
           }}
         />
@@ -125,8 +165,9 @@ export default function App() {
 
       {/* Botão Flutuante de Configurações */}
       <TouchableOpacity
-        style={styles.floatingButton}
+        style={[styles.floatingButton, isTracking && styles.floatingButtonActive]}
         onPress={() => setShowConfig(true)}
+        activeOpacity={0.8}
       >
         <Text style={styles.floatingButtonText}>⚙️</Text>
       </TouchableOpacity>
@@ -135,18 +176,23 @@ export default function App() {
       <Modal visible={showConfig} animationType="slide" transparent>
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Configuração My Life360</Text>
+            <View style={styles.modalHeader}>
+              <View style={styles.badgeLife}>
+                <Text style={styles.badgeLifeText}>LIFE360 GPS</Text>
+              </View>
+              <Text style={styles.modalTitle}>Configuração do Aparelho</Text>
+            </View>
             <Text style={styles.modalSubtitle}>
-              Conecte este celular à sua VPS para rastreamento familiar 24/7.
+              Conecte este celular ao seu servidor familiar para rastreamento contínuo.
             </Text>
 
             <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>URL da sua VPS (ou Cloudflare Tunnel)</Text>
+              <Text style={styles.inputLabel}>URL da sua VPS (Cloudflare Tunnel)</Text>
               <TextInput
                 style={styles.input}
                 value={serverUrl}
                 onChangeText={setServerUrl}
-                placeholder="https://sua-vps.com"
+                placeholder="https://life360.housecloud.tec.br"
                 placeholderTextColor="#64748B"
                 autoCapitalize="none"
               />
@@ -158,14 +204,14 @@ export default function App() {
                 style={styles.input}
                 value={deviceId}
                 onChangeText={setDeviceId}
-                placeholder="Ex: wellington-galaxy-s23"
+                placeholder="Ex: celular-wellington"
                 placeholderTextColor="#64748B"
                 autoCapitalize="none"
               />
             </View>
 
             <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>Chave de Telemetria (painel → Dispositivos)</Text>
+              <Text style={styles.inputLabel}>Chave de Telemetria (Gerada no Painel Web)</Text>
               <TextInput
                 style={styles.input}
                 value={deviceApiKey}
@@ -181,15 +227,29 @@ export default function App() {
               <View>
                 <Text style={styles.switchTitle}>Rastreamento em 2º Plano</Text>
                 <Text style={styles.switchSubtitle}>
-                  {isTracking ? '🟢 Ativo (dispara se andar > 50m)' : '⚪ Pausado'}
+                  {isTracking ? '🟢 Ativo (dispara ao andar > 50m)' : '⚪ Pausado'}
                 </Text>
               </View>
               <Switch
                 value={isTracking}
                 onValueChange={toggleTracking}
-                trackColor={{ false: '#334155', true: '#3B82F6' }}
+                trackColor={{ false: '#334155', true: '#762EEB' }}
+                thumbColor={isTracking ? '#FFFFFF' : '#94A3B8'}
               />
             </View>
+
+            {/* Botão de teste rápido de telemetria */}
+            <TouchableOpacity
+              style={styles.btnTest}
+              onPress={handleTestConnection}
+              disabled={isTesting}
+            >
+              {isTesting ? (
+                <ActivityIndicator size="small" color="#FFFFFF" />
+              ) : (
+                <Text style={styles.btnTestText}>📡 Testar Envio de Coordenada Agora</Text>
+              )}
+            </TouchableOpacity>
 
             {lastSync && (
               <Text style={styles.syncText}>
@@ -245,9 +305,9 @@ const styles = StyleSheet.create({
     position: 'absolute',
     bottom: 24,
     right: 20,
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+    width: 50,
+    height: 50,
+    borderRadius: 25,
     backgroundColor: '#1E293B',
     alignItems: 'center',
     justifyContent: 'center',
@@ -255,15 +315,19 @@ const styles = StyleSheet.create({
     shadowColor: '#000',
     shadowOpacity: 0.4,
     shadowRadius: 6,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
+    borderWidth: 1.5,
+    borderColor: 'rgba(255,255,255,0.12)',
+  },
+  floatingButtonActive: {
+    borderColor: '#762EEB',
+    backgroundColor: '#2E1065',
   },
   floatingButtonText: {
     fontSize: 22,
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.7)',
+    backgroundColor: 'rgba(0,0,0,0.75)',
     justifyContent: 'center',
     alignItems: 'center',
     padding: 20,
@@ -271,29 +335,47 @@ const styles = StyleSheet.create({
   modalContent: {
     width: '100%',
     backgroundColor: '#1E293B',
-    borderRadius: 20,
-    padding: 24,
+    borderRadius: 22,
+    padding: 22,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
+    borderColor: 'rgba(118,46,235,0.3)',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: 4,
+  },
+  badgeLife: {
+    backgroundColor: '#762EEB',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  badgeLifeText: {
+    color: '#FFFFFF',
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 0.5,
   },
   modalTitle: {
     fontSize: 18,
     fontWeight: 'bold',
     color: '#F8FAFC',
-    marginBottom: 4,
   },
   modalSubtitle: {
     fontSize: 13,
     color: '#94A3B8',
-    marginBottom: 20,
+    marginBottom: 16,
+    marginTop: 4,
   },
   inputGroup: {
-    marginBottom: 16,
+    marginBottom: 14,
   },
   inputLabel: {
     fontSize: 12,
     color: '#94A3B8',
-    marginBottom: 6,
+    marginBottom: 5,
     fontWeight: '600',
   },
   input: {
@@ -309,11 +391,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: 12,
+    paddingVertical: 10,
     borderTopWidth: 1,
     borderBottomWidth: 1,
     borderColor: 'rgba(255,255,255,0.08)',
-    marginVertical: 10,
+    marginVertical: 8,
   },
   switchTitle: {
     fontSize: 14,
@@ -325,16 +407,30 @@ const styles = StyleSheet.create({
     color: '#94A3B8',
     marginTop: 2,
   },
+  btnTest: {
+    backgroundColor: 'rgba(118,46,235,0.15)',
+    borderWidth: 1,
+    borderColor: '#762EEB',
+    borderRadius: 10,
+    paddingVertical: 10,
+    alignItems: 'center',
+    marginTop: 8,
+  },
+  btnTestText: {
+    color: '#C084FC',
+    fontWeight: '600',
+    fontSize: 13,
+  },
   syncText: {
     fontSize: 11,
-    color: '#64748B',
+    color: '#10B981',
     textAlign: 'center',
-    marginTop: 6,
+    marginTop: 8,
   },
   modalButtons: {
     flexDirection: 'row',
     gap: 12,
-    marginTop: 20,
+    marginTop: 18,
   },
   btn: {
     flex: 1,
@@ -346,7 +442,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.08)',
   },
   btnSave: {
-    backgroundColor: '#3B82F6',
+    backgroundColor: '#762EEB',
   },
   btnTextSecondary: {
     color: '#F8FAFC',
@@ -354,6 +450,6 @@ const styles = StyleSheet.create({
   },
   btnTextPrimary: {
     color: 'white',
-    fontWeight: '600',
+    fontWeight: '700',
   },
 });

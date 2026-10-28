@@ -89,10 +89,11 @@
 | Recurso | Status | Observação |
 |---|---|---|
 | PWA instalável no celular | ✅ | manifest + service worker |
+| **App nativo Android (.APK) instalável** | ✅ | React Native/Expo SDK 51, visual oficial roxo `#762EEB`, rastreamento contínuo em 2º plano (Foreground Service), Doze protection, telemetria segura e build via EAS (`eas.json`) |
 | Mapa funciona offline (cache de assets) | ⚠️ | Assets em cache; tiles dependem de rede |
 | **Autenticação / login** | ✅ | E-mail + senha (bcrypt), sessões revogáveis de 30 dias, `/api/*` e `/ws` protegidos |
 | **Permissões por papel (admin/membro)** | ✅ | `role` no `User`; rotas `/api/admin/*` (backup e auditoria) devolvem 403 para membros comuns. Ainda não há papéis intermediários além de admin/membro |
-| **HTTPS / túnel seguro** | ⚠️ | Depende do Cloudflare Tunnel na VPS |
+| **HTTPS / túnel seguro** | ✅ | Cloudflare Tunnel em produção (`life360.housecloud.tec.br`) sem portas públicas abertas |
 | **Backup automático do banco** | ✅ | WAL checkpoint + cópia com fallback `VACUUM INTO`, verificação de cabeçalho, retenção de 14 dias, agendador de 24 h e botão de backup manual no painel (Etapa 8.9) |
 | **Notificações push (VAPID)** | ✅ | Web Push W3C com chaves VAPID, service worker em segundo plano, alertas de cerca (ENTER/EXIT), SOS e check-in mesmo com navegador fechado (Etapa 8.5) |
 | **Auditoria / log de acessos** | ✅ | Modelo `AccessLog` + hook `onResponse`: usuário, método, rota, status, IP, user-agent e duração; retenção de 30 dias; visualizador com resumo de 24 h e filtro de erros (Etapa 8.9) |

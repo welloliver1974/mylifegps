@@ -205,19 +205,16 @@
   - Interface Web / PWA: tela de autenticação com alternador "Tenho um código de convite da família", modal do círculo com código real sincronizado, botão de cópia, regeneração de código para admins, listagem completa de membros com badges e remoção interativa. Cache PWA `life360-v16`.
   - **22/22 testes automatizados aprovados** (validação de código inválido 404, cadastro com convite 201, acesso a membros, bloqueio 403 para não-admin, exibição em live, remoção com sumiço síncrono e reentrada com código).
 
-- [/] **Etapa 9.2: Deploy definitivo na VPS Oracle Cloud** (scripts prontos — aguardando execução pelo usuário)
-  - **Problema atual:** o stack nunca subiu para a VPS; tudo validado apenas na máquina local.
-  - **Decisão de segurança (2026-10-28):** o usuário já teve a VPS invadida e não quer conceder acesso SSH. O deploy é feito por **scripts que ele mesmo executa**. Arquitetura escolhida: **nenhuma porta pública aberta** — SSH somente pela Tailscale e app publicado pelo Cloudflare Tunnel (conexão de saída).
-  - **Artefatos entregues em `deploy/`:**
-    - `DEPLOY_VPS.md` — guia passo a passo (Tailscale, auditoria, instalação, túnel, hardening, validação).
-    - `check-vps-security.sh` — auditoria somente-leitura procurando backdoor da invasão antiga.
-    - `install-vps.sh` — instala Node 20, PM2, cloudflared, clona o repo, gera VAPID, cria `.env` 600 com CARTO digitada sem eco, sobe no PM2 e testa `/health`.
-    - `harden-vps.sh` — SSH só por chave, `PermitRootLogin no`, fail2ban, ufw liberando apenas `tailscale0`, **rollback automático do firewall em 10 min** para não trancar o usuário fora, updates automáticos.
-    - `ecosystem.config.cjs` — caminho dinâmico via `APP_DIR`/`HOME`.
-    - `quick-deploy.sh` — atualização idempotente com `git pull` + build + reload.
-    - `server/scripts/export-local-db.ts` — exporta o `dev.db` local (checkpoint WAL + `VACUUM INTO`) para migrar os dados da família.
-  - **VPS alvo:** `150.230.94.243` (a antiga `137.131.187.156` está desligada). Domínio já existe no Cloudflare.
-  - **Critério de conclusão:** painel acessível por HTTPS pelo celular, telemetria de um aparelho real chegando, push funcionando com navegador fechado, `ss -tulpn` sem porta pública e `ufw` liberando só `tailscale0`. **A chave CARTO nunca vai na linha de comando — é lida dentro do script.**
+- [x] **Etapa 9.2: Deploy na VPS Oracle Cloud e Geração do App Mobile (.APK)** (CONCLUÍDO)
+  - **VPS em Produção:** Node.js/Fastify + SQLite executando no PM2 na VPS Oracle (`150.230.94.243`), publicado com segurança via Cloudflare Tunnel em `https://life360.housecloud.tec.br` sem nenhuma porta pública aberta.
+  - **Correções aplicadas:** sanitização de chaves de API do CARTO no backend e frontend, desativação de interceptação agressiva no SW (`life360-v18`), correção do enquadramento de membros (`fitAllMembers`) e inicialização do Leaflet.
+  - **App Mobile Dedicado (.APK):**
+    - React Native / Expo SDK 51 com visual oficial do Life360 (roxo `#762EEB`, anéis concêntricos, splash nativa e status bar).
+    - Rastreamento contínuo em 2º plano via `expo-location` + `expo-task-manager` com Android `ForegroundService` e proteção contra Doze Mode (`REQUEST_IGNORE_BATTERY_OPTIMIZATIONS`).
+    - Economia máxima de bateria (`distanceInterval: 50m`), disparando coordenadas apenas quando o usuário se desloca.
+    - Tela de ajustes com botão de teste imediato de telemetria ("📡 Testar Envio de Coordenada") e chave por aparelho (`x-device-key`).
+    - Build pré-configurado no `eas.json` com perfil `preview` (`buildType: "apk"`) para geração direta do arquivo `.apk` instalável no celular via `npm run build:apk`.
+    - Documentação completa em `mobile/README.md`.
 
 - [ ] **Etapa 9.3: Etapa 8.10 — Detecção de acidente real (acelerômetro)**
   - `expo-sensors` no app mobile; limiar de desaceleração brusca → evento `CRASH_DETECTED` real via WebSocket, com confirmação/cancelamento na tela antes de virar SOS.

@@ -5,7 +5,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export const LOCATION_TASK_NAME = 'background-location-task';
 
-// Define a tarefa de rastreamento em segundo plano
+// Define a tarefa de rastreamento em segundo plano (disparada pelo sistema operacional)
 TaskManager.defineTask(LOCATION_TASK_NAME, async ({ data, error }: any) => {
   if (error) {
     console.error('[BackgroundLocation] Erro na tarefa:', error.message);
@@ -15,14 +15,14 @@ TaskManager.defineTask(LOCATION_TASK_NAME, async ({ data, error }: any) => {
   if (data) {
     const { locations } = data;
     if (locations && locations.length > 0) {
-      const location = locations[locations.length - 1]; // Pega o ponto mais recente
+      const location = locations[locations.length - 1]; // Ponto mais recente
       await sendTelemetryToServer(location);
     }
   }
 });
 
 // Envia telemetria para a VPS
-export async function sendTelemetryToServer(location: Location.LocationObject) {
+export async function sendTelemetryToServer(location: Location.LocationObject): Promise<{ ok: boolean; status?: number; error?: string }> {
   try {
     const serverUrl = await AsyncStorage.getItem('server_url');
     const deviceId = await AsyncStorage.getItem('device_id');
@@ -30,7 +30,7 @@ export async function sendTelemetryToServer(location: Location.LocationObject) {
 
     if (!serverUrl || !deviceId) {
       console.log('[BackgroundLocation] Servidor ou DeviceID não configurados.');
-      return;
+      return { ok: false, error: 'Servidor ou DeviceID não configurados.' };
     }
 
     // Nível de bateria e status de carregamento
@@ -43,7 +43,7 @@ export async function sendTelemetryToServer(location: Location.LocationObject) {
       const state = await Battery.getBatteryStateAsync();
       isCharging = state === Battery.BatteryState.CHARGING || state === Battery.BatteryState.FULL;
     } catch {
-      // Ignora erro de leitura de bateria em emuladores
+      // Ignora erro de leitura de bateria em emuladores ou dispositivos sem sensor
     }
 
     const payload = {
@@ -52,7 +52,7 @@ export async function sendTelemetryToServer(location: Location.LocationObject) {
       longitude: location.coords.longitude,
       altitude: location.coords.altitude,
       accuracy: location.coords.accuracy,
-      speed: location.coords.speed ? location.coords.speed * 3.6 : 0, // m/s para km/h
+      speed: location.coords.speed ? Math.round(location.coords.speed * 3.6) : 0, // m/s para km/h
       heading: location.coords.heading,
       battery: batteryLevel,
       isCharging,
@@ -62,7 +62,6 @@ export async function sendTelemetryToServer(location: Location.LocationObject) {
     const endpoint = `${serverUrl.replace(/\/$/, '')}/api/telemetry`;
 
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-    // Chave de telemetria do aparelho (obrigatória no servidor desde a Etapa 8.9)
     if (deviceKey) {
       headers['x-device-key'] = deviceKey;
     }
@@ -76,17 +75,62 @@ export async function sendTelemetryToServer(location: Location.LocationObject) {
     if (response.ok) {
       console.log('[BackgroundLocation] Coordenada enviada com sucesso:', location.coords.latitude, location.coords.longitude);
       await AsyncStorage.setItem('last_sync', new Date().toISOString());
-    } else if (response.status === 401) {
-      console.warn('[BackgroundLocation] Chave de telemetria inválida ou ausente. Verifique a configuração.');
+      return { ok: true, status: response.status };
     } else {
-      console.warn('[BackgroundLocation] Servidor respondeu com status:', response.status);
+      const errorText = await response.text().catch(() => '');
+      console.warn('[BackgroundLocation] Servidor respondeu com status:', response.status, errorText);
+      return { ok: false, status: response.status, error: errorText || `Status HTTP ${response.status}` };
     }
   } catch (err: any) {
     console.error('[BackgroundLocation] Falha ao enviar telemetria:', err.message);
+    return { ok: false, error: err.message || 'Erro desconhecido de rede' };
   }
 }
 
-// Inicia o serviço em segundo plano com Foreground Service discreto
+// Testa a conexão enviando a coordenada atual imediatamente
+export async function testTelemetryConnection(): Promise<{ success: boolean; message: string }> {
+  try {
+    const serverUrl = await AsyncStorage.getItem('server_url');
+    const deviceId = await AsyncStorage.getItem('device_id');
+    const deviceKey = await AsyncStorage.getItem('device_api_key');
+
+    if (!serverUrl || !deviceId) {
+      return { success: false, message: 'Preencha a URL do servidor e o Identificador do celular.' };
+    }
+    if (!deviceKey) {
+      return { success: false, message: 'Chave de telemetria ausente. Copie do painel web em "Dispositivos".' };
+    }
+
+    const { status } = await Location.requestForegroundPermissionsAsync();
+    if (status !== 'granted') {
+      return { success: false, message: 'Permissão de localização do Android não concedida.' };
+    }
+
+    const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+    const res = await sendTelemetryToServer(loc);
+
+    if (res.ok) {
+      return {
+        success: true,
+        message: `Coordenada enviada com sucesso!\nLat: ${loc.coords.latitude.toFixed(5)}, Lon: ${loc.coords.longitude.toFixed(5)}`,
+      };
+    } else if (res.status === 401) {
+      return {
+        success: false,
+        message: 'Aparelho não autorizado (401). Verifique se o Identificador e a Chave batem com o cadastrado no painel web.',
+      };
+    } else {
+      return {
+        success: false,
+        message: `Servidor retornou erro: ${res.error || res.status}`,
+      };
+    }
+  } catch (err: any) {
+    return { success: false, message: err?.message || 'Falha ao testar conexão.' };
+  }
+}
+
+// Inicia o rastreamento em segundo plano com Foreground Service discreto
 export async function startLocationTracking() {
   const { status: fgStatus } = await Location.requestForegroundPermissionsAsync();
   if (fgStatus !== 'granted') {
@@ -102,12 +146,12 @@ export async function startLocationTracking() {
   if (!isStarted) {
     await Location.startLocationUpdatesAsync(LOCATION_TASK_NAME, {
       accuracy: Location.Accuracy.Balanced,
-      distanceInterval: 50, // Economia máxima de bateria: só dispara se andar > 50 metros
-      deferredUpdatesInterval: 60000, // Envia a cada 60s
+      distanceInterval: 50, // Economia máxima de bateria: só envia se andar > 50 metros
+      deferredUpdatesInterval: 60000, // No máximo uma vez por minuto quando em movimento
       foregroundService: {
         notificationTitle: 'My Life360 Ativo',
-        notificationBody: 'Compartilhando localização segura com sua família.',
-        notificationColor: '#3B82F6',
+        notificationBody: 'Compartilhando localização com o círculo familiar.',
+        notificationColor: '#762EEB',
       },
     });
   }
