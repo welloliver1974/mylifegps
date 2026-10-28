@@ -61,20 +61,44 @@ document.addEventListener('DOMContentLoaded', () => {
   let authMode = 'login'; // 'login' | 'setup'
   let appStarted = false;
 
+  let isCheckingAuth = false;
+
   // Wrapper de fetch que injeta o token e trata sessão expirada
   function apiFetch(url, options = {}) {
     const opts = { ...options, headers: { ...(options.headers || {}) } };
     if (authToken) opts.headers['Authorization'] = `Bearer ${authToken}`;
 
     return fetch(url, opts).then((res) => {
-      if (res.status === 401 && !url.startsWith('/api/auth/')) {
-        handleUnauthorized();
+      // Ignora 401 de telemetria ou rotas de auth para não deslogar o usuário erroneamente
+      if (res.status === 401 && !url.startsWith('/api/auth/') && !url.startsWith('/api/telemetry')) {
+        handleUnauthorized(url);
       }
       return res;
     });
   }
 
-  function handleUnauthorized() {
+  async function handleUnauthorized(failedUrl) {
+    if (isCheckingAuth) return;
+    isCheckingAuth = true;
+
+    try {
+      // Confere se a sessão realmente expirou ou se foi erro pontual de rota/permissão
+      const verifyRes = await fetch('/api/auth/me', {
+        headers: authToken ? { Authorization: `Bearer ${authToken}` } : {},
+      });
+      if (verifyRes.ok) {
+        console.warn(`[Auth] Endpoint ${failedUrl || 'desconhecido'} retornou 401, mas a sessão continua válida.`);
+        isCheckingAuth = false;
+        return;
+      }
+    } catch (err) {
+      // Oscilação de rede não deve deslogar o usuário
+      console.warn('[Auth] Falha de rede ao verificar sessão:', err);
+      isCheckingAuth = false;
+      return;
+    }
+
+    isCheckingAuth = false;
     authToken = '';
     currentAuthUser = null;
     localStorage.removeItem(AUTH_TOKEN_KEY);
@@ -1648,32 +1672,102 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('memberDetailPanel').style.display = 'flex';
     renderMemberDetails(member);
     loadDriverReportForMember(userId);
+
+    // Garante que o botão "Voltar" fique sempre clicável, mesmo após re-renderizações
+    bindBackToListButton();
+
+    // Em telas pequenas, rola o painel para o topo ao abrir os detalhes
+    const sheetContent = document.getElementById('sheetContent');
+    if (sheetContent) sheetContent.scrollTop = 0;
   }
   window.selectMember = selectMember;
+
+  function bindBackToListButton() {
+    const backBtn = document.getElementById('btnBackToList');
+    if (!backBtn || backBtn.dataset.bound === '1') return;
+    backBtn.dataset.bound = '1';
+    backBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      backToList();
+    });
+  }
+
+  function backToList() {
+    try {
+      if (typeof stopReplay === 'function') stopReplay();
+    } catch {}
+
+    if (historyPolyline) {
+      try { map.removeLayer(historyPolyline); } catch {}
+      historyPolyline = null;
+    }
+    if (replayMarker) {
+      try { map.removeLayer(replayMarker); } catch {}
+      replayMarker = null;
+    }
+    if (tripStartMarker) {
+      try { map.removeLayer(tripStartMarker); } catch {}
+      tripStartMarker = null;
+    }
+    if (tripEndMarker) {
+      try { map.removeLayer(tripEndMarker); } catch {}
+      tripEndMarker = null;
+    }
+
+    const replayPlayerBar = document.getElementById('replayPlayerBar');
+    if (replayPlayerBar) replayPlayerBar.style.display = 'none';
+
+    const btnClearHistory = document.getElementById('btnClearHistory');
+    if (btnClearHistory) btnClearHistory.style.display = 'none';
+
+    selectedMemberId = null;
+    membersData.forEach((m) => renderMemberMarker(m.id));
+
+    const panel = document.getElementById('memberDetailPanel');
+    const list = document.getElementById('membersList');
+    if (panel) panel.style.display = 'none';
+    if (list) list.style.display = 'flex';
+
+    const addrCard = document.getElementById('detailAddressCard');
+    if (addrCard) addrCard.style.display = 'none';
+
+    if (map && membersData.length) {
+      const points = membersData.filter((m) => m.location).map((m) => [m.location.latitude, m.location.longitude]);
+      if (points.length === 1) {
+        map.setView(points[0], 14, { animate: true });
+      } else if (points.length > 1) {
+        map.fitBounds(points, { padding: [60, 60], maxZoom: 15 });
+      }
+    }
+  }
+  window.backToList = backToList;
 
   function renderMemberDetails(member) {
     const initials = member.name.substring(0, 2).toUpperCase();
     const batt = member.location?.battery ? `${Math.round(member.location.battery)}%` : '--';
-    const isCharging = member.location?.isCharging ? ' (Carregando ⚡)' : '';
+    const isCharging = member.location?.isCharging ? ' ⚡' : '';
     const speed = member.location?.speed ? `${Math.round(member.location.speed)} km/h` : '0 km/h';
     const accuracy = member.location?.accuracy ? `${Math.round(member.location.accuracy)} m` : '--';
     const updated = member.location?.recordedAt ? formatRelativeTime(member.location.recordedAt) : '--';
 
     document.getElementById('detailHeader').innerHTML = `
-      <div style="display: flex; align-items: center; gap: 12px; width: 100%;">
-        <div class="member-avatar" style="background-color: ${member.color || '#3B82F6'}; width: 48px; height: 48px; font-size: 18px;">
+      <div class="detail-header-card">
+        <div class="member-avatar" style="background-color: ${member.color || '#3B82F6'}; width: 46px; height: 46px; font-size: 17px;">
           ${member.avatarUrl ? `<img src="${member.avatarUrl}" alt="${member.name}" />` : initials}
         </div>
-        <div style="flex: 1; min-width: 0;">
-          <h3 style="font-size: 18px; font-weight: 700;">${member.name}</h3>
-          <p style="font-size: 12px; color: var(--text-secondary);">${member.activeDevice?.name || 'Celular Principal'}${member.phone ? ` • ${member.phone}` : ''}</p>
+        <div class="detail-header-info">
+          <h3 class="detail-header-name">${member.name}</h3>
+          <p class="detail-header-sub">${member.activeDevice?.name || 'Celular Principal'}${member.phone ? ` • ${member.phone}` : ''}</p>
         </div>
-        <button class="detail-refresh-btn" id="btnHeaderRefreshLocation" onclick="window.requestMemberLocationUpdate('${member.id}')" title="Atualizar localização agora">
-          🔄 Atualizar
-        </button>
-        <button class="detail-edit-profile-btn" onclick="window.openProfileModal('${member.id}')" title="Editar perfil e foto">
-          ✏️ Editar
-        </button>
+        <div class="detail-header-actions">
+          <button class="detail-refresh-btn" id="btnHeaderRefreshLocation" onclick="window.requestMemberLocationUpdate('${member.id}')" title="Atualizar localização agora">
+            🔄 Atualizar
+          </button>
+          <button class="detail-edit-profile-btn" onclick="window.openProfileModal('${member.id}')" title="Editar perfil e foto">
+            ✏️ Editar
+          </button>
+        </div>
       </div>
     `;
 
@@ -1906,6 +2000,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // 15. Relatório de Direção e Histórico (Platinum / Gold Features)
   function setupDriverReportAndHistory() {
+    bindBackToListButton();
+
     // Definir data padrão no input de data (hoje)
     const todayStr = new Date().toISOString().split('T')[0];
     const dateInput = document.getElementById('historyDateInput');

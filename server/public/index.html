@@ -17,7 +17,7 @@
   <!-- Leaflet CSS -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
 
-  <link rel="stylesheet" href="/style.css?v=22">
+  <link rel="stylesheet" href="/style.css?v=23">
 </head>
 <body>
   <!-- Tela de Autenticação (Login / Configuração Inicial / Convite) -->
@@ -234,7 +234,7 @@
 
         <!-- Painel de Detalhes do Membro Selecionado -->
         <div class="member-detail-panel" id="memberDetailPanel" style="display: none;">
-          <button class="back-btn" id="btnBackToList">
+          <button class="back-btn" id="btnBackToList" onclick="window.backToList && window.backToList()">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M19 12H5M12 19l-7-7 7-7"/>
             </svg>
@@ -748,7 +748,7 @@
 
   <!-- Leaflet JS -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
-  <script src="/app.js?v=22"></script>
+  <script src="/app.js?v=23"></script>
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {

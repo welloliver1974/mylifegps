@@ -49,7 +49,8 @@ export async function getUserFromToken(token?: string | null) {
 
 export function extractBearerToken(header?: string): string {
   if (!header) return '';
-  return header.startsWith('Bearer ') ? header.slice(7).trim() : '';
+  const match = header.match(/^Bearer\s+(.+)$/i);
+  return match ? match[1].trim() : '';
 }
 
 // Verifica se o sistema já tem uma conta de acesso configurada (primeiro uso)

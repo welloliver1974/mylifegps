@@ -159,7 +159,8 @@ export async function forceImmediateLocationUpdate(): Promise<{ ok: boolean; err
 }
 
 // Inicia o rastreamento em segundo plano com Foreground Service discreto
-export async function startLocationTracking() {  const { status: fgStatus } = await Location.requestForegroundPermissionsAsync();
+export async function startLocationTracking() {
+  const { status: fgStatus } = await Location.requestForegroundPermissionsAsync();
   if (fgStatus !== 'granted') {
     throw new Error('Permissão de localização em primeiro plano negada.');
   }

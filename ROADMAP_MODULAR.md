@@ -229,7 +229,8 @@
 - [x] **Etapa 9.4: "Atualizar agora" (forçar posição do aparelho em tempo real)**
   - **Servidor:** endpoints `POST /api/members/:id/request-update` e `POST /api/devices/:id/request-update`, broadcast via WebSocket `LOCATION_UPDATE_REQUEST` e disparo de Web Push VAPID direcionado.
   - **Interface Web:** novo botão de ação rápida "Atualizar Agora" com ícone animado e botão compacto no topo do perfil, estado de loading "Solicitando GPS...", timeout defensivo de 20s e resolução automática com feedback de sucesso (`🟢 Atualizado com precisão ±Xm`) no recebimento do WebSocket `LOCATION_UPDATE`.
-  - **App Mobile / WebView Bridge:** canal bidirecional `ReactNativeWebView.postMessage({ type: 'FORCE_LOCATION_UPDATE' })` que aciona `forceImmediateLocationUpdate()` via `expo-location` em `Accuracy.Highest`, transmitindo telemetria imediata com bateria e coordenadas para a VPS. Cache PWA `life360-v21`.
+  - **App Mobile / WebView Bridge:** canal bidirecional `ReactNativeWebView.postMessage({ type: 'FORCE_LOCATION_UPDATE' })` que aciona `forceImmediateLocationUpdate()` via `expo-location` em `Accuracy.Highest`, transmitindo telemetria imediata com bateria e coordenadas para a VPS.
+  - **Estabilidade & Mobile UX (PWA `life360-v23`):** correção do botão de voltar para a lista (`btnBackToList` resiliente com limpeza de replay/markers), endurecimento contra expiração falsa de sessão (`apiFetch` não desloga em falhas pontuais e revalida via `/api/auth/me`), e contenção de layout dos botões e cards de estatísticas (`minmax(0, 1fr)`, ellipsis e grade 2x2 estável sem estouro).
 
 - [ ] **Etapa 9.5: Refinamentos de chat**
   - Reações/curtir mensagem (modelo + UI) e menções `@nome` com notificação dedicada.

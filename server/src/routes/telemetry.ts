@@ -2,6 +2,7 @@ import { FastifyInstance } from 'fastify';
 import crypto from 'crypto';
 import { prisma } from '../db.js';
 import { processTelemetry } from '../services/telemetry.js';
+import { getUserFromToken } from '../services/auth.js';
 
 // Em produção a ingestão é protegida por chave por aparelho.
 // TELEMETRY_REQUIRE_KEY=false reabre a rota (apenas para migração/uso local).
@@ -72,6 +73,28 @@ async function authorizeDevice(deviceIdentifier: string, key: string | undefined
           d.deviceIdentifier.toLowerCase() === cleanId.toLowerCase() ||
           d.name.toLowerCase() === cleanId.toLowerCase()
       ) || null;
+  }
+
+  // 4. Se a chave não for de aparelho, verifica se é uma sessão ativa de usuário autenticado (painel web / app mobile)
+  if (cleanKey) {
+    const sessionUser = await getUserFromToken(cleanKey);
+    if (sessionUser) {
+      let userDevice = await prisma.device.findFirst({
+        where: { userId: sessionUser.id },
+        orderBy: { lastSeenAt: 'desc' },
+      });
+      if (!userDevice) {
+        userDevice = await prisma.device.create({
+          data: {
+            name: `${sessionUser.name} (Navegador/App)`,
+            deviceIdentifier: `web-${sessionUser.id.slice(0, 8)}`,
+            userId: sessionUser.id,
+            apiKey: `l360_auto_${crypto.randomBytes(12).toString('hex')}`,
+          },
+        });
+      }
+      return { ok: true, device: userDevice };
+    }
   }
 
   if (!device) {
