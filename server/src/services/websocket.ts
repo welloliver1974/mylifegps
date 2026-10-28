@@ -107,6 +107,74 @@ export function broadcastChatMessage(message: any) {
   }
 }
 
+// Dispara reação em mensagem do círculo em tempo real (Etapa 9.5)
+export function broadcastChatReaction(payload: {
+  messageId: string;
+  reactions: any;
+  userId: string;
+  userName: string;
+  emoji: string;
+  action: 'added' | 'removed';
+}) {
+  const message = JSON.stringify({
+    type: 'CHAT_REACTION',
+    data: payload,
+  });
+
+  for (const client of clients) {
+    if (client.readyState === WebSocket.OPEN) {
+      client.send(message);
+    }
+  }
+}
+
+// Dispara reação em mensagem direta 1:1 apenas para os dois participantes (Etapa 9.5)
+export function broadcastDmReaction(payload: {
+  messageId: string;
+  reactions: any;
+  userId: string;
+  userName: string;
+  emoji: string;
+  action: 'added' | 'removed';
+  senderId: string;
+  receiverId: string;
+}) {
+  const message = JSON.stringify({
+    type: 'DM_REACTION',
+    data: payload,
+  });
+
+  for (const [socket, userId] of clientUsers.entries()) {
+    if (socket.readyState === WebSocket.OPEN) {
+      if (userId === payload.senderId || userId === payload.receiverId) {
+        socket.send(message);
+      }
+    }
+  }
+}
+
+// Notifica por Web Push os membros mencionados com @nome (Etapa 9.5)
+export function notifyMentions(payload: {
+  mentions: { id: string; name: string }[];
+  authorName: string;
+  text: string;
+  isDirect?: boolean;
+}) {
+  const { mentions, authorName, text, isDirect } = payload;
+  const snippet = text.length > 80 ? `${text.slice(0, 77)}...` : text;
+
+  for (const mention of mentions) {
+    sendPushToUser(mention.id, {
+      title: `${isDirect ? '💬' : '📣'} ${authorName} mencionou você`,
+      body: snippet,
+      icon: '/icon-192.png',
+      badge: '/icon-192.png',
+      tag: `mention-${mention.id}`,
+      data: { url: '/', type: 'mention', mentionId: mention.id },
+    }).catch((err) => console.error('[Push Mention Error]', err));
+  }
+}
+
 // Dispara Check-in de Membro para todo o círculo (Recurso Life360)
 export function broadcastCheckin(payload: any) {
   const message = JSON.stringify({

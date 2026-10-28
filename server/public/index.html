@@ -17,7 +17,7 @@
   <!-- Leaflet CSS -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
 
-  <link rel="stylesheet" href="/style.css?v=23">
+  <link rel="stylesheet" href="/style.css?v=24">
 </head>
 <body>
   <!-- Tela de Autenticação (Login / Configuração Inicial / Convite) -->
@@ -369,7 +369,9 @@
             <div class="loading-state">Nenhuma mensagem ainda.</div>
           </div>
           <form class="chat-input-row" id="chatForm">
-            <input type="text" id="chatInput" class="chat-input" placeholder="Mensagem para o círculo..." maxlength="1000" autocomplete="off">
+            <div class="chat-input-wrapper">
+              <input type="text" id="chatInput" class="chat-input" placeholder="Mensagem para o círculo... (@nome para mencionar)" maxlength="1000" autocomplete="off">
+            </div>
             <button type="submit" class="chat-send-btn" title="Enviar">➤</button>
           </form>
         </div>
@@ -748,7 +750,7 @@
 
   <!-- Leaflet JS -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
-  <script src="/app.js?v=23"></script>
+  <script src="/app.js?v=24"></script>
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {

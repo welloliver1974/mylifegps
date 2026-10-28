@@ -48,7 +48,7 @@ export async function membersRoutes(fastify: FastifyInstance) {
             include: {
               locations: {
                 orderBy: { recordedAt: 'desc' },
-                take: 1,
+                take: 10,
               },
             },
           },
@@ -70,6 +70,21 @@ export async function membersRoutes(fastify: FastifyInstance) {
           if (!latestLocation || new Date(loc.recordedAt) > new Date(latestLocation.recordedAt)) {
             latestLocation = loc;
             activeDevice = device;
+          }
+        }
+      }
+
+      // Se o ponto mais recente veio sem bateria, resgata a última bateria conhecida do aparelho
+      if (latestLocation && (latestLocation.battery === null || latestLocation.battery === undefined)) {
+        for (const device of u.devices) {
+          const locWithBatt = device.locations.find((l: any) => l.battery !== null && l.battery !== undefined);
+          if (locWithBatt) {
+            latestLocation = {
+              ...latestLocation,
+              battery: locWithBatt.battery,
+              isCharging: latestLocation.isCharging || locWithBatt.isCharging,
+            };
+            break;
           }
         }
       }

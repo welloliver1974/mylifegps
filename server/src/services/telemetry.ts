@@ -46,6 +46,27 @@ export async function processTelemetry(input: TelemetryInput) {
 
   const recordedAt = input.recordedAt ?? new Date();
 
+  // Preserva a última bateria conhecida se o ponto atual não informou (ex: ping web sem sensor ou GPS puro)
+  let effectiveBattery =
+    input.battery !== undefined && input.battery !== null && !isNaN(input.battery) && input.battery >= 0
+      ? input.battery
+      : undefined;
+  let effectiveIsCharging = input.isCharging;
+
+  if (effectiveBattery === undefined) {
+    const lastLocWithBattery = await prisma.locationRecord.findFirst({
+      where: { deviceId: device.id, battery: { not: null } },
+      orderBy: { recordedAt: 'desc' },
+      select: { battery: true, isCharging: true },
+    });
+    if (lastLocWithBattery && lastLocWithBattery.battery !== null) {
+      effectiveBattery = lastLocWithBattery.battery;
+      if (effectiveIsCharging === undefined) {
+        effectiveIsCharging = lastLocWithBattery.isCharging;
+      }
+    }
+  }
+
   // 2. Registra o ponto de telemetria no histórico
   const record = await prisma.locationRecord.create({
     data: {
@@ -56,8 +77,8 @@ export async function processTelemetry(input: TelemetryInput) {
       accuracy: input.accuracy,
       speed: input.speed,
       heading: input.heading,
-      battery: input.battery,
-      isCharging: input.isCharging ?? false,
+      battery: effectiveBattery,
+      isCharging: effectiveIsCharging ?? false,
       recordedAt,
     },
   });

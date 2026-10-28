@@ -63,6 +63,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
   let isCheckingAuth = false;
 
+  // Estado de Reações e Menções no Chat (Etapa 9.5)
+  const REACTION_EMOJIS = ['❤️', '👍', '😂', '😮', '😢', '🙏', '🔥', '✅'];
+  const chatMessageMeta = new Map(); // messageId -> { isDm, reactions }
+  let reactionPickerEl = null;
+  let mentionSuggestEl = null;
+
   // Wrapper de fetch que injeta o token e trata sessão expirada
   function apiFetch(url, options = {}) {
     const opts = { ...options, headers: { ...(options.headers || {}) } };
@@ -993,6 +999,8 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     });
 
+    setupMentionAutocomplete(document.getElementById('chatInput'));
+
     renderChatTabs();
     loadUnreadDms();
   }
@@ -1067,15 +1075,312 @@ document.addEventListener('DOMContentLoaded', () => {
     bubble.innerHTML = `
       <span class="chat-bubble-author" style="color: ${authorColor};">${authorName}${isDm ? ' (Privado)' : ''}</span>
       <span class="chat-bubble-text"></span>
-      <span class="chat-bubble-time">${time}${readIndicator}</span>
+      <span class="chat-bubble-footer">
+        <span class="chat-bubble-time">${time}${readIndicator}</span>
+        <button class="chat-react-trigger" type="button" title="Reagir com emoji">☺+</button>
+      </span>
+      <div class="chat-reactions-row"></div>
     `;
-    bubble.querySelector('.chat-bubble-text').textContent = message.text;
+
+    const textEl = bubble.querySelector('.chat-bubble-text');
+    renderChatTextWithMentions(textEl, message.text || '');
+
+    // Reações vindas do servidor (objeto) ou legado (string JSON)
+    const initialReactions = parseReactionsClient(message.reactions);
+    chatMessageMeta.set(message.id, { isDm, reactions: initialReactions });
+    renderReactionChips(bubble, message.id, initialReactions);
+
+    const trigger = bubble.querySelector('.chat-react-trigger');
+    if (trigger) {
+      trigger.addEventListener('click', (e) => {
+        e.stopPropagation();
+        openReactionPicker(e.currentTarget, message.id);
+      });
+    }
+
+    // Toque longo no balão também abre o seletor (padrão dos apps de mensagem)
+    let pressTimer = null;
+    bubble.addEventListener('touchstart', () => {
+      pressTimer = setTimeout(() => openReactionPicker(bubble, message.id), 450);
+    }, { passive: true });
+    const cancelPress = () => {
+      if (pressTimer) {
+        clearTimeout(pressTimer);
+        pressTimer = null;
+      }
+    };
+    bubble.addEventListener('touchend', cancelPress);
+    bubble.addEventListener('touchmove', cancelPress);
+    bubble.addEventListener('touchcancel', cancelPress);
 
     container.appendChild(bubble);
     if (!isBulkLoad) container.scrollTop = container.scrollHeight;
 
     const countEl = document.getElementById('chatCount');
     if (countEl) countEl.textContent = renderedChatIds.size;
+  }
+
+  // ==========================================================
+  // 4c.1 Reações e Menções no Chat (Etapa 9.5)
+  // ==========================================================
+  /** Normaliza reações que podem chegar como objeto (novo) ou string JSON (legado). */
+  function parseReactionsClient(raw) {
+    if (!raw) return {};
+    if (typeof raw === 'object') return raw;
+    try {
+      const parsed = JSON.parse(raw);
+      return parsed && typeof parsed === 'object' ? parsed : {};
+    } catch {
+      return {};
+    }
+  }
+
+  /** Renderiza o texto do balão destacando as menções @nome. */
+  function renderChatTextWithMentions(el, text) {
+    if (!el) return;
+    el.textContent = '';
+
+    const names = (membersData || [])
+      .map((m) => m.name)
+      .filter(Boolean)
+      .sort((a, b) => b.length - a.length);
+
+    if (names.length === 0 || !text.includes('@')) {
+      el.textContent = text;
+      return;
+    }
+
+    const escaped = names.map((n) => n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/\s+/g, '\\s+'));
+    const regex = new RegExp(`@(${escaped.join('|')})(?![\\p{L}\\p{N}])`, 'giu');
+
+    let lastIndex = 0;
+    let match;
+    while ((match = regex.exec(text)) !== null) {
+      if (match.index > lastIndex) {
+        el.appendChild(document.createTextNode(text.slice(lastIndex, match.index)));
+      }
+      const span = document.createElement('span');
+      span.className = 'chat-mention';
+      span.textContent = match[0];
+      el.appendChild(span);
+      lastIndex = match.index + match[0].length;
+    }
+    if (lastIndex < text.length) {
+      el.appendChild(document.createTextNode(text.slice(lastIndex)));
+    }
+  }
+
+  /** Desenha as pílulas de reação abaixo do balão. */
+  function renderReactionChips(bubble, messageId, reactions) {
+    const row = bubble.querySelector('.chat-reactions-row');
+    if (!row) return;
+
+    const me = getCurrentUser();
+    const entries = Object.entries(reactions || {}).filter(([, users]) => users && users.length > 0);
+
+    if (entries.length === 0) {
+      row.innerHTML = '';
+      row.style.display = 'none';
+      return;
+    }
+
+    row.style.display = 'flex';
+    row.innerHTML = entries
+      .map(([emoji, users]) => {
+        const mine = users.includes(me.id) ? ' mine' : '';
+        return `<button type="button" class="chat-reaction-chip${mine}" data-emoji="${emoji}" title="${users.length} reação(ões)">
+          <span class="reaction-emoji">${emoji}</span>
+          <span class="reaction-count">${users.length}</span>
+        </button>`;
+      })
+      .join('');
+
+    row.querySelectorAll('.chat-reaction-chip').forEach((chip) => {
+      chip.addEventListener('click', (e) => {
+        e.stopPropagation();
+        sendReaction(messageId, chip.dataset.emoji);
+      });
+    });
+  }
+
+  /** Atualiza as reações de uma mensagem já renderizada (vinda por WebSocket ou resposta da API). */
+  function applyReactionUpdate(messageId, reactions) {
+    const bubble = document.querySelector(`.chat-bubble[data-msg-id="${messageId}"]`);
+    if (!bubble) return;
+
+    const meta = chatMessageMeta.get(messageId);
+    if (meta) meta.reactions = reactions;
+    renderReactionChips(bubble, messageId, reactions);
+  }
+
+  /** Abre o seletor flutuante de emojis ancorado no balão clicado. */
+  function openReactionPicker(anchorEl, messageId) {
+    closeReactionPicker();
+
+    const picker = document.createElement('div');
+    picker.className = 'reaction-picker';
+    picker.innerHTML = REACTION_EMOJIS.map(
+      (emoji) => `<button type="button" class="reaction-picker-btn" data-emoji="${emoji}">${emoji}</button>`
+    ).join('');
+
+    document.body.appendChild(picker);
+    reactionPickerEl = picker;
+
+    const rect = anchorEl.getBoundingClientRect();
+    const pickerWidth = picker.offsetWidth || 260;
+    let left = rect.left + rect.width / 2 - pickerWidth / 2;
+    left = Math.max(8, Math.min(left, window.innerWidth - pickerWidth - 8));
+    const top = Math.max(8, rect.top - picker.offsetHeight - 8);
+
+    picker.style.left = `${left}px`;
+    picker.style.top = `${top}px`;
+
+    picker.querySelectorAll('.reaction-picker-btn').forEach((btn) => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        sendReaction(messageId, btn.dataset.emoji);
+        closeReactionPicker();
+      });
+    });
+
+    setTimeout(() => {
+      document.addEventListener('click', closeReactionPicker, { once: true });
+      document.addEventListener('touchstart', closeReactionPicker, { once: true });
+    }, 0);
+  }
+
+  function closeReactionPicker() {
+    if (reactionPickerEl && reactionPickerEl.parentNode) {
+      reactionPickerEl.parentNode.removeChild(reactionPickerEl);
+    }
+    reactionPickerEl = null;
+  }
+
+  /** Envia a reação ao servidor (rota do círculo ou da conversa privada). */
+  async function sendReaction(messageId, emoji) {
+    if (!messageId || !emoji) return;
+
+    const meta = chatMessageMeta.get(messageId);
+    const isDm = meta ? meta.isDm : activeChatChannel !== 'circle';
+    const me = getCurrentUser();
+
+    const url = isDm ? `/api/messages/direct/react/${messageId}` : `/api/messages/${messageId}/react`;
+
+    try {
+      const res = await apiFetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ emoji, userId: me.id, userName: me.name }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        showToast(data.error || 'Não foi possível reagir.');
+        return;
+      }
+      if (data.reactions) applyReactionUpdate(messageId, data.reactions);
+    } catch (err) {
+      console.error('Erro ao reagir:', err);
+      showToast('Falha de conexão ao reagir.');
+    }
+  }
+
+  // ==========================================================
+  // 4c.2 Autocomplete de Menções @nome (Etapa 9.5)
+  // ==========================================================
+
+  function closeMentionSuggest() {
+    if (mentionSuggestEl && mentionSuggestEl.parentNode) {
+      mentionSuggestEl.parentNode.removeChild(mentionSuggestEl);
+    }
+    mentionSuggestEl = null;
+  }
+
+  /** Descobre o trecho "@parcial" que está sendo digitado antes do cursor. */
+  function getMentionQuery(input) {
+    const value = input.value;
+    const caret = typeof input.selectionStart === 'number' ? input.selectionStart : value.length;
+    const before = value.slice(0, caret);
+    const atIndex = before.lastIndexOf('@');
+    if (atIndex === -1) return null;
+
+    const fragment = before.slice(atIndex + 1);
+    // Aborta se houver quebra de linha ou se o trecho já for longo demais
+    if (/[\n\r]/.test(fragment) || fragment.length > 30) return null;
+    return { atIndex, fragment };
+  }
+
+  function showMentionSuggest(input, query) {
+    const me = getCurrentUser();
+    const fragment = query.fragment.toLowerCase();
+
+    const matches = (membersData || [])
+      .filter((m) => m.id !== me.id && m.name)
+      .filter((m) => fragment === '' || m.name.toLowerCase().includes(fragment))
+      .slice(0, 6);
+
+    if (matches.length === 0) {
+      closeMentionSuggest();
+      return;
+    }
+
+    const list = document.createElement('div');
+    list.className = 'mention-suggest-list';
+    list.innerHTML = matches
+      .map(
+        (m) => `<button type="button" class="mention-suggest-item" data-name="${m.name.replace(/"/g, '&quot;')}">
+          <span class="mention-avatar" style="background-color: ${m.color || '#3B82F6'};">${m.name.substring(0, 2).toUpperCase()}</span>
+          <span class="mention-name">${m.name}</span>
+        </button>`
+      )
+      .join('');
+
+    const wrapper = input.closest('.chat-input-wrapper') || input.parentElement;
+    if (wrapper) {
+      wrapper.style.position = 'relative';
+      wrapper.appendChild(list);
+    } else {
+      document.body.appendChild(list);
+    }
+    mentionSuggestEl = list;
+
+    list.querySelectorAll('.mention-suggest-item').forEach((item) => {
+      item.addEventListener('mousedown', (e) => {
+        e.preventDefault();
+        insertMention(input, query, item.dataset.name);
+      });
+    });
+  }
+
+  function insertMention(input, query, name) {
+    const value = input.value;
+    const caret = typeof input.selectionStart === 'number' ? input.selectionStart : value.length;
+    const after = value.slice(caret);
+    const prefix = value.slice(0, query.atIndex);
+
+    input.value = `${prefix}@${name} ${after.replace(/^\s+/, '')}`;
+    const newCaret = prefix.length + name.length + 2;
+    input.setSelectionRange(newCaret, newCaret);
+    input.focus();
+    closeMentionSuggest();
+  }
+
+  function setupMentionAutocomplete(input) {
+    if (!input) return;
+
+    input.addEventListener('input', () => {
+      const query = getMentionQuery(input);
+      if (!query) {
+        closeMentionSuggest();
+        return;
+      }
+      showMentionSuggest(input, query);
+    });
+
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') closeMentionSuggest();
+    });
+
+    input.addEventListener('blur', () => setTimeout(closeMentionSuggest, 150));
   }
 
   // 4d. Timeline de Alertas de Lugares (entradas e saídas de cercas)
@@ -1113,12 +1418,27 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  // Retorna o membro atual (primeiro do círculo) para ações disparadas pelo próprio usuário
+  // Retorna o usuário autenticado (fonte de verdade) com fallback para o primeiro membro do círculo
   function getCurrentUser() {
+    const own = currentAuthUser && currentAuthUser.id
+      ? membersData.find((m) => m.id === currentAuthUser.id)
+      : null;
+
+    if (currentAuthUser && currentAuthUser.id) {
+      return {
+        id: currentAuthUser.id,
+        name: currentAuthUser.name || own?.name || 'Você',
+        color: currentAuthUser.color || own?.color || '#3B82F6',
+        avatarUrl: currentAuthUser.avatarUrl || own?.avatarUrl || '',
+        location: own?.location || { latitude: -23.55052, longitude: -46.633308, battery: 95 },
+      };
+    }
+
     const user = membersData[0] || {};
     return {
       id: user.id || 'usr_me',
       name: user.name || 'Você',
+      color: user.color || '#3B82F6',
       avatarUrl: user.avatarUrl || '',
       location: user.location || { latitude: -23.55052, longitude: -46.633308, battery: 95 },
     };
@@ -1191,6 +1511,16 @@ document.addEventListener('DOMContentLoaded', () => {
               el.title = 'Lida';
             });
           }
+        } else if (msg.type === 'CHAT_REACTION' || msg.type === 'DM_REACTION') {
+          const data = msg.data;
+          if (msg.type === 'DM_REACTION') {
+            const me = getCurrentUser();
+            const otherId = data.senderId === me.id ? data.receiverId : data.senderId;
+            if (activeChatChannel !== otherId) return;
+          } else if (activeChatChannel !== 'circle') {
+            return;
+          }
+          applyReactionUpdate(data.messageId, data.reactions);
         }
       } catch (err) {
         console.error('Erro ao processar mensagem WS:', err);
@@ -1250,6 +1580,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const currentPlace = findPlaceForCoords(locData.latitude, locData.longitude);
 
     if (member) {
+      const effectiveBatt =
+        locData.battery !== undefined && locData.battery !== null ? locData.battery : member.location?.battery;
+      const effectiveCharge =
+        locData.isCharging !== undefined ? locData.isCharging : member.location?.isCharging;
+
       member.currentPlace = currentPlace;
       member.location = {
         latitude: locData.latitude,
@@ -1257,8 +1592,8 @@ document.addEventListener('DOMContentLoaded', () => {
         accuracy: locData.accuracy,
         speed: locData.speed,
         heading: locData.heading,
-        battery: locData.battery,
-        isCharging: locData.isCharging,
+        battery: effectiveBatt,
+        isCharging: effectiveCharge,
         recordedAt: locData.recordedAt,
       };
       if (locData.deviceName && member.activeDevice) {
@@ -1600,9 +1935,12 @@ document.addEventListener('DOMContentLoaded', () => {
     listEl.innerHTML = membersData
       .map((m) => {
         const initials = m.name.substring(0, 2).toUpperCase();
-        const batt = m.location?.battery !== undefined && m.location?.battery !== null ? Math.round(m.location.battery) : '--';
+        const rawBatt = m.location?.battery;
+        const hasBatt = rawBatt !== undefined && rawBatt !== null && rawBatt !== '';
+        const batt = hasBatt ? Math.round(Number(rawBatt)) : null;
+        const battText = batt !== null ? `${batt}%` : '--';
         const isCharging = m.location?.isCharging ? '⚡' : '';
-        const battClass = batt !== '--' && batt < 20 ? 'low' : batt < 50 ? 'medium' : 'high';
+        const battClass = batt !== null && batt < 20 ? 'low' : batt !== null && batt < 50 ? 'medium' : 'high';
 
         let subtext = 'Sem localização recente';
         if (m.location) {
@@ -1641,7 +1979,7 @@ document.addEventListener('DOMContentLoaded', () => {
           <div class="member-card ${isSelected}" onclick="window.selectMember('${m.id}')">
             <div class="member-avatar" style="background-color: ${m.color || '#3B82F6'}">
               ${m.avatarUrl ? `<img src="${m.avatarUrl}" alt="${m.name}" />` : initials}
-              <div class="battery-badge ${battClass}">${batt}% ${isCharging}</div>
+              <div class="battery-badge ${battClass}">${battText} ${isCharging}</div>
             </div>
             <div class="member-info">
               <div class="member-name">${m.name}</div>
@@ -1745,7 +2083,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function renderMemberDetails(member) {
     const initials = member.name.substring(0, 2).toUpperCase();
-    const batt = member.location?.battery ? `${Math.round(member.location.battery)}%` : '--';
+    const rawBatt = member.location?.battery;
+    const hasBatt = rawBatt !== undefined && rawBatt !== null && rawBatt !== '';
+    const batt = hasBatt ? `${Math.round(Number(rawBatt))}%` : '--';
     const isCharging = member.location?.isCharging ? ' ⚡' : '';
     const speed = member.location?.speed ? `${Math.round(member.location.speed)} km/h` : '0 km/h';
     const accuracy = member.location?.accuracy ? `${Math.round(member.location.accuracy)} m` : '--';
@@ -1971,7 +2311,18 @@ document.addEventListener('DOMContentLoaded', () => {
       console.log(`[RemoteUpdate] Ordem de atualização recebida de ${data.requestedBy || 'Familiar'}`);
       if ('geolocation' in navigator) {
         navigator.geolocation.getCurrentPosition(
-          (pos) => {
+          async (pos) => {
+            let battLevel = undefined;
+            let isCharging = false;
+            if ('getBattery' in navigator) {
+              try {
+                const b = await navigator.getBattery();
+                if (b && typeof b.level === 'number' && b.level >= 0) {
+                  battLevel = Math.round(b.level * 100);
+                  isCharging = Boolean(b.charging);
+                }
+              } catch {}
+            }
             const payload = {
               latitude: pos.coords.latitude,
               longitude: pos.coords.longitude,
@@ -1979,6 +2330,8 @@ document.addEventListener('DOMContentLoaded', () => {
               speed: pos.coords.speed ? Math.round(pos.coords.speed * 3.6) : 0,
               heading: pos.coords.heading,
               altitude: pos.coords.altitude,
+              battery: battLevel,
+              isCharging,
             };
             apiFetch('/api/telemetry', {
               method: 'POST',

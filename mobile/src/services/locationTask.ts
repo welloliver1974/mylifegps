@@ -39,7 +39,9 @@ export async function sendTelemetryToServer(location: Location.LocationObject): 
 
     try {
       const level = await Battery.getBatteryLevelAsync();
-      batteryLevel = Math.round(level * 100);
+      if (typeof level === 'number' && level >= 0) {
+        batteryLevel = Math.round(level * 100);
+      }
       const state = await Battery.getBatteryStateAsync();
       isCharging = state === Battery.BatteryState.CHARGING || state === Battery.BatteryState.FULL;
     } catch {

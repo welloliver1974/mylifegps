@@ -109,6 +109,7 @@ model CircleMessage {
   userName  String
   userColor String   @default("#3B82F6")
   text      String
+  reactions String?  @default("{}") // JSON: { "❤️": ["userId1"], "👍": ["userId2"] }
   createdAt DateTime @default(now())
 
   @@index([createdAt])
@@ -174,6 +175,7 @@ model DirectMessage {
   receiverId String
   receiver   User      @relation("ReceivedDMs", fields: [receiverId], references: [id], onDelete: Cascade)
   text       String
+  reactions  String?   @default("{}") // JSON: { "❤️": ["userId1"], "👍": ["userId2"] }
   read       Boolean   @default(false)
   readAt     DateTime?
   createdAt  DateTime  @default(now())

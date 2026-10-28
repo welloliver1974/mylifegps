@@ -232,8 +232,12 @@
   - **App Mobile / WebView Bridge:** canal bidirecional `ReactNativeWebView.postMessage({ type: 'FORCE_LOCATION_UPDATE' })` que aciona `forceImmediateLocationUpdate()` via `expo-location` em `Accuracy.Highest`, transmitindo telemetria imediata com bateria e coordenadas para a VPS.
   - **Estabilidade & Mobile UX (PWA `life360-v23`):** correção do botão de voltar para a lista (`btnBackToList` resiliente com limpeza de replay/markers), endurecimento contra expiração falsa de sessão (`apiFetch` não desloga em falhas pontuais e revalida via `/api/auth/me`), e contenção de layout dos botões e cards de estatísticas (`minmax(0, 1fr)`, ellipsis e grade 2x2 estável sem estouro).
 
-- [ ] **Etapa 9.5: Refinamentos de chat**
-  - Reações/curtir mensagem (modelo + UI) e menções `@nome` com notificação dedicada.
+- [x] **Etapa 9.5: Refinamentos de chat (reações e menções)**
+  - **Modelo:** coluna `reactions` (JSON `{emoji: [userId]}`) em `CircleMessage` e `DirectMessage`, aplicada com `prisma db push` (aditiva e opcional, não quebra bancos existentes).
+  - **Servidor:** `POST /api/messages/:id/react` e `POST /api/messages/direct/react/:id` com alternância (adiciona/remove), lista fechada de 8 emojis, verificação de participação na DM (403 para terceiros) e broadcast em tempo real `CHAT_REACTION` / `DM_REACTION`. Reações são devolvidas já desserializadas nos GETs.
+  - **Menções:** `server/src/services/mentions.ts` resolve `@nome` por nome completo (mais longo primeiro, com limite de palavra e acento), ignora o próprio autor e dispara Web Push dedicado ao mencionado, tanto no círculo quanto nas DMs.
+  - **Interface Web:** seletor flutuante de 8 emojis (botão ☺+ no balão ou toque longo no celular), pílulas de reação com contador e destaque das suas próprias reações, autocomplete `@nome` acima do campo de chat com avatar e inserção por clique, menções destacadas no texto e overrides completos de modo escuro. Cache PWA `life360-v24`.
+  - **Correção de bateria:** o servidor agora preserva a última leitura conhecida quando um ponto de telemetria chega sem `battery` (ping web/GPS puro), `/api/members/live` busca até 10 registros por aparelho para resgatar a última bateria válida e o painel/lista exibem `--` em vez de `NaN%`. O envio via WebView também passou a incluir nível de bateria nativo (`navigator.getBattery`) e a ignorar leituras inválidas no app Expo.
 
 - [ ] **Etapa 9.6: Nota de direção histórica**
   - Score semanal/mensal agregado (hoje só existe o período consultado), com gráfico de evolução.

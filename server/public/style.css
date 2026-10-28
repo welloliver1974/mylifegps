@@ -2308,14 +2308,215 @@ input[type="range"]::-moz-range-thumb {
   align-self: flex-end;
 }
 
+/* Rodapé do balão: horário + gatilho de reação (Etapa 9.5) */
+.chat-bubble-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  margin-top: 3px;
+}
+
+.chat-bubble-footer .chat-bubble-time {
+  margin-top: 0;
+}
+
+.chat-react-trigger {
+  opacity: 0;
+  background: var(--bg-tertiary);
+  border: none;
+  color: var(--text-secondary);
+  font-size: 10.5px;
+  font-weight: 800;
+  line-height: 1;
+  padding: 3px 6px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: opacity 0.18s ease, background 0.18s ease;
+  flex-shrink: 0;
+}
+
+.chat-bubble:hover .chat-react-trigger,
+.chat-bubble:focus-within .chat-react-trigger {
+  opacity: 1;
+}
+
+.chat-react-trigger:hover {
+  background: var(--accent-blue);
+  color: #FFFFFF;
+}
+
+@media (hover: none) {
+  .chat-react-trigger {
+    opacity: 0.65;
+  }
+}
+
+/* Pílulas de reação abaixo do balão */
+.chat-reactions-row {
+  display: none;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 5px;
+}
+
+.chat-reaction-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-light);
+  border-radius: 999px;
+  padding: 2px 7px;
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  line-height: 1.3;
+}
+
+.chat-reaction-chip:hover {
+  border-color: var(--accent-blue);
+}
+
+.chat-reaction-chip.mine {
+  background: #E0E7FF;
+  border-color: #A5B4FC;
+  color: #3730A3;
+}
+
+.chat-reaction-chip .reaction-emoji {
+  font-size: 12px;
+}
+
+.chat-reaction-chip .reaction-count {
+  font-size: 10px;
+}
+
+/* Seletor flutuante de emojis */
+.reaction-picker {
+  position: fixed;
+  z-index: 9500;
+  display: flex;
+  gap: 2px;
+  background: var(--bg-glass-elevated, #FFFFFF);
+  border: 1px solid var(--border-light);
+  border-radius: 999px;
+  padding: 5px 7px;
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.22);
+  animation: reactionPickerIn 0.16s ease;
+}
+
+@keyframes reactionPickerIn {
+  from { opacity: 0; transform: translateY(6px) scale(0.94); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.reaction-picker-btn {
+  background: none;
+  border: none;
+  font-size: 18px;
+  line-height: 1;
+  padding: 4px 3px;
+  border-radius: 50%;
+  cursor: pointer;
+  transition: transform 0.14s ease, background 0.14s ease;
+}
+
+.reaction-picker-btn:hover {
+  transform: scale(1.28);
+  background: var(--bg-tertiary);
+}
+
+/* Menção destacada dentro do balão */
+.chat-mention {
+  color: var(--accent-blue);
+  font-weight: 800;
+  background: rgba(59, 130, 246, 0.1);
+  border-radius: 5px;
+  padding: 0 3px;
+}
+
 .chat-input-row {
   display: flex;
   gap: 8px;
   margin-top: 9px;
+  align-items: center;
+}
+
+.chat-input-wrapper {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  display: flex;
+}
+
+/* Autocomplete de @menções */
+.mention-suggest-list {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: calc(100% + 6px);
+  z-index: 9400;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 190px;
+  overflow-y: auto;
+  background: var(--bg-glass-elevated, #FFFFFF);
+  border: 1px solid var(--border-light);
+  border-radius: 14px;
+  padding: 5px;
+  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.2);
+}
+
+.mention-suggest-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: none;
+  border: none;
+  border-radius: 10px;
+  padding: 7px 9px;
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--text-primary);
+  cursor: pointer;
+  text-align: left;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.mention-suggest-item:hover,
+.mention-suggest-item.active {
+  background: var(--bg-tertiary);
+}
+
+.mention-avatar {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  color: #FFFFFF;
+  font-size: 10px;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.mention-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .chat-input {
   flex: 1;
+  min-width: 0;
   padding: 10px 14px;
   border-radius: 14px;
   border: 1.5px solid var(--border-light);
@@ -3546,6 +3747,41 @@ input[type="range"]::-moz-range-thumb {
 [data-theme="dark"] .chat-bubble.other {
   background: var(--bg-tertiary);
   color: var(--text-primary);
+}
+
+/* Reações, menções e autocomplete no modo escuro (Etapa 9.5) */
+[data-theme="dark"] .chat-bubble.mine {
+  background: rgba(99, 102, 241, 0.18);
+  border-color: rgba(99, 102, 241, 0.4);
+}
+
+[data-theme="dark"] .chat-reaction-chip {
+  background: var(--bg-tertiary);
+  border-color: var(--border-color);
+  color: var(--text-secondary);
+}
+
+[data-theme="dark"] .chat-reaction-chip.mine {
+  background: rgba(99, 102, 241, 0.28);
+  border-color: rgba(99, 102, 241, 0.55);
+  color: #C7D2FE;
+}
+
+[data-theme="dark"] .reaction-picker,
+[data-theme="dark"] .mention-suggest-list {
+  background: var(--bg-secondary);
+  border-color: var(--border-color);
+  box-shadow: 0 12px 34px rgba(0, 0, 0, 0.55);
+}
+
+[data-theme="dark"] .reaction-picker-btn:hover,
+[data-theme="dark"] .mention-suggest-item:hover {
+  background: var(--bg-tertiary);
+}
+
+[data-theme="dark"] .chat-mention {
+  color: #93C5FD;
+  background: rgba(59, 130, 246, 0.18);
 }
 
 [data-theme="dark"] .marker-status-tag {

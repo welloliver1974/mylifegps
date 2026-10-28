@@ -6,7 +6,7 @@
 
 **Legenda:** ✅ implementado e funcionando · ⚠️ parcial / simplificado · ❌ ausente · 🚫 depende de terceiro (impossível auto-hospedar)
 
-*Última auditoria: 2026-10-28 — Círculo Real e Convites por Código concluídos: modelos Circle/CircleMember, cadastro por convite, remoção de membros e isolamento por círculo (Bloco 9, etapa 1)*
+*Última auditoria: 2026-10-28 — Etapa 9.5 concluída: reações emoji e menções `@nome` no chat do círculo e nas mensagens diretas, com notificação push dedicada*
 
 ---
 
@@ -57,8 +57,8 @@
 | **Adicionar/remover membros de verdade** | ✅ | Cadastro com código via `/api/auth/register-with-invite`, entrada via `/api/circle/join`, remoção de membros por admin via `DELETE /api/circle/members/:id`, listagem com badges de papel no modal e isolamento completo por círculo em `/api/members/live` (Etapa 9.1) |
 | **Editar perfil / foto do membro** | ✅ | Modal com edição de nome, telefone, cor do marcador e upload de foto real (@fastify/multipart) com remoção e preview dinâmico (Etapa 8.7) |
 | **Mensagem direta 1:1** | ✅ | Tabela `DirectMessage`, rotas `/api/messages/direct/:otherUserId` e `/unread`, abas de canais no chat, avisos em tempo real via WebSocket, notificações push Web e botão de acesso rápido no perfil (Etapa 8.8) |
-| **Reações / curtir mensagens** | ❌ | |
-| **Menções e notificações de chat** | ⚠️ | Notificações push automáticas para DMs no celular com app fechado via Web Push; menções (@nome) ainda ausentes |
+| **Reações / curtir mensagens** | ✅ | Coluna `reactions` (JSON) em `CircleMessage` e `DirectMessage`, rotas `POST /api/messages/:id/react` e `POST /api/messages/direct/react/:id`, seletor de 8 emojis (toque longo no balão ou botão ☺+), contagem por emoji e sincronização em tempo real via WS `CHAT_REACTION` / `DM_REACTION` (Etapa 9.5) |
+| **Menções e notificações de chat** | ✅ | Autocomplete `@nome` no campo de chat, destaque visual da menção no balão, resolução por nome completo com limites de palavra (`server/src/services/mentions.ts`) e Web Push dedicado aos membros mencionados, inclusive em mensagens diretas (Etapa 9.5) |
 
 ## Segurança e Emergência
 
