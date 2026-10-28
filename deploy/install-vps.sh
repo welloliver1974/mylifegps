@@ -226,6 +226,9 @@ else
   exit 1
 fi
 
+# Instala atalho global 'atualizar' e 'atualizar-life360'
+bash "$APP_DIR/deploy/instalar-comando.sh" >/dev/null 2>&1 || true
+
 echo
 printf '%s\n' "${B}================ INSTALAÇÃO CONCLUÍDA ================${N}"
 echo "Próximos passos:"

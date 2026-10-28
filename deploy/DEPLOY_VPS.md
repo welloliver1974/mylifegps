@@ -236,10 +236,22 @@ scp -r ubuntu@100.x.y.z:/var/backups/mylife360 "E:\Apps\my life360\backups-offsi
 
 ## Atualizar o deploy depois (nova versão no GitHub)
 
+De qualquer pasta na VPS, basta digitar:
+
 ```bash
-cd ~/my-life360
-bash deploy/quick-deploy.sh
+atualizar life360
+# ou simplesmente:
+atualizar
 ```
+
+Outros comandos úteis:
+```bash
+atualizar status    # exibe versão atual, status do PM2 e health check
+atualizar logs      # visualiza os logs do servidor em tempo real
+atualizar restart   # reinicia o servidor sem recompilar
+```
+
+*(Se o comando global ainda não estiver no PATH, execute uma única vez: `bash ~/my-life360/deploy/instalar-comando.sh` ou `cd ~/my-life360 && bash deploy/quick-deploy.sh`)*
 
 ---
 
