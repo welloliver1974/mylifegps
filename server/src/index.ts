@@ -18,8 +18,10 @@ import { pushRoutes } from './routes/push.js';
 import { emergencyRoutes } from './routes/emergency.js';
 import { devicesRoutes } from './routes/devices.js';
 import { adminRoutes } from './routes/admin.js';
+import { circleRoutes } from './routes/circle.js';
 import { recordAccess, pruneAccessLogs } from './services/audit.js';
 import { startBackupScheduler } from './services/backup.js';
+import { ensureDefaultCircle } from './services/circle.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -28,6 +30,21 @@ const fastify = Fastify({
   logger: {
     level: process.env.NODE_ENV === 'production' ? 'info' : 'debug',
   },
+});
+
+// Tolera corpo vazio em requisições com header Content-Type: application/json
+fastify.addContentTypeParser('application/json', { parseAs: 'string' }, (_req, body: string, defaultDone) => {
+  if (!body || body.trim() === '') {
+    defaultDone(null, {});
+    return;
+  }
+  try {
+    const json = JSON.parse(body);
+    defaultDone(null, json);
+  } catch (err: any) {
+    err.statusCode = 400;
+    defaultDone(err, undefined);
+  }
 });
 
 // Rotas de API que não exigem sessão: autenticação e ingestão de telemetria dos aparelhos
@@ -39,8 +56,11 @@ function isPublicApi(url: string) {
 
 async function bootstrap() {
   try {
-    // 1. Configura SQLite com WAL mode
+    // 1. Configura SQLite com WAL mode e garante círculo inicial
     await initDb();
+    await ensureDefaultCircle().catch((err) => {
+      console.warn('Aviso ao inicializar círculo padrão:', err);
+    });
 
     // 2. Plugins (CORS, Multipart e WebSockets)
     await fastify.register(cors, {
@@ -188,6 +208,7 @@ async function bootstrap() {
     await fastify.register(emergencyRoutes);
     await fastify.register(devicesRoutes);
     await fastify.register(adminRoutes);
+    await fastify.register(circleRoutes);
 
     // 8. Serve arquivos estáticos do Painel Web / PWA (Mapa e Interface)
     await fastify.register(fastifyStatic, {

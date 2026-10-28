@@ -3,8 +3,26 @@ import { prisma } from '../db.js';
 
 export async function placesRoutes(fastify: FastifyInstance) {
   // Lista todas as cercas cadastradas (Casa, Trabalho, Escola)
-  fastify.get('/api/places', async (_request, reply) => {
+  fastify.get('/api/places', async (request, reply) => {
+    const authUser = (request as any).authUser || (request as any).user;
+    let where: any = {};
+
+    if (authUser) {
+      const membership = await prisma.circleMember.findFirst({
+        where: { userId: authUser.id },
+      });
+      if (membership) {
+        where = {
+          OR: [
+            { circleId: membership.circleId },
+            { circleId: null },
+          ],
+        };
+      }
+    }
+
     const places = await prisma.place.findMany({
+      where,
       orderBy: { createdAt: 'desc' },
     });
     return reply.send(places);
@@ -42,14 +60,26 @@ export async function placesRoutes(fastify: FastifyInstance) {
 
   // Cadastra novo lugar
   fastify.post('/api/places', async (request, reply) => {
+    const authUser = (request as any).authUser || (request as any).user;
     const body = request.body as any;
     if (!body?.name || body?.latitude === undefined || body?.longitude === undefined) {
       return reply.status(400).send({ error: 'name, latitude e longitude são obrigatórios' });
     }
 
+    let circleId: string | null = null;
+    if (authUser) {
+      const membership = await prisma.circleMember.findFirst({
+        where: { userId: authUser.id },
+      });
+      if (membership) {
+        circleId = membership.circleId;
+      }
+    }
+
     const place = await prisma.place.create({
       data: {
         name: body.name,
+        circleId,
         latitude: Number(body.latitude),
         longitude: Number(body.longitude),
         radiusMeters: body.radiusMeters ? Number(body.radiusMeters) : 100,

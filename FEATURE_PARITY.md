@@ -6,7 +6,7 @@
 
 **Legenda:** ✅ implementado e funcionando · ⚠️ parcial / simplificado · ❌ ausente · 🚫 depende de terceiro (impossível auto-hospedar)
 
-*Última auditoria: 2026-10-27 — segurança de infraestrutura concluída: telemetria autenticada por aparelho, backup automático, auditoria de acessos e gestão de dispositivos (Bloco 8, etapa 9)*
+*Última auditoria: 2026-10-28 — Círculo Real e Convites por Código concluídos: modelos Circle/CircleMember, cadastro por convite, remoção de membros e isolamento por círculo (Bloco 9, etapa 1)*
 
 ---
 
@@ -51,8 +51,8 @@
 | Lista de membros com status | ✅ | |
 | Chat do círculo | ✅ | Tempo real via WS, histórico em banco |
 | Check-in ("estou seguro") | ✅ | Topo da tela e menu do círculo |
-| Código de convite | ⚠️ | Código gerado e copiável, mas **não há fluxo real de entrada de membro** com validação |
-| **Adicionar/remover membros de verdade** | ❌ | Sem tela de entrada e sem vínculo de usuário |
+| Código de convite | ✅ | Modelos `Circle` e `CircleMember` no SQLite, códigos `FAM-XXXX-XXXX` sem ambiguidade, validação na API, regeneração por admin e tela de entrada por convite (Etapa 9.1) |
+| **Adicionar/remover membros de verdade** | ✅ | Cadastro com código via `/api/auth/register-with-invite`, entrada via `/api/circle/join`, remoção de membros por admin via `DELETE /api/circle/members/:id`, listagem com badges de papel no modal e isolamento completo por círculo em `/api/members/live` (Etapa 9.1) |
 | **Editar perfil / foto do membro** | ✅ | Modal com edição de nome, telefone, cor do marcador e upload de foto real (@fastify/multipart) com remoção e preview dinâmico (Etapa 8.7) |
 | **Mensagem direta 1:1** | ✅ | Tabela `DirectMessage`, rotas `/api/messages/direct/:otherUserId` e `/unread`, abas de canais no chat, avisos em tempo real via WebSocket, notificações push Web e botão de acesso rápido no perfil (Etapa 8.8) |
 | **Reações / curtir mensagens** | ❌ | |

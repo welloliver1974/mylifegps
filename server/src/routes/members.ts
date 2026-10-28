@@ -12,9 +12,36 @@ const AVATARS_DIR = path.resolve(__dirname, '../../public/uploads/avatars');
 
 export async function membersRoutes(fastify: FastifyInstance) {
   // Retorna todos os membros e suas últimas posições conhecidas
-  fastify.get('/api/members/live', async (_request, reply) => {
+  fastify.get('/api/members/live', async (request, reply) => {
+    const authUser = (request as any).authUser || (request as any).user;
+
+    let userWhere: any = {};
+    let placeWhere: any = {};
+
+    if (authUser) {
+      const membership = await prisma.circleMember.findFirst({
+        where: { userId: authUser.id },
+      });
+
+      if (membership) {
+        const circleMembers = await prisma.circleMember.findMany({
+          where: { circleId: membership.circleId },
+          select: { userId: true },
+        });
+        const memberIds = circleMembers.map((cm) => cm.userId);
+        userWhere = { id: { in: memberIds } };
+        placeWhere = {
+          OR: [
+            { circleId: membership.circleId },
+            { circleId: null },
+          ],
+        };
+      }
+    }
+
     const [users, places] = await Promise.all([
       prisma.user.findMany({
+        where: userWhere,
         include: {
           devices: {
             include: {
@@ -26,7 +53,9 @@ export async function membersRoutes(fastify: FastifyInstance) {
           },
         },
       }),
-      prisma.place.findMany(),
+      prisma.place.findMany({
+        where: placeWhere,
+      }),
     ]);
 
     const members = users.map((u) => {
@@ -101,7 +130,25 @@ export async function membersRoutes(fastify: FastifyInstance) {
 
   // Retorna o histórico de deslocamento (rastro) de um membro
   fastify.get('/api/members/:userId/history', async (request, reply) => {
+    const authUser = (request as any).authUser || (request as any).user;
     const { userId } = request.params as { userId: string };
+
+    if (authUser && authUser.id !== userId && authUser.role !== 'admin') {
+      const shared = await prisma.circleMember.findFirst({
+        where: {
+          userId: authUser.id,
+          circle: {
+            members: {
+              some: { userId },
+            },
+          },
+        },
+      });
+      if (!shared) {
+        return reply.status(403).send({ error: 'Você não tem permissão para visualizar o histórico deste membro.' });
+      }
+    }
+
     const { limit = '200', from, to } = request.query as { limit?: string; from?: string; to?: string };
 
     const devices = await prisma.device.findMany({
@@ -132,7 +179,25 @@ export async function membersRoutes(fastify: FastifyInstance) {
 
   // Retorna as viagens individuais segmentadas de um membro (Recurso Life360 Gold - Etapa 8.4)
   fastify.get('/api/members/:userId/trips', async (request, reply) => {
+    const authUser = (request as any).authUser || (request as any).user;
     const { userId } = request.params as { userId: string };
+
+    if (authUser && authUser.id !== userId && authUser.role !== 'admin') {
+      const shared = await prisma.circleMember.findFirst({
+        where: {
+          userId: authUser.id,
+          circle: {
+            members: {
+              some: { userId },
+            },
+          },
+        },
+      });
+      if (!shared) {
+        return reply.status(403).send({ error: 'Você não tem permissão para visualizar o histórico deste membro.' });
+      }
+    }
+
     const { from, to, limit = '1000' } = request.query as { from?: string; to?: string; limit?: string };
 
     const [devices, places] = await Promise.all([

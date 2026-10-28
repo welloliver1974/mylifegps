@@ -57,24 +57,41 @@ document.addEventListener('DOMContentLoaded', () => {
     const screen = document.getElementById('authScreen');
     const subtitle = document.getElementById('authSubtitle');
     const nameGroup = document.getElementById('authNameGroup');
+    const inviteGroup = document.getElementById('authInviteGroup');
     const submitBtn = document.getElementById('authSubmitBtn');
     const footnote = document.getElementById('authFootnote');
     const errorEl = document.getElementById('authError');
+    const toggleWrap = document.getElementById('authToggleWrap');
+    const toggleBtn = document.getElementById('btnToggleAuthMode');
 
     screen.classList.remove('hidden');
 
     if (mode === 'setup') {
-      subtitle.textContent = 'Primeira configuração: crie sua conta de administrador';
+      subtitle.textContent = 'Primeira configuração: crie sua conta de administrador e seu círculo';
       nameGroup.style.display = 'block';
+      if (inviteGroup) inviteGroup.style.display = 'none';
       submitBtn.textContent = 'Criar conta e entrar';
       footnote.textContent = 'Esta conta protegerá o acesso a todas as localizações da família.';
       document.getElementById('authPassword').setAttribute('autocomplete', 'new-password');
+      if (toggleWrap) toggleWrap.style.display = 'none';
+    } else if (mode === 'invite') {
+      subtitle.textContent = 'Entre no círculo da sua família com seu código de convite';
+      nameGroup.style.display = 'block';
+      if (inviteGroup) inviteGroup.style.display = 'block';
+      submitBtn.textContent = 'Criar conta e entrar no círculo';
+      footnote.textContent = 'Você fará parte do círculo familiar correspondente ao código.';
+      document.getElementById('authPassword').setAttribute('autocomplete', 'new-password');
+      if (toggleWrap) toggleWrap.style.display = 'block';
+      if (toggleBtn) toggleBtn.textContent = 'Já tem uma conta? Fazer login';
     } else {
       subtitle.textContent = 'Entre para acessar o círculo da família';
       nameGroup.style.display = 'none';
+      if (inviteGroup) inviteGroup.style.display = 'none';
       submitBtn.textContent = 'Entrar';
       footnote.textContent = 'Seus dados ficam apenas no seu próprio servidor.';
       document.getElementById('authPassword').setAttribute('autocomplete', 'current-password');
+      if (toggleWrap) toggleWrap.style.display = 'block';
+      if (toggleBtn) toggleBtn.textContent = 'Tenho um código de convite da família';
     }
 
     if (message) {
@@ -124,6 +141,17 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function setupAuthForm() {
+    const toggleBtn = document.getElementById('btnToggleAuthMode');
+    if (toggleBtn) {
+      toggleBtn.addEventListener('click', () => {
+        if (authMode === 'login') {
+          showAuthScreen('invite');
+        } else {
+          showAuthScreen('login');
+        }
+      });
+    }
+
     document.getElementById('authForm').addEventListener('submit', async (e) => {
       e.preventDefault();
 
@@ -132,12 +160,21 @@ document.addEventListener('DOMContentLoaded', () => {
       const email = document.getElementById('authEmail').value.trim();
       const password = document.getElementById('authPassword').value;
       const name = document.getElementById('authName').value.trim();
+      const inviteCode = document.getElementById('authInviteCode')?.value.trim();
 
       errorEl.style.display = 'none';
       submitBtn.disabled = true;
 
-      const endpoint = authMode === 'setup' ? '/api/auth/setup' : '/api/auth/login';
-      const payload = authMode === 'setup' ? { name, email, password } : { email, password };
+      let endpoint = '/api/auth/login';
+      let payload = { email, password };
+
+      if (authMode === 'setup') {
+        endpoint = '/api/auth/setup';
+        payload = { name, email, password };
+      } else if (authMode === 'invite') {
+        endpoint = '/api/auth/register-with-invite';
+        payload = { name, email, password, inviteCode };
+      }
 
       try {
         const res = await fetch(endpoint, {
@@ -415,26 +452,123 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // 4b. Menu do Círculo Familiar, Código de Convite e Check-in
+  // 4b. Menu do Círculo Familiar, Código de Convite Real e Gestão de Membros (Etapa 9.1)
+  let currentCircle = null;
+
+  async function loadCircleData() {
+    try {
+      const res = await apiFetch('/api/circle');
+      if (!res.ok) return;
+      const data = await res.json();
+      currentCircle = data;
+
+      const inviteCodeEl = document.getElementById('circleInviteCode');
+      if (inviteCodeEl) inviteCodeEl.textContent = data.inviteCode || 'INDISPONÍVEL';
+
+      const titleEl = document.getElementById('circleModalTitle');
+      if (titleEl) titleEl.textContent = 'Círculo ' + (data.name || 'Família');
+
+      const topTitle = document.querySelector('.circle-name-wrap h1');
+      if (topTitle) topTitle.textContent = 'Círculo ' + (data.name || 'Família');
+
+      const btnRegenerate = document.getElementById('btnRegenerateInviteCode');
+      if (btnRegenerate) {
+        btnRegenerate.style.display = data.myRole === 'admin' ? 'inline-block' : 'none';
+      }
+
+      const countEl = document.getElementById('circleMemberCount');
+      if (countEl) countEl.textContent = (data.members || []).length;
+
+      const listEl = document.getElementById('circleMemberList');
+      if (listEl) {
+        if (!data.members || data.members.length === 0) {
+          listEl.innerHTML = '<div style="font-size: 0.85rem; color: var(--text-secondary); text-align: center; padding: 12px;">Nenhum membro encontrado.</div>';
+          return;
+        }
+
+        listEl.innerHTML = data.members.map((m) => {
+          const isCurrentUser = m.isCurrentUser;
+          const isAdmin = m.roleInCircle === 'admin';
+          const canRemove = data.myRole === 'admin' && !isCurrentUser;
+
+          const avatarContent = m.avatarUrl
+            ? `<img src="${escapeHtml(m.avatarUrl)}" alt="${escapeHtml(m.name)}" />`
+            : `${escapeHtml((m.name || 'M')[0].toUpperCase())}`;
+
+          return `
+            <div class="circle-member-item" data-member-id="${escapeHtml(m.id)}">
+              <div class="circle-member-info">
+                <div class="circle-member-avatar" style="background: ${escapeHtml(m.color || '#3B82F6')}">
+                  ${avatarContent}
+                </div>
+                <div>
+                  <div class="circle-member-name">
+                    ${escapeHtml(m.name)}
+                    ${isCurrentUser ? '<span style="font-size: 11px; color: var(--text-secondary); font-weight: 500;">(Você)</span>' : ''}
+                  </div>
+                  <div style="font-size: 11px; color: var(--text-secondary);">
+                    ${escapeHtml(m.email || m.phone || 'Membro do Círculo')}
+                  </div>
+                </div>
+              </div>
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <span class="circle-member-role-badge ${isAdmin ? 'admin' : 'member'}">
+                  ${isAdmin ? 'Admin' : 'Membro'}
+                </span>
+                ${
+                  canRemove
+                    ? `<button type="button" class="circle-member-remove-btn" title="Remover membro do círculo" data-remove-id="${escapeHtml(m.id)}" data-member-name="${escapeHtml(m.name)}">🗑️</button>`
+                    : ''
+                }
+              </div>
+            </div>
+          `;
+        }).join('');
+
+        // Listeners para botões de remoção
+        listEl.querySelectorAll('.circle-member-remove-btn').forEach((btn) => {
+          btn.addEventListener('click', async () => {
+            const memberId = btn.getAttribute('data-remove-id');
+            const memberName = btn.getAttribute('data-member-name');
+            if (!confirm(`Tem certeza que deseja remover ${memberName} deste círculo familiar?`)) {
+              return;
+            }
+
+            try {
+              const delRes = await apiFetch(`/api/circle/members/${memberId}`, { method: 'DELETE' });
+              const delData = await delRes.json();
+              if (!delRes.ok) {
+                showToast(delData.error || 'Erro ao remover membro.');
+                return;
+              }
+              showToast(`${memberName} foi removido do círculo.`);
+              await loadCircleData();
+              loadMembers();
+            } catch (err) {
+              console.error(err);
+              showToast('Erro de conexão ao remover membro.');
+            }
+          });
+        });
+      }
+    } catch (err) {
+      console.error('Erro ao carregar dados do círculo:', err);
+    }
+  }
+
   function setupCircleMenu() {
     const circleModal = document.getElementById('circleModal');
     const btnCircleMenu = document.getElementById('btnCircleMenu');
     const btnCloseCircleModal = document.getElementById('btnCloseCircleModal');
-    const inviteCodeEl = document.getElementById('circleInviteCode');
-
-    // Código de convite persistente e privado por círculo
-    let inviteCode = localStorage.getItem('life360_circle_invite_code');
-    if (!inviteCode) {
-      inviteCode = 'FAM-' + Math.random().toString(36).substring(2, 6).toUpperCase() + '-' + Math.random().toString(36).substring(2, 6).toUpperCase();
-      localStorage.setItem('life360_circle_invite_code', inviteCode);
-    }
-    inviteCodeEl.textContent = inviteCode;
+    const btnRegenerate = document.getElementById('btnRegenerateInviteCode');
+    const btnJoinCircle = document.getElementById('btnSubmitJoinCircle');
 
     btnCircleMenu.addEventListener('click', () => {
       const btnAdmin = document.getElementById('btnOpenAdminModal');
       if (btnAdmin) {
         btnAdmin.style.display = currentAuthUser?.role === 'admin' ? 'block' : 'none';
       }
+      loadCircleData();
       circleModal.style.display = 'flex';
     });
 
@@ -447,13 +581,67 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     document.getElementById('btnCopyInviteCode').addEventListener('click', async () => {
+      const code = currentCircle?.inviteCode || document.getElementById('circleInviteCode').textContent;
       try {
-        await navigator.clipboard.writeText(inviteCode);
+        await navigator.clipboard.writeText(code);
         showToast('Código de convite copiado!');
       } catch {
-        showToast(`Código: ${inviteCode}`);
+        showToast(`Código: ${code}`);
       }
     });
+
+    if (btnRegenerate) {
+      btnRegenerate.addEventListener('click', async () => {
+        if (!confirm('Deseja gerar um novo código de convite? O código anterior deixará de funcionar.')) {
+          return;
+        }
+
+        try {
+          const res = await apiFetch('/api/circle/invite/regenerate', { method: 'POST' });
+          const data = await res.json();
+          if (!res.ok) {
+            showToast(data.error || 'Erro ao gerar novo código.');
+            return;
+          }
+          showToast('Novo código de convite gerado com sucesso! 🎉');
+          await loadCircleData();
+        } catch (err) {
+          console.error(err);
+          showToast('Falha de conexão ao gerar código.');
+        }
+      });
+    }
+
+    if (btnJoinCircle) {
+      btnJoinCircle.addEventListener('click', async () => {
+        const input = document.getElementById('inputJoinCircleCode');
+        const code = (input?.value || '').trim();
+        if (!code) {
+          showToast('Informe o código de convite.');
+          return;
+        }
+
+        try {
+          const res = await apiFetch('/api/circle/join', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ inviteCode: code }),
+          });
+          const data = await res.json();
+          if (!res.ok) {
+            showToast(data.error || 'Não foi possível entrar no círculo.');
+            return;
+          }
+          showToast(data.message || 'Você entrou no círculo! 🎉');
+          if (input) input.value = '';
+          await loadCircleData();
+          loadMembers();
+        } catch (err) {
+          console.error(err);
+          showToast('Falha de conexão ao entrar no círculo.');
+        }
+      });
+    }
 
     const doCheckin = () => {
       const user = getCurrentUser();
@@ -2884,6 +3072,7 @@ document.addEventListener('DOMContentLoaded', () => {
       loadChat();
       loadUnreadDms();
       loadSosHistory();
+      loadCircleData();
       connectWebSocket();
       updatePushNotificationUI();
       return;
@@ -2892,6 +3081,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     initMap();
     connectWebSocket();
+    loadCircleData();
     loadMembers();
     loadPlaces();
     loadChat();

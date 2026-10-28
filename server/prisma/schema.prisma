@@ -18,6 +18,7 @@ model User {
   role         String     @default("member") // "admin" | "member"
   devices                Device[]
   sessions               AuthSession[]
+  circleMembers          CircleMember[]
   pushSubscriptions      PushSubscription[]
   sosEvents              SosEvent[]         @relation("SosUser")
   resolvedSosEvents      SosEvent[]         @relation("SosResolver")
@@ -74,6 +75,8 @@ model LocationRecord {
 model Place {
   id           String       @id @default(uuid())
   name         String       // Ex: "Casa", "Trabalho", "Escola"
+  circleId     String?
+  circle       Circle?      @relation(fields: [circleId], references: [id], onDelete: Cascade)
   latitude     Float
   longitude    Float
   radiusMeters Float        @default(100.0) // Raio da cerca em metros
@@ -82,6 +85,8 @@ model Place {
   placeEvents  PlaceEvent[]
   createdAt    DateTime     @default(now())
   updatedAt    DateTime     @updatedAt
+
+  @@index([circleId])
 }
 
 model PlaceEvent {
@@ -194,4 +199,32 @@ model AccessLog {
   @@index([userId, createdAt])
   @@index([statusCode])
 }
+
+// Círculo Familiar e Convites Reais (Etapa 9.1)
+model Circle {
+  id         String         @id @default(uuid())
+  name       String         @default("Família")
+  inviteCode String         @unique // Ex: "FAM-K7W2-9M4P" (sem ambiguidade visual)
+  members    CircleMember[]
+  places     Place[]
+  createdAt  DateTime       @default(now())
+  updatedAt  DateTime       @updatedAt
+
+  @@index([inviteCode])
+}
+
+model CircleMember {
+  id           String   @id @default(uuid())
+  circleId     String
+  circle       Circle   @relation(fields: [circleId], references: [id], onDelete: Cascade)
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  roleInCircle String   @default("member") // "admin" | "member"
+  joinedAt     DateTime @default(now())
+
+  @@unique([circleId, userId])
+  @@index([circleId])
+  @@index([userId])
+}
+
 

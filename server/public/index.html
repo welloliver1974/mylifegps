@@ -17,10 +17,10 @@
   <!-- Leaflet CSS -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
 
-  <link rel="stylesheet" href="/style.css?v=15">
+  <link rel="stylesheet" href="/style.css?v=16">
 </head>
 <body>
-  <!-- Tela de Autenticação (Login / Configuração Inicial) -->
+  <!-- Tela de Autenticação (Login / Configuração Inicial / Convite) -->
   <div class="auth-screen" id="authScreen">
     <div class="auth-card">
       <div class="auth-brand">
@@ -40,6 +40,11 @@
           <input type="text" id="authName" placeholder="Como você quer ser chamado" autocomplete="name">
         </div>
 
+        <div class="form-group" id="authInviteGroup" style="display: none;">
+          <label for="authInviteCode">Código de Convite do Círculo</label>
+          <input type="text" id="authInviteCode" placeholder="Ex: FAM-K7W2-9M4P" style="text-transform: uppercase; font-family: monospace; letter-spacing: 1px;">
+        </div>
+
         <div class="form-group">
           <label for="authEmail">E-mail</label>
           <input type="email" id="authEmail" placeholder="voce@email.com" autocomplete="username" required>
@@ -53,6 +58,12 @@
         <div class="auth-error" id="authError" style="display: none;"></div>
 
         <button type="submit" class="auth-submit-btn" id="authSubmitBtn">Entrar</button>
+
+        <div class="auth-toggle-wrap" id="authToggleWrap" style="margin-top: 14px; text-align: center;">
+          <button type="button" class="btn-link" id="btnToggleAuthMode" style="background: none; border: none; color: var(--primary, #6366F1); font-size: 0.88rem; cursor: pointer; text-decoration: underline;">
+            Tenho um código de convite da família
+          </button>
+        </div>
       </form>
 
       <p class="auth-footnote" id="authFootnote">
@@ -382,17 +393,43 @@
     <div class="modal-overlay" id="circleModal" style="display: none;">
       <div class="modal-content">
         <div class="modal-header">
-          <h3>Círculo Família</h3>
+          <h3 id="circleModalTitle">Círculo Família</h3>
           <button class="close-btn" id="btnCloseCircleModal">&times;</button>
         </div>
         <div class="circle-modal-body">
           <div class="invite-code-card">
-            <span class="invite-label">Código de Convite Privado</span>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+              <span class="invite-label" style="margin-bottom: 0;">Código de Convite do Círculo</span>
+              <button type="button" class="btn-link" id="btnRegenerateInviteCode" title="Gerar novo código de convite" style="display: none; background: none; border: none; color: var(--primary, #6366F1); font-size: 0.8rem; cursor: pointer; font-weight: 600;">
+                🔄 Gerar Novo
+              </button>
+            </div>
             <div class="invite-row">
-              <strong class="invite-code" id="circleInviteCode">FAMILIA-360-VIP</strong>
+              <strong class="invite-code" id="circleInviteCode">Carregando...</strong>
               <button class="btn small primary" id="btnCopyInviteCode">Copiar</button>
             </div>
-            <p class="invite-desc">Compartilhe este código com membros da sua família para que eles apareçam no seu mapa.</p>
+            <p class="invite-desc">Compartilhe este código com membros da sua família para que eles entrem no seu círculo.</p>
+          </div>
+
+          <!-- Gestão de Membros do Círculo (Etapa 9.1) -->
+          <div class="circle-members-card" style="background: var(--bg-secondary); border-radius: 14px; padding: 12px; border: 1px solid var(--border-color);">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+              <span style="font-weight: 700; font-size: 0.88rem; color: var(--text-primary);">Membros (<span id="circleMemberCount">0</span>)</span>
+            </div>
+            <div id="circleMemberList" class="circle-member-items" style="display: flex; flex-direction: column; gap: 8px; max-height: 180px; overflow-y: auto;">
+              <div style="font-size: 0.85rem; color: var(--text-secondary); text-align: center; padding: 12px;">Carregando membros...</div>
+            </div>
+          </div>
+
+          <!-- Entrar em outro círculo por código -->
+          <div class="join-circle-card" style="border: 1px dashed var(--border-color); border-radius: 12px; padding: 10px; background: var(--bg-primary);">
+            <details style="font-size: 0.85rem; cursor: pointer;">
+              <summary style="color: var(--text-secondary); font-weight: 600;">➕ Entrar em outro círculo com código</summary>
+              <div style="margin-top: 10px; display: flex; gap: 6px;">
+                <input type="text" id="inputJoinCircleCode" placeholder="Ex: FAM-XXXX-XXXX" style="flex: 1; padding: 8px; border-radius: 8px; border: 1px solid var(--border-color); font-family: monospace; text-transform: uppercase;">
+                <button type="button" class="btn small primary" id="btnSubmitJoinCircle">Entrar</button>
+              </div>
+            </details>
           </div>
 
           <div class="circle-actions-list">
@@ -676,7 +713,7 @@
 
   <!-- Leaflet JS -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
-  <script src="/app.js?v=15"></script>
+  <script src="/app.js?v=16"></script>
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {

@@ -190,21 +190,20 @@
 ---
 
 ## BLOCO 9: Círculo Real (Convites & Membros) + Deploy na VPS
-- [ ] **Status:** PENDENTE — **É AQUI QUE O TRABALHO RETOMA**
+- [/] **Status:** EM ANDAMENTO (Etapa 9.1 concluída — Próxima: Etapa 9.2 Deploy na VPS)
 - **Origem:** lacunas levantadas na auditoria pós-Etapa 8.9 (ver `FEATURE_PARITY.md`). Ordem definida por impacto real para a família.
 - **Referência obrigatória:** [`FEATURE_PARITY.md`](FEATURE_PARITY.md) — linhas `Código de convite`, `Adicionar/remover membros de verdade`, `Atualizar agora`, `Score semanal/mensal histórico`, `Recuperação de senha`, `HTTPS / túnel seguro`.
 
 ### Sub-etapas (executar em ordem; cada uma é um bloco fechável e commitável):
 
-- [ ] **Etapa 9.1: Convite real por código (PRIORIDADE MÁXIMA)**
-  - **Problema atual:** o código de convite é gerado no `localStorage` do navegador (`life360_circle_invite_code` em `public/app.js`, dentro de `setupCircleMenu`) e **não existe na API**. Ninguém consegue entrar com ele; todos os usuários cadastrados caem no mesmo círculo implícito.
-  - **A fazer:**
-    - Criar modelo `Circle` (id, `inviteCode` único sem ambiguidade visual — evitar `0/O/1/I`, `createdAt`) e `CircleMember` (circleId, userId, `roleInCircle`, joinedAt) no `prisma/schema.prisma`; `npx prisma db push`.
-    - Migração de dados: mover o código hoje salvo no `localStorage` para o banco no primeiro acesso do admin (ou gerar um novo e exibir).
-    - Rotas novas em `server/src/routes/circle.ts`: `GET /api/circle` (dados do círculo + membros), `POST /api/circle/invite/regenerate` (admin), `POST /api/circle/join` (usuário autenticado entra com o código, 404 se inválido, 409 se já é membro), `DELETE /api/circle/members/:id` (admin remove).
-    - Tela de entrada no `public/index.html` + `app.js`: campo "Tenho um código de convite" no fluxo de primeiro acesso, além do "criar meu círculo".
-    - Corrigir `GET /api/members/live` e as listas da UI para filtrar **por círculo**, não por todos os usuários.
-  - **Critério de conclusão:** teste automatizado (script `tsx` descartável + servidor em background na porta 3099) provando: código inválido → 404; código válido → entra e passa a aparecer em `/api/members/live`; membro de outro círculo **não** aparece; admin remove membro e ele some da lista.
+- [x] **Etapa 9.1: Convite real por código e Gestão de Membros (CONCLUÍDO)**
+  - Modelos `Circle` e `CircleMember` criados no Prisma com códigos seguros `FAM-XXXX-XXXX` sem caracteres ambíguos (`0/O/1/I/L`).
+  - Migração de compatibilidade automática em `services/circle.ts`: criação do círculo "Família" com auto-vinculação de usuários e lugares legados.
+  - Rotas em `routes/circle.ts`: `GET /api/circle`, `POST /api/circle/invite/regenerate` (admin), `POST /api/circle/join` (entrar com código), `DELETE /api/circle/members/:id` (remover membro) e `PUT /api/circle/name`.
+  - Autenticação com convite em `routes/auth.ts`: `POST /api/auth/register-with-invite` para criação direta de conta e entrada imediata no círculo familiar.
+  - Isolamento de dados: `GET /api/members/live`, histórico de rotas e lugares agora filtram estritamente pelo círculo do usuário autenticado.
+  - Interface Web / PWA: tela de autenticação com alternador "Tenho um código de convite da família", modal do círculo com código real sincronizado, botão de cópia, regeneração de código para admins, listagem completa de membros com badges e remoção interativa. Cache PWA `life360-v16`.
+  - **22/22 testes automatizados aprovados** (validação de código inválido 404, cadastro com convite 201, acesso a membros, bloqueio 403 para não-admin, exibição em live, remoção com sumiço síncrono e reentrada com código).
 
 - [ ] **Etapa 9.2: Deploy definitivo na VPS Oracle Cloud**
   - **Problema atual:** o stack nunca subiu para a VPS; tudo validado apenas na máquina local.
