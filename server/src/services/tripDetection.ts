@@ -40,6 +40,102 @@ export interface TripSummary {
   totalDurationMinutes: number;
   maxSpeedKmH: number;
   score: 'Excelente' | 'Bom' | 'Atenção';
+  scoreValue?: number; // 0 a 100
+}
+
+export interface DrivingDaySummary {
+  date: string; // "YYYY-MM-DD"
+  dayName: string; // "Seg", "Ter", etc.
+  formattedDate: string; // "24/10"
+  totalDistanceKm: number;
+  totalDurationMinutes: number;
+  tripsCount: number;
+  maxSpeedKmH: number;
+  avgSpeedKmH: number;
+  speedEvents: number;
+  scoreValue: number | null; // 0-100 (null se sem viagens)
+  scoreGrade: 'Excelente' | 'Bom' | 'Atenção' | null;
+  hasTrips: boolean;
+}
+
+export interface HistoricalDrivingSummary {
+  period: 'week' | 'month';
+  startDate: string;
+  endDate: string;
+  totalDays: number;
+  activeDays: number;
+  totalTrips: number;
+  totalDistanceKm: number;
+  totalDurationMinutes: number;
+  overallMaxSpeedKmH: number;
+  totalSpeedEvents: number;
+  averageScore: number;
+  overallGrade: 'Excelente' | 'Bom' | 'Atenção';
+  trend: 'improving' | 'stable' | 'declining';
+}
+
+export interface HistoricalDrivingReport {
+  userId: string;
+  period: 'week' | 'month';
+  summary: HistoricalDrivingSummary;
+  days: DrivingDaySummary[];
+  recentTrips: Trip[];
+}
+
+/**
+ * Normaliza a velocidade informada pelo GPS/aparelho em km/h.
+ */
+export function extractSpeedKmH(speed: number | null | undefined, calculatedKmH?: number): number {
+  if (typeof speed !== 'number' || isNaN(speed) || speed <= 0) {
+    return calculatedKmH && calculatedKmH > 0 && calculatedKmH < 220 ? Math.round(calculatedKmH) : 0;
+  }
+  // Se speed já está acima de 45 (45 m/s = 162 km/h), o aparelho certamente já enviou em km/h
+  if (speed > 45) return Math.round(speed);
+
+  // Se temos velocidade calculada pela distância/tempo:
+  if (calculatedKmH !== undefined && calculatedKmH > 0) {
+    const diffAsKmH = Math.abs(speed - calculatedKmH);
+    const diffAsMs = Math.abs(speed * 3.6 - calculatedKmH);
+    return Math.round(diffAsKmH <= diffAsMs ? speed : speed * 3.6);
+  }
+
+  // Por padrão no app mobile e web já é enviado em km/h
+  return Math.round(speed);
+}
+
+/**
+ * Calcula nota de direção numérica (0-100) e classificação de segurança (Excelente/Bom/Atenção).
+ */
+export function calculateDrivingScore(
+  maxSpeedKmH: number,
+  speedEvents: number
+): { scoreValue: number; scoreGrade: 'Excelente' | 'Bom' | 'Atenção' } {
+  let val = 100;
+
+  // Penalidade por eventos de excesso de velocidade (>90 km/h)
+  val -= Math.min(35, speedEvents * 7);
+
+  // Penalidade pela velocidade máxima atingida
+  if (maxSpeedKmH > 130) {
+    val -= 35;
+  } else if (maxSpeedKmH > 110) {
+    val -= 25;
+  } else if (maxSpeedKmH > 90) {
+    val -= 15;
+  } else if (maxSpeedKmH > 80) {
+    val -= 8;
+  }
+
+  val = Math.max(0, Math.min(100, Math.round(val)));
+
+  let scoreGrade: 'Excelente' | 'Bom' | 'Atenção' = 'Excelente';
+  if (val < 75 || maxSpeedKmH > 100 || speedEvents > 2) {
+    scoreGrade = 'Atenção';
+  } else if (val < 90 || maxSpeedKmH > 80 || speedEvents > 0) {
+    scoreGrade = 'Bom';
+  }
+
+  return { scoreValue: val, scoreGrade };
 }
 
 export function segmentPointsIntoTrips(points: TripPoint[], places: Array<{ id: string; name: string; latitude: number; longitude: number; radiusMeters: number; icon: string }>): { trips: Trip[]; summary: TripSummary } {
@@ -66,32 +162,28 @@ export function segmentPointsIntoTrips(points: TripPoint[], places: Array<{ id: 
   for (let i = 0; i < sorted.length; i++) {
     const pt = sorted[i];
     const ptTime = new Date(pt.recordedAt).getTime();
-    const rawSpeedKmH = pt.speed ? pt.speed * 3.6 : 0;
-
-    let isMoving = rawSpeedKmH > 4.5;
-
-    // Se o GPS não informou velocidade, calcula pela distância até o ponto anterior
+    let calculatedSpeedKmH = 0;
     if (i > 0) {
       const prev = sorted[i - 1];
       const prevTime = new Date(prev.recordedAt).getTime();
       const deltaSec = (ptTime - prevTime) / 1000;
 
-      if (deltaSec > 0 && deltaSec < 3600) {
-        const distM = calculateDistanceMeters(prev.latitude, prev.longitude, pt.latitude, pt.longitude);
-        const calculatedSpeedKmH = (distM / deltaSec) * 3.6;
-
-        // Se moveu mais de 15 metros em tempo hábil e velocidade calculada razoável (<180 km/h)
-        if (distM > 15 && calculatedSpeedKmH > 4.5 && calculatedSpeedKmH < 180) {
-          isMoving = true;
-        }
-
-        // Se parado por mais de 5 minutos (300s) e já havia uma viagem em andamento
+      if (deltaSec > 0) {
+        // Se parado ou sem dados por mais de 5 minutos (300s) e já havia uma viagem em andamento, encerra a viagem anterior
         if (deltaSec > 300 && currentTrip.length > 0) {
           rawTrips.push(currentTrip);
           currentTrip = [];
         }
+
+        if (deltaSec < 3600) {
+          const distM = calculateDistanceMeters(prev.latitude, prev.longitude, pt.latitude, pt.longitude);
+          calculatedSpeedKmH = (distM / deltaSec) * 3.6;
+        }
       }
     }
+
+    const rawSpeedKmH = extractSpeedKmH(pt.speed, calculatedSpeedKmH);
+    let isMoving = rawSpeedKmH > 4.5;
 
     if (isMoving) {
       // Se está iniciando uma nova viagem, inclui o ponto de partida anterior (onde estava parado)
@@ -139,7 +231,15 @@ export function segmentPointsIntoTrips(points: TripPoint[], places: Array<{ id: 
 
     for (let j = 0; j < tPoints.length; j++) {
       const p = tPoints[j];
-      const spd = p.speed ? p.speed * 3.6 : 0;
+      let calcSpd = 0;
+      if (j > 0) {
+        const prev = tPoints[j - 1];
+        const dSec = (new Date(p.recordedAt).getTime() - new Date(prev.recordedAt).getTime()) / 1000;
+        if (dSec > 0 && dSec < 3600) {
+          calcSpd = (calculateDistanceMeters(prev.latitude, prev.longitude, p.latitude, p.longitude) / dSec) * 3.6;
+        }
+      }
+      const spd = extractSpeedKmH(p.speed, calcSpd);
       if (spd > maxSpeed && spd < 200) maxSpeed = spd;
       if (spd > 90) speedEvents++;
       speedSum += spd;
@@ -199,7 +299,7 @@ export function segmentPointsIntoTrips(points: TripPoint[], places: Array<{ id: 
       const curr = sorted[k];
       if (!prev || !curr) continue;
       distTotal += calculateDistanceMeters(prev.latitude, prev.longitude, curr.latitude, curr.longitude) / 1000;
-      const spd = typeof curr.speed === 'number' ? curr.speed * 3.6 : 0;
+      const spd = extractSpeedKmH(curr.speed);
       if (spd > maxSpd && spd < 200) maxSpd = spd;
     }
 
@@ -243,13 +343,8 @@ export function segmentPointsIntoTrips(points: TripPoint[], places: Array<{ id: 
     }
   }
 
-  // Calcula nota de direção
-  let score: 'Excelente' | 'Bom' | 'Atenção' = 'Excelente';
-  if (overallMaxSpeed > 100 || totalSpeedEvents > 2) {
-    score = 'Atenção';
-  } else if (overallMaxSpeed > 80 || totalSpeedEvents > 0) {
-    score = 'Bom';
-  }
+  // Calcula nota de direção numérica e classificação
+  const scoreResult = calculateDrivingScore(overallMaxSpeed, totalSpeedEvents);
 
   return {
     trips: validTrips,
@@ -258,7 +353,8 @@ export function segmentPointsIntoTrips(points: TripPoint[], places: Array<{ id: 
       totalDistanceKm: Math.round(totalDistanceKm * 10) / 10,
       totalDurationMinutes,
       maxSpeedKmH: Math.round(overallMaxSpeed),
-      score,
+      score: scoreResult.scoreGrade,
+      scoreValue: scoreResult.scoreValue,
     },
   };
 }
@@ -271,4 +367,252 @@ function findMatchingPlace(lat: number, lon: number, places: Array<{ id: string;
     }
   }
   return null;
+}
+
+/**
+ * Agrega e calcula a nota de direção histórica de um membro (Semanal ou Mensal).
+ * Etapa 9.6: Nota de direção histórica com agregação diária e evolução.
+ */
+export async function getHistoricalDrivingReport(
+  userId: string,
+  period: 'week' | 'month' = 'week',
+  referenceDate: Date = new Date()
+): Promise<HistoricalDrivingReport> {
+  const numDays = period === 'month' ? 30 : 7;
+  const DAY_NAMES = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+
+  // Gera dias em ordem cronológica (mais antigo -> mais recente)
+  const daysMap = new Map<string, { date: Date; points: TripPoint[] }>();
+  const dayKeys: string[] = [];
+
+  for (let i = numDays - 1; i >= 0; i--) {
+    const d = new Date(referenceDate);
+    d.setDate(d.getDate() - i);
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    const key = `${y}-${m}-${day}`;
+    daysMap.set(key, { date: d, points: [] });
+    dayKeys.push(key);
+  }
+
+  const [devices, places] = await Promise.all([
+    prisma.device.findMany({
+      where: { userId },
+      select: { id: true },
+    }),
+    prisma.place.findMany(),
+  ]);
+
+  const deviceIds = devices.map((d) => d.id);
+
+  const startDay = daysMap.get(dayKeys[0])!.date;
+  const startDate = new Date(startDay);
+  startDate.setHours(0, 0, 0, 0);
+
+  const endDay = daysMap.get(dayKeys[dayKeys.length - 1])!.date;
+  const endDate = new Date(endDay);
+  endDate.setHours(23, 59, 59, 999);
+
+  if (deviceIds.length === 0) {
+    const emptyDays: DrivingDaySummary[] = dayKeys.map((key) => {
+      const { date } = daysMap.get(key)!;
+      return {
+        date: key,
+        dayName: DAY_NAMES[date.getDay()],
+        formattedDate: `${String(date.getDate()).padStart(2, '0')}/${String(date.getMonth() + 1).padStart(2, '0')}`,
+        totalDistanceKm: 0,
+        totalDurationMinutes: 0,
+        tripsCount: 0,
+        maxSpeedKmH: 0,
+        avgSpeedKmH: 0,
+        speedEvents: 0,
+        scoreValue: null,
+        scoreGrade: null,
+        hasTrips: false,
+      };
+    });
+
+    return {
+      userId,
+      period,
+      summary: {
+        period,
+        startDate: dayKeys[0],
+        endDate: dayKeys[dayKeys.length - 1],
+        totalDays: numDays,
+        activeDays: 0,
+        totalTrips: 0,
+        totalDistanceKm: 0,
+        totalDurationMinutes: 0,
+        overallMaxSpeedKmH: 0,
+        totalSpeedEvents: 0,
+        averageScore: 100,
+        overallGrade: 'Excelente',
+        trend: 'stable',
+      },
+      days: emptyDays,
+      recentTrips: [],
+    };
+  }
+
+  const records = await prisma.locationRecord.findMany({
+    where: {
+      deviceId: { in: deviceIds },
+      recordedAt: {
+        gte: startDate,
+        lte: endDate,
+      },
+    },
+    select: {
+      latitude: true,
+      longitude: true,
+      speed: true,
+      recordedAt: true,
+    },
+    orderBy: { recordedAt: 'asc' },
+  });
+
+  for (const rec of records) {
+    const recDate = new Date(rec.recordedAt);
+    const y = recDate.getFullYear();
+    const m = String(recDate.getMonth() + 1).padStart(2, '0');
+    const day = String(recDate.getDate()).padStart(2, '0');
+    const key = `${y}-${m}-${day}`;
+    const dayEntry = daysMap.get(key);
+    if (dayEntry) {
+      dayEntry.points.push(rec);
+    }
+  }
+
+  const daySummaries: DrivingDaySummary[] = [];
+  const allTrips: Trip[] = [];
+  let totalPeriodDistance = 0;
+  let totalPeriodDuration = 0;
+  let totalPeriodTrips = 0;
+  let overallMaxSpeed = 0;
+  let totalSpeedEvents = 0;
+  const activeScores: number[] = [];
+
+  for (const key of dayKeys) {
+    const { date, points } = daysMap.get(key)!;
+    const dayName = DAY_NAMES[date.getDay()];
+    const formattedDate = `${String(date.getDate()).padStart(2, '0')}/${String(date.getMonth() + 1).padStart(2, '0')}`;
+
+    if (points.length < 2) {
+      daySummaries.push({
+        date: key,
+        dayName,
+        formattedDate,
+        totalDistanceKm: 0,
+        totalDurationMinutes: 0,
+        tripsCount: 0,
+        maxSpeedKmH: 0,
+        avgSpeedKmH: 0,
+        speedEvents: 0,
+        scoreValue: null,
+        scoreGrade: null,
+        hasTrips: false,
+      });
+      continue;
+    }
+
+    const { trips, summary } = segmentPointsIntoTrips(points, places);
+    const hasTrips = summary.totalTrips > 0 && summary.totalDistanceKm > 0;
+
+    if (hasTrips) {
+      totalPeriodDistance += summary.totalDistanceKm;
+      totalPeriodDuration += summary.totalDurationMinutes;
+      totalPeriodTrips += summary.totalTrips;
+      if (summary.maxSpeedKmH > overallMaxSpeed) overallMaxSpeed = summary.maxSpeedKmH;
+
+      const daySpeedEvents = trips.reduce((acc, t) => acc + (t.speedEvents || 0), 0);
+      totalSpeedEvents += daySpeedEvents;
+
+      const dayScore = calculateDrivingScore(summary.maxSpeedKmH, daySpeedEvents);
+      activeScores.push(dayScore.scoreValue);
+
+      daySummaries.push({
+        date: key,
+        dayName,
+        formattedDate,
+        totalDistanceKm: summary.totalDistanceKm,
+        totalDurationMinutes: summary.totalDurationMinutes,
+        tripsCount: summary.totalTrips,
+        maxSpeedKmH: summary.maxSpeedKmH,
+        avgSpeedKmH: summary.totalDurationMinutes > 0
+          ? Math.round(summary.totalDistanceKm / (summary.totalDurationMinutes / 60))
+          : 0,
+        speedEvents: daySpeedEvents,
+        scoreValue: dayScore.scoreValue,
+        scoreGrade: dayScore.scoreGrade,
+        hasTrips: true,
+      });
+
+      allTrips.push(...trips);
+    } else {
+      daySummaries.push({
+        date: key,
+        dayName,
+        formattedDate,
+        totalDistanceKm: 0,
+        totalDurationMinutes: 0,
+        tripsCount: 0,
+        maxSpeedKmH: 0,
+        avgSpeedKmH: 0,
+        speedEvents: 0,
+        scoreValue: null,
+        scoreGrade: null,
+        hasTrips: false,
+      });
+    }
+  }
+
+  const activeDays = activeScores.length;
+  let averageScore = 100;
+  if (activeDays > 0) {
+    averageScore = Math.round(activeScores.reduce((a, b) => a + b, 0) / activeDays);
+  }
+
+  const overallGrade = averageScore >= 90 ? 'Excelente' : averageScore >= 75 ? 'Bom' : 'Atenção';
+
+  let trend: 'improving' | 'stable' | 'declining' = 'stable';
+  if (activeDays >= 2) {
+    const mid = Math.floor(activeScores.length / 2);
+    const firstHalf = activeScores.slice(0, mid);
+    const secondHalf = activeScores.slice(mid);
+    const avg1 = firstHalf.reduce((a, b) => a + b, 0) / firstHalf.length;
+    const avg2 = secondHalf.reduce((a, b) => a + b, 0) / secondHalf.length;
+    if (avg2 - avg1 >= 3) {
+      trend = 'improving';
+    } else if (avg1 - avg2 >= 3) {
+      trend = 'declining';
+    }
+  }
+
+  const recentTrips = allTrips
+    .sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime())
+    .slice(0, 30);
+
+  return {
+    userId,
+    period,
+    summary: {
+      period,
+      startDate: dayKeys[0],
+      endDate: dayKeys[dayKeys.length - 1],
+      totalDays: numDays,
+      activeDays,
+      totalTrips: totalPeriodTrips,
+      totalDistanceKm: Math.round(totalPeriodDistance * 10) / 10,
+      totalDurationMinutes: totalPeriodDuration,
+      overallMaxSpeedKmH: overallMaxSpeed,
+      totalSpeedEvents,
+      averageScore,
+      overallGrade,
+      trend,
+    },
+    days: daySummaries,
+    recentTrips,
+  };
 }

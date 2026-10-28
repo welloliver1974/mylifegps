@@ -1262,9 +1262,116 @@ body, html {
 
 .driver-report-header {
   display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 11px;
+}
+
+.driver-header-top {
+  display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 11px;
+  flex-wrap: wrap;
+  gap: 8px;
+  width: 100%;
+}
+
+.driver-period-tabs {
+  display: inline-flex;
+  align-items: center;
+  background: rgba(0, 0, 0, 0.06);
+  padding: 2.5px;
+  border-radius: 12px;
+  gap: 2px;
+}
+
+.driver-period-btn {
+  border: none;
+  background: transparent;
+  padding: 4px 10px;
+  font-size: 11px;
+  font-weight: 700;
+  border-radius: 9px;
+  cursor: pointer;
+  color: var(--text-secondary);
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  font-family: inherit;
+}
+
+.driver-period-btn:hover {
+  color: var(--text-primary);
+}
+
+.driver-period-btn.active {
+  background: #FFFFFF;
+  color: var(--text-primary);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+}
+
+/* Hero Score: Pontuação 0-100 & Classificação */
+.driver-hero-score {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: rgba(255, 255, 255, 0.85);
+  border: 1px solid rgba(187, 247, 208, 0.7);
+  border-radius: 14px;
+  padding: 10px 14px;
+  margin-bottom: 10px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.03);
+}
+
+.driver-score-circle {
+  display: flex;
+  align-items: baseline;
+  gap: 1px;
+}
+
+.driver-score-num {
+  font-size: 32px;
+  font-weight: 800;
+  line-height: 1;
+  color: #14532D;
+  letter-spacing: -0.5px;
+}
+
+.driver-score-denom {
+  font-size: 13px;
+  font-weight: 700;
+  color: #15803D;
+  opacity: 0.7;
+}
+
+.driver-score-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  flex: 1;
+  min-width: 0;
+}
+
+.driver-score-meta-top {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  flex-wrap: wrap;
+}
+
+.driver-trend-pill {
+  font-size: 10.5px;
+  font-weight: 700;
+  padding: 2.5px 8px;
+  border-radius: 8px;
+  background: #EEF2FF;
+  color: #4F46E5;
+  border: 1px solid #C7D2FE;
+}
+
+.driver-score-period-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: #166534;
+  opacity: 0.85;
 }
 
 .driver-badge {
@@ -1342,6 +1449,196 @@ body, html {
   font-weight: 800;
   color: #14532D;
   letter-spacing: -0.3px;
+}
+
+/* ==========================================================
+   Gráfico de Evolução de Direção (Life360 Platinum - Etapa 9.6)
+   ========================================================== */
+.driver-evolution-container {
+  margin-top: 13px;
+  padding-top: 12px;
+  border-top: 1px dashed #BBF7D0;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  width: 100%;
+}
+
+.driver-chart-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.driver-chart-header-title {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.driver-chart-title {
+  font-size: 11.5px;
+  font-weight: 800;
+  color: #14532D;
+}
+
+.driver-chart-subtitle {
+  font-size: 10px;
+  color: #15803D;
+  opacity: 0.8;
+}
+
+.driver-chart-metric-switch {
+  display: inline-flex;
+  align-items: center;
+  background: rgba(0, 0, 0, 0.06);
+  padding: 2px;
+  border-radius: 9px;
+  gap: 2px;
+}
+
+.metric-switch-btn {
+  border: none;
+  background: transparent;
+  padding: 3px 8px;
+  font-size: 10.5px;
+  font-weight: 700;
+  border-radius: 7px;
+  cursor: pointer;
+  color: var(--text-secondary);
+  transition: all 0.2s;
+  font-family: inherit;
+}
+
+.metric-switch-btn.active {
+  background: #FFFFFF;
+  color: var(--text-primary);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+}
+
+.driver-chart-card {
+  background: rgba(255, 255, 255, 0.85);
+  border: 1px solid rgba(187, 247, 208, 0.7);
+  border-radius: 13px;
+  padding: 10px 6px 6px 6px;
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.02);
+}
+
+.driver-chart-svg-wrap {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.driver-chart-tooltip {
+  position: absolute;
+  top: 8px;
+  left: 10px;
+  right: 10px;
+  background: rgba(15, 23, 42, 0.94);
+  color: #F8FAFC;
+  border-radius: 9px;
+  padding: 7px 11px;
+  font-size: 11px;
+  line-height: 1.35;
+  pointer-events: none;
+  backdrop-filter: blur(10px);
+  z-index: 10;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.driver-chart-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 1px 2px;
+}
+
+.driver-chart-legend {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.chart-legend-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  font-weight: 600;
+  color: #166534;
+}
+
+.legend-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.legend-dot.good { background: #10B981; }
+.legend-dot.warn { background: #F59E0B; }
+.legend-dot.danger { background: #EF4444; }
+.legend-dot.empty { background: #CBD5E1; }
+
+.driver-table-toggle-btn {
+  border: none;
+  background: transparent;
+  font-size: 10.5px;
+  font-weight: 700;
+  color: var(--accent-blue);
+  cursor: pointer;
+  padding: 3px 6px;
+  border-radius: 6px;
+  font-family: inherit;
+  transition: all 0.2s;
+}
+
+.driver-table-toggle-btn:hover {
+  background: rgba(59, 130, 246, 0.1);
+}
+
+.driver-accessible-table-wrap {
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid rgba(187, 247, 208, 0.7);
+  border-radius: 11px;
+  overflow-x: auto;
+  margin-top: 4px;
+  padding: 6px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.02);
+}
+
+.driver-data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 11px;
+  text-align: left;
+}
+
+.driver-data-table th {
+  padding: 6px 8px;
+  font-weight: 700;
+  color: #166534;
+  border-bottom: 1px solid #BBF7D0;
+  white-space: nowrap;
+}
+
+.driver-data-table td {
+  padding: 6px 8px;
+  border-bottom: 1px solid rgba(187, 247, 208, 0.4);
+  color: #14532D;
+  white-space: nowrap;
+}
+
+.driver-data-table tr:last-child td {
+  border-bottom: none;
 }
 
 /* ==========================================================
@@ -3912,5 +4209,128 @@ input[type="range"]::-moz-range-thumb {
 .log-badge-status.s-3xx { background: #E0E7FF; color: #3730A3; }
 .log-badge-status.s-4xx { background: #FEF3C7; color: #92400E; }
 .log-badge-status.s-5xx { background: #FEE2E2; color: #991B1B; }
+
+/* Dark Mode — Driver Report Histórico (Etapa 9.6) */
+[data-theme="dark"] .driver-report-card {
+  background: linear-gradient(135deg, rgba(15, 23, 42, 0.95), rgba(30, 41, 59, 0.9)) !important;
+  border-color: rgba(51, 65, 85, 0.8) !important;
+}
+
+[data-theme="dark"] .driver-badge {
+  color: #34D399;
+}
+
+[data-theme="dark"] .driver-period-tabs {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+[data-theme="dark"] .driver-period-btn {
+  color: var(--text-secondary);
+}
+
+[data-theme="dark"] .driver-period-btn.active {
+  background: #334155;
+  color: #F8FAFC;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+[data-theme="dark"] .driver-hero-score {
+  background: rgba(15, 23, 42, 0.75);
+  border-color: rgba(51, 65, 85, 0.7);
+}
+
+[data-theme="dark"] .driver-score-num {
+  color: #F8FAFC;
+}
+
+[data-theme="dark"] .driver-score-denom {
+  color: #94A3B8;
+}
+
+[data-theme="dark"] .driver-score-period-label {
+  color: #94A3B8;
+}
+
+[data-theme="dark"] .driver-trend-pill {
+  background: rgba(99, 102, 241, 0.2);
+  color: #A5B4FC;
+  border-color: rgba(99, 102, 241, 0.4);
+}
+
+[data-theme="dark"] .crash-detection-badge {
+  background: rgba(15, 23, 42, 0.6);
+  border-color: rgba(51, 65, 85, 0.7);
+  color: #34D399;
+}
+
+[data-theme="dark"] .driver-stat {
+  background: rgba(15, 23, 42, 0.65);
+}
+
+[data-theme="dark"] .d-label {
+  color: #6EE7B7;
+}
+
+[data-theme="dark"] .d-val {
+  color: #F8FAFC;
+}
+
+[data-theme="dark"] .driver-evolution-container {
+  border-top-color: rgba(51, 65, 85, 0.7);
+}
+
+[data-theme="dark"] .driver-chart-title {
+  color: #F8FAFC;
+}
+
+[data-theme="dark"] .driver-chart-subtitle {
+  color: #94A3B8;
+}
+
+[data-theme="dark"] .driver-chart-metric-switch {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+[data-theme="dark"] .metric-switch-btn {
+  color: var(--text-secondary);
+}
+
+[data-theme="dark"] .metric-switch-btn.active {
+  background: #334155;
+  color: #F8FAFC;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+[data-theme="dark"] .driver-chart-card {
+  background: rgba(15, 23, 42, 0.7);
+  border-color: rgba(51, 65, 85, 0.7);
+}
+
+[data-theme="dark"] .chart-legend-chip {
+  color: #94A3B8;
+}
+
+[data-theme="dark"] .legend-dot.empty {
+  background: #475569;
+}
+
+[data-theme="dark"] .driver-accessible-table-wrap {
+  background: rgba(15, 23, 42, 0.7);
+  border-color: rgba(51, 65, 85, 0.7);
+}
+
+[data-theme="dark"] .driver-data-table th {
+  color: #34D399;
+  border-bottom-color: rgba(51, 65, 85, 0.7);
+}
+
+[data-theme="dark"] .driver-data-table td {
+  color: #F8FAFC;
+  border-bottom-color: rgba(51, 65, 85, 0.4);
+}
+
+[data-theme="dark"] .trips-section {
+  border-top-color: rgba(51, 65, 85, 0.7);
+}
 
 

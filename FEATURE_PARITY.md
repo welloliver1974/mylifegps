@@ -6,7 +6,7 @@
 
 **Legenda:** ✅ implementado e funcionando · ⚠️ parcial / simplificado · ❌ ausente · 🚫 depende de terceiro (impossível auto-hospedar)
 
-*Última auditoria: 2026-10-28 — Etapa 9.5 concluída: reações emoji e menções `@nome` no chat do círculo e nas mensagens diretas, com notificação push dedicada*
+*Última auditoria: 2026-10-28 — Etapa 9.6 concluída: nota de direção histórica semanal/mensal com agregação diária, gráfico SVG de evolução, cálculo de tendência e isolamento por círculo*
 
 ---
 
@@ -84,7 +84,7 @@
 | Eventos de excesso de velocidade | ✅ | Acima de 90 km/h |
 | Nota de direção (Excelente/Bom/Atenção) | ✅ | Baseada em excessos e picos de velocidade |
 | **Detalhamento por viagem individual** | ✅ | Segmentação por tempo de parada (>5 min) e deslocamento; cards individuais com horário, duração, trajeto (lugares/endereços), distância, velocidade e replay de trecho (Etapa 8.4) |
-| **Score semanal/mensal histórico** | ❌ | Só o período consultado |
+| **Score semanal/mensal histórico** | ✅ | Agregação semanal (7 dias) e mensal (30 dias) via `GET /api/members/:id/driving-history`, gráfico SVG responsivo com alternador pontuação/km, colunas interativas de toque e tooltip, indicador de tendência (Melhorando/Estável/Em queda), tabela acessível e isolamento por círculo (Etapa 9.6) |
 
 ## Conta, Segurança e Infraestrutura
 
@@ -107,9 +107,9 @@
 
 ## Resumo executivo
 
-- **Pronto (pode usar hoje):** mapa ao vivo, cercas, alertas, histórico ilimitado, replay, relatório de direção com viagens, push notifications em segundo plano, SOS com histórico persistido e resolução, perfil de membro com upload de foto real, chat coletivo do círculo e mensagens diretas 1:1 privadas com notificações, check-in, lugares ilimitados, estilos de mapa.
-- **Lacunas visíveis ao usuário:** fluxo formal de entrada/saída de membros por código de convite validado; reações/menções no chat; nota de direção histórica semanal/mensal.
-- **Resolvido nas últimas etapas:** autenticação com login obrigatório em toda a API e no WebSocket, geocoding reverso com endereço e lugares, edição completa de lugares, relatório de direção segmentado por viagens individuais (Life360 Gold), notificações push Web (VAPID) com navegador fechado, histórico persistido de emergências SOS com resolução, edição de perfil de membro com upload de foto real, mensagens diretas 1:1 privadas com canais segregados (Etapa 8.8) e, na Etapa 8.9, ingestão de GPS autenticada por aparelho, backup automático do SQLite com retenção, auditoria de acessos com painel administrativo e gestão de aparelhos/chaves.
-- **Lacunas de plataforma restantes:** sem recuperação de senha (exige e-mail configurado); HTTPS ainda depende do Cloudflare Tunnel; o deploy na VPS Oracle Cloud ainda não foi executado.
+- **Pronto (pode usar hoje):** mapa ao vivo, cercas, alertas, histórico ilimitado, replay, relatório de direção com viagens e nota histórica semanal/mensal com gráfico de evolução, push notifications em segundo plano, SOS com histórico persistido e resolução, perfil de membro com upload de foto real, chat coletivo do círculo com reações/menções e mensagens diretas 1:1 privadas com notificações, check-in, lugares ilimitados, estilos de mapa, modo escuro, entrada e gestão de membros por código de convite, VPS Oracle em produção via Cloudflare Tunnel e app nativo Android (.APK) compilado.
+- **Lacunas visíveis ao usuário:** recuperação de senha diretamente pelo app (sem intervenção de admin no banco).
+- **Resolvido nas últimas etapas:** Bloco 9 avançado com convite real por código e isolamento por círculo (9.1), deploy na VPS Oracle com Cloudflare Tunnel e app mobile Expo (.APK) com foreground service (9.2), recurso "Atualizar agora" com bridge WebView nativa e tolerância a falhas na sessão (9.4), reações emoji e menções `@nome` com push dedicado (9.5) e nota de direção histórica semanal e mensal com gráfico SVG de evolução diária e tendência (9.6).
+- **Lacunas de plataforma restantes:** sem recuperação de senha automatizada (exige SMTP ou código de recuperação de uso único gerado no painel admin).
 - **Impossível sem parceiro comercial:** despacho de emergência, monitoramento 24h, proteção de identidade.
-- **Depende de hardware (app mobile):** detecção de acidente, frenagem brusca.
+- **Depende de hardware (app mobile):** detecção de acidente por acelerômetro (Etapa 9.3), frenagem brusca.

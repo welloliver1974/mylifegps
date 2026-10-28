@@ -69,6 +69,11 @@ document.addEventListener('DOMContentLoaded', () => {
   let reactionPickerEl = null;
   let mentionSuggestEl = null;
 
+  // Estado do Relatório de Direção Histórico (Etapa 9.6)
+  let driverReportPeriod = 'today'; // 'today' | 'week' | 'month'
+  let driverChartMetric = 'score'; // 'score' | 'km'
+  let currentHistoricalReport = null;
+
   // Wrapper de fetch que injeta o token e trata sessão expirada
   function apiFetch(url, options = {}) {
     const opts = { ...options, headers: { ...(options.headers || {}) } };
@@ -1997,6 +2002,24 @@ document.addEventListener('DOMContentLoaded', () => {
     const member = membersData.find((m) => m.id === userId);
     if (!member) return;
 
+    // Ao abrir um membro, o relatório volta para o período "Hoje" (Etapa 9.6)
+    driverReportPeriod = 'today';
+    driverChartMetric = 'score';
+    currentHistoricalReport = null;
+    document.querySelectorAll('.driver-period-btn').forEach((b) => {
+      b.classList.toggle('active', b.dataset.period === 'today');
+    });
+    const metricScoreBtn = document.getElementById('btnMetricScore');
+    const metricKmBtn = document.getElementById('btnMetricKm');
+    if (metricScoreBtn && metricKmBtn) {
+      metricScoreBtn.classList.add('active');
+      metricKmBtn.classList.remove('active');
+    }
+    const tableWrap = document.getElementById('driverTableWrap');
+    const btnToggleTable = document.getElementById('btnToggleDriverTable');
+    if (tableWrap) tableWrap.style.display = 'none';
+    if (btnToggleTable) btnToggleTable.textContent = '📋 Ver Tabela';
+
     if (member.location) {
       map.flyTo([member.location.latitude, member.location.longitude], 16, {
         animate: true,
@@ -2409,6 +2432,57 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     document.getElementById('btnClearHistory').addEventListener('click', clearHistoryOverlay);
+
+    // Alternância de Período do Relatório de Direção (Hoje / Semana / Mês - Etapa 9.6)
+    const periodBtns = document.querySelectorAll('.driver-period-btn');
+    periodBtns.forEach((btn) => {
+      btn.addEventListener('click', (e) => {
+        e.preventDefault();
+        const p = btn.dataset.period;
+        if (p === driverReportPeriod) return;
+        periodBtns.forEach((b) => b.classList.toggle('active', b === btn));
+        driverReportPeriod = p;
+        if (selectedMemberId) {
+          loadDriverReportForMember(selectedMemberId);
+        }
+      });
+    });
+
+    // Alternância de Métrica no Gráfico de Evolução (Nota / Km - Etapa 9.6)
+    const btnMetricScore = document.getElementById('btnMetricScore');
+    const btnMetricKm = document.getElementById('btnMetricKm');
+    if (btnMetricScore && btnMetricKm) {
+      btnMetricScore.addEventListener('click', (e) => {
+        e.preventDefault();
+        driverChartMetric = 'score';
+        btnMetricScore.classList.add('active');
+        btnMetricKm.classList.remove('active');
+        if (currentHistoricalReport?.days) {
+          renderDriverEvolutionChart(currentHistoricalReport.days, 'score');
+        }
+      });
+      btnMetricKm.addEventListener('click', (e) => {
+        e.preventDefault();
+        driverChartMetric = 'km';
+        btnMetricKm.classList.add('active');
+        btnMetricScore.classList.remove('active');
+        if (currentHistoricalReport?.days) {
+          renderDriverEvolutionChart(currentHistoricalReport.days, 'km');
+        }
+      });
+    }
+
+    // Toggle da Tabela Acessível de Dados
+    const btnToggleTable = document.getElementById('btnToggleDriverTable');
+    const tableWrap = document.getElementById('driverTableWrap');
+    if (btnToggleTable && tableWrap) {
+      btnToggleTable.addEventListener('click', (e) => {
+        e.preventDefault();
+        const isHidden = tableWrap.style.display === 'none';
+        tableWrap.style.display = isHidden ? 'block' : 'none';
+        btnToggleTable.textContent = isHidden ? '✕ Ocultar Tabela' : '📋 Ver Tabela';
+      });
+    }
   }
 
   async function loadAndPlayHistoryForMember(userId, dateStr = null) {
@@ -2462,17 +2536,61 @@ document.addEventListener('DOMContentLoaded', () => {
   // Guarda as viagens carregadas para uso no replay de trecho
   let memberTrips = [];
 
-  function loadDriverReportForMember(userId, dateStr = null) {
-    let url = `/api/members/${userId}/trips?limit=1500`;
+  function applyGradeElement(el, score) {
+    if (!el) return;
+    if (score === 'Atenção') {
+      el.textContent = 'Atenção';
+      el.className = 'driver-grade danger';
+    } else if (score === 'Bom') {
+      el.textContent = 'Bom';
+      el.className = 'driver-grade warning';
+    } else {
+      el.textContent = 'Excelente';
+      el.className = 'driver-grade';
+    }
+  }
+
+  async function loadDriverReportForMember(userId, dateStr = null) {
+    if (!userId) return;
+
+    const evolutionContainer = document.getElementById('driverEvolutionContainer');
+    const periodLabel = document.getElementById('driverPeriodLabel');
+    const chartSubtitle = document.getElementById('driverChartSubtitle');
+    const tripsTitle = document.getElementById('tripsSectionTitle');
+    const trendPill = document.getElementById('driverTrendPill');
+    const scoreNumEl = document.getElementById('driverScoreNum');
+    const gradeEl = document.getElementById('driverGrade');
+
+    // Se o usuário selecionou uma data personalizada no calendário, forçamos o período "Hoje/Dia"
     if (dateStr) {
-      const from = `${dateStr}T00:00:00.000Z`;
-      const to = `${dateStr}T23:59:59.999Z`;
-      url = `/api/members/${userId}/trips?from=${from}&to=${to}&limit=2000`;
+      driverReportPeriod = 'today';
+      document.querySelectorAll('.driver-period-btn').forEach((b) => {
+        b.classList.toggle('active', b.dataset.period === 'today');
+      });
     }
 
-    apiFetch(url)
-      .then(res => res.json())
-      .then(data => {
+    if (driverReportPeriod === 'today') {
+      if (evolutionContainer) evolutionContainer.style.display = 'none';
+      if (trendPill) trendPill.style.display = 'none';
+      if (periodLabel) periodLabel.textContent = dateStr ? `Data: ${dateStr}` : 'Período de Hoje';
+      if (tripsTitle) tripsTitle.textContent = '🛣️ Viagens Individuais';
+
+      // "Hoje" = janela do dia local do aparelho (não UTC), para não virar o dia às 21h em UTC-3
+      let fromIso;
+      let toIso;
+      if (dateStr) {
+        fromIso = `${dateStr}T00:00:00.000Z`;
+        toIso = `${dateStr}T23:59:59.999Z`;
+      } else {
+        const now = new Date();
+        fromIso = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0).toISOString();
+        toIso = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999).toISOString();
+      }
+      const url = `/api/members/${userId}/trips?from=${fromIso}&to=${toIso}&limit=2000`;
+
+      try {
+        const res = await apiFetch(url);
+        const data = await res.json();
         const summary = data?.summary || {};
         const trips = data?.trips || [];
         memberTrips = trips;
@@ -2482,25 +2600,258 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('dTime').textContent = `${summary.totalDurationMinutes || 0} min`;
         document.getElementById('dEvents').textContent = trips.reduce((acc, t) => acc + (t.speedEvents || 0), 0);
 
-        const gradeEl = document.getElementById('driverGrade');
         const score = summary.score || 'Excelente';
-        if (score === 'Atenção') {
-          gradeEl.textContent = 'Atenção';
-          gradeEl.className = 'driver-grade danger';
-        } else if (score === 'Bom') {
-          gradeEl.textContent = 'Bom';
-          gradeEl.className = 'driver-grade warning';
-        } else {
-          gradeEl.textContent = 'Excelente';
-          gradeEl.className = 'driver-grade';
-        }
+        const numScore = typeof summary.scoreValue === 'number'
+          ? summary.scoreValue
+          : (score === 'Atenção' ? 65 : score === 'Bom' ? 82 : 96);
+
+        if (scoreNumEl) scoreNumEl.textContent = numScore;
+        applyGradeElement(gradeEl, score);
 
         renderTripsList(trips);
-      })
-      .catch(err => {
+      } catch (err) {
         console.error('Erro ao calcular driver report:', err);
         renderTripsList([]);
-      });
+      }
+      return;
+    }
+
+    // Período Histórico (Semana / Mês - Etapa 9.6)
+    if (evolutionContainer) evolutionContainer.style.display = 'flex';
+    if (periodLabel) {
+      periodLabel.textContent = driverReportPeriod === 'week' ? 'Média dos Últimos 7 dias' : 'Média dos Últimos 30 dias';
+    }
+    if (chartSubtitle) {
+      chartSubtitle.textContent = driverReportPeriod === 'week' ? 'Últimos 7 dias (dia a dia)' : 'Últimos 30 dias (dia a dia)';
+    }
+    if (tripsTitle) {
+      tripsTitle.textContent = driverReportPeriod === 'week' ? '🛣️ Viagens Recentes da Semana' : '🛣️ Viagens Recentes do Mês';
+    }
+
+    try {
+      const res = await apiFetch(`/api/members/${userId}/driving-history?period=${driverReportPeriod}`);
+      if (!res.ok) throw new Error('Falha ao obter histórico de direção');
+      const data = await res.json();
+      currentHistoricalReport = data;
+
+      const summary = data?.summary || {};
+      const days = data?.days || [];
+      const trips = data?.recentTrips || [];
+      memberTrips = trips;
+
+      document.getElementById('dMaxSpeed').textContent = `${summary.overallMaxSpeedKmH || 0} km/h`;
+      document.getElementById('dDistance').textContent = `${(summary.totalDistanceKm || 0).toFixed(1)} km`;
+      document.getElementById('dTime').textContent = `${summary.totalDurationMinutes || 0} min`;
+      document.getElementById('dEvents').textContent = summary.totalSpeedEvents || 0;
+
+      if (scoreNumEl) scoreNumEl.textContent = summary.averageScore || 100;
+      applyGradeElement(gradeEl, summary.overallGrade || 'Excelente');
+
+      if (trendPill) {
+        trendPill.style.display = 'inline-block';
+        if (summary.trend === 'improving') {
+          trendPill.textContent = '📈 Melhorando';
+          trendPill.style.background = '#ECFDF5';
+          trendPill.style.color = '#059669';
+          trendPill.style.borderColor = '#A7F3D0';
+        } else if (summary.trend === 'declining') {
+          trendPill.textContent = '📉 Em queda';
+          trendPill.style.background = '#FEF2F2';
+          trendPill.style.color = '#DC2626';
+          trendPill.style.borderColor = '#FECACA';
+        } else {
+          trendPill.textContent = '➡️ Estável';
+          trendPill.style.background = '#EEF2FF';
+          trendPill.style.color = '#4F46E5';
+          trendPill.style.borderColor = '#C7D2FE';
+        }
+      }
+
+      renderDriverEvolutionChart(days, driverChartMetric);
+      renderDriverDataTable(days);
+      renderTripsList(trips);
+    } catch (err) {
+      console.error('Erro ao carregar histórico de direção:', err);
+      renderTripsList([]);
+    }
+  }
+
+  function renderDriverEvolutionChart(days, metric = 'score') {
+    const wrap = document.getElementById('driverChartSvgWrap');
+    const tooltip = document.getElementById('driverChartTooltip');
+    if (!wrap) return;
+
+    if (!days || days.length === 0) {
+      wrap.innerHTML = '<div class="loading-state" style="padding: 20px 0; font-size: 11px;">Sem dados para o gráfico.</div>';
+      return;
+    }
+
+    const n = days.length;
+    const isWeek = n <= 7;
+    const width = 340;
+    const height = 180;
+    const padLeft = 32;
+    const padRight = 14;
+    const padTop = 22;
+    const padBottom = 34;
+    const chartW = width - padLeft - padRight;
+    const chartH = height - padTop - padBottom;
+    const colW = chartW / n;
+    const barW = Math.max(4, Math.min(26, colW * 0.65));
+
+    let maxVal = 100;
+    if (metric === 'km') {
+      const maxKm = Math.max(...days.map((d) => d.totalDistanceKm || 0));
+      maxVal = maxKm > 0 ? Math.ceil(maxKm * 1.2) : 10;
+    }
+
+    // Grid e labels do eixo Y
+    let gridLinesHtml = '';
+    const ySteps = metric === 'score' ? [100, 75, 50] : [maxVal, Math.round(maxVal / 2)];
+    for (const step of ySteps) {
+      const y = padTop + (1 - step / maxVal) * chartH;
+      gridLinesHtml += `
+        <line x1="${padLeft}" y1="${y}" x2="${width - padRight}" y2="${y}" stroke="currentColor" stroke-opacity="0.12" stroke-dasharray="3,3" />
+        <text x="${padLeft - 6}" y="${y + 3}" text-anchor="end" font-size="8.5" font-weight="600" fill="currentColor" fill-opacity="0.55">${step}</text>
+      `;
+    }
+    const baselineY = padTop + chartH;
+    gridLinesHtml += `<line x1="${padLeft}" y1="${baselineY}" x2="${width - padRight}" y2="${baselineY}" stroke="currentColor" stroke-opacity="0.25" />`;
+
+    // Barras e labels do eixo X
+    let barsHtml = '';
+    let overlaysHtml = '';
+
+    days.forEach((day, i) => {
+      const cx = padLeft + i * colW + colW / 2;
+      const x = cx - barW / 2;
+      let val = metric === 'score' ? day.scoreValue : day.totalDistanceKm;
+      const hasTrips = day.hasTrips && val !== null && val !== undefined;
+
+      let barColor = '#CBD5E1';
+      let barH = 6;
+      let barY = baselineY - barH;
+      let labelVal = '';
+
+      if (metric === 'score') {
+        if (hasTrips) {
+          barColor = val >= 90 ? '#10B981' : val >= 75 ? '#F59E0B' : '#EF4444';
+          barH = Math.max(6, (val / 100) * chartH);
+          barY = baselineY - barH;
+          labelVal = isWeek ? `${val}` : '';
+        } else {
+          barColor = 'currentColor';
+          barH = 4;
+          barY = baselineY - barH;
+          labelVal = isWeek ? '--' : '';
+        }
+      } else {
+        // Métrica Km
+        val = day.totalDistanceKm || 0;
+        barColor = '#6366F1';
+        barH = maxVal > 0 && val > 0 ? Math.max(4, (val / maxVal) * chartH) : 3;
+        barY = baselineY - barH;
+        labelVal = isWeek && val > 0 ? `${val.toFixed(0)}` : '';
+      }
+
+      const opacity = metric === 'score' && !hasTrips ? '0.25' : '0.9';
+
+      barsHtml += `
+        <rect x="${x}" y="${barY}" width="${barW}" height="${barH}" rx="3.5" ry="3.5" fill="${barColor}" fill-opacity="${opacity}" />
+      `;
+
+      if (labelVal) {
+        barsHtml += `
+          <text x="${cx}" y="${barY - 3}" text-anchor="middle" font-size="8.5" font-weight="700" fill="currentColor" fill-opacity="0.85">${labelVal}</text>
+        `;
+      }
+
+      // X-Axis labels
+      if (isWeek) {
+        barsHtml += `
+          <text x="${cx}" y="${baselineY + 13}" text-anchor="middle" font-size="9" font-weight="700" fill="currentColor">${day.dayName}</text>
+          <text x="${cx}" y="${baselineY + 24}" text-anchor="middle" font-size="8" font-weight="500" fill="currentColor" fill-opacity="0.6">${day.formattedDate.split('/')[0]}</text>
+        `;
+      } else if (i % 5 === 0 || i === n - 1) {
+        barsHtml += `
+          <text x="${cx}" y="${baselineY + 14}" text-anchor="middle" font-size="8" font-weight="600" fill="currentColor" fill-opacity="0.75">${day.formattedDate}</text>
+        `;
+      }
+
+      // Hit target cobrindo a coluna
+      overlaysHtml += `
+        <rect x="${padLeft + i * colW}" y="0" width="${colW}" height="${height}" fill="transparent" class="chart-hit-column" data-day-idx="${i}" style="cursor: pointer;" />
+      `;
+    });
+
+    wrap.innerHTML = `
+      <svg viewBox="0 0 ${width} ${height}" class="driver-chart-svg" style="width: 100%; height: auto; display: block;" role="img" aria-label="Gráfico de evolução da condução">
+        <g class="chart-grid">${gridLinesHtml}</g>
+        <g class="chart-bars">${barsHtml}</g>
+        <g class="chart-hits">${overlaysHtml}</g>
+      </svg>
+    `;
+
+    // Interação de Tooltip
+    let hideTimer = null;
+    const hitCols = wrap.querySelectorAll('.chart-hit-column');
+    hitCols.forEach((col) => {
+      const showTip = () => {
+        if (hideTimer) clearTimeout(hideTimer);
+        const idx = parseInt(col.dataset.dayIdx, 10);
+        const day = days[idx];
+        if (!day || !tooltip) return;
+
+        let content = `<b>${day.dayName}, ${day.formattedDate}</b><br/>`;
+        if (day.hasTrips) {
+          content += `Nota: <b>${day.scoreValue}/100</b> (${day.scoreGrade})<br/>`;
+          content += `Distância: <b>${day.totalDistanceKm.toFixed(1)} km</b> em ${day.tripsCount} viagem(ns)<br/>`;
+          content += `Tempo: <b>${formatTripDuration(day.totalDurationMinutes)}</b> • Máx: <b>${day.maxSpeedKmH} km/h</b>`;
+          if (day.speedEvents > 0) {
+            content += `<br/><span style="color: #F87171;">⚠️ ${day.speedEvents} evento(s) acima de 90 km/h</span>`;
+          }
+        } else {
+          content += `Sem viagens registradas neste dia.`;
+        }
+
+        tooltip.innerHTML = content;
+        tooltip.style.display = 'block';
+        hideTimer = setTimeout(() => {
+          tooltip.style.display = 'none';
+        }, 4000);
+      };
+
+      col.addEventListener('mouseenter', showTip);
+      col.addEventListener('touchstart', showTip, { passive: true });
+    });
+
+    wrap.addEventListener('mouseleave', () => {
+      if (tooltip) tooltip.style.display = 'none';
+    });
+  }
+
+  function renderDriverDataTable(days) {
+    const tbody = document.getElementById('driverTableBody');
+    if (!tbody || !days) return;
+
+    tbody.innerHTML = days
+      .map((d) => {
+        const scoreDisplay = d.hasTrips && d.scoreValue !== null
+          ? `<b>${d.scoreValue}</b> (${d.scoreGrade})`
+          : '--';
+        return `
+          <tr>
+            <td>${d.formattedDate}</td>
+            <td>${d.dayName}</td>
+            <td>${scoreDisplay}</td>
+            <td>${(d.totalDistanceKm || 0).toFixed(1)} km</td>
+            <td>${formatTripDuration(d.totalDurationMinutes || 0)}</td>
+            <td>${d.maxSpeedKmH || 0} km/h</td>
+            <td>${d.tripsCount || 0}</td>
+          </tr>
+        `;
+      })
+      .join('');
   }
 
   function formatTripTime(iso) {

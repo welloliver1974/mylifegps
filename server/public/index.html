@@ -17,7 +17,7 @@
   <!-- Leaflet CSS -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
 
-  <link rel="stylesheet" href="/style.css?v=24">
+  <link rel="stylesheet" href="/style.css?v=25">
 </head>
 <body>
   <!-- Tela de Autenticação (Login / Configuração Inicial / Convite) -->
@@ -295,17 +295,42 @@
             </div>
           </div>
 
-          <!-- Relatório de Segurança de Direção (Driver Report - Recurso Life360 Gold) -->
+          <!-- Relatório de Segurança de Direção (Driver Report - Recurso Life360 Platinum - Etapa 9.6) -->
           <div class="driver-report-card" id="driverReportCard">
             <div class="driver-report-header">
-              <span class="driver-badge">🚗 RELATÓRIO DE DIREÇÃO PLATINUM</span>
-              <span class="driver-grade" id="driverGrade">Excelente</span>
+              <div class="driver-header-top">
+                <span class="driver-badge">🚗 RELATÓRIO DE DIREÇÃO PLATINUM</span>
+                <!-- Abas de Período: Hoje / Semana (7d) / Mês (30d) -->
+                <div class="driver-period-tabs" id="driverPeriodTabs">
+                  <button type="button" class="driver-period-btn active" data-period="today">Hoje</button>
+                  <button type="button" class="driver-period-btn" data-period="week">Semana</button>
+                  <button type="button" class="driver-period-btn" data-period="month">Mês</button>
+                </div>
+              </div>
             </div>
+
+            <!-- Hero Score: Nota Numérica 0-100, Classificação e Tendência -->
+            <div class="driver-hero-score" id="driverHeroScore">
+              <div class="driver-score-circle">
+                <span class="driver-score-num" id="driverScoreNum">--</span>
+                <span class="driver-score-denom">/100</span>
+              </div>
+              <div class="driver-score-meta">
+                <div class="driver-score-meta-top">
+                  <span class="driver-grade" id="driverGrade">Excelente</span>
+                  <span class="driver-trend-pill" id="driverTrendPill" style="display: none;">📈 Estável</span>
+                </div>
+                <span class="driver-score-period-label" id="driverPeriodLabel">Período de Hoje</span>
+              </div>
+            </div>
+
             <!-- Detecção de Acidente Ativa (Life360 Platinum) -->
             <div class="crash-detection-badge">
               <span class="pulse-dot"></span>
               <span>🛡️ Detecção de Acidente Ativa 24/7</span>
             </div>
+
+            <!-- Métricas KPI do Período -->
             <div class="driver-stats-grid">
               <div class="driver-stat">
                 <span class="d-label">Velocidade Máxima</span>
@@ -325,10 +350,63 @@
               </div>
             </div>
 
+            <!-- Gráfico de Evolução Histórica (Semanal / Mensal - Etapa 9.6) -->
+            <div class="driver-evolution-container" id="driverEvolutionContainer" style="display: none;">
+              <div class="driver-chart-header">
+                <div class="driver-chart-header-title">
+                  <span class="driver-chart-title">📊 Evolução da Condução</span>
+                  <span class="driver-chart-subtitle" id="driverChartSubtitle">Últimos 7 dias</span>
+                </div>
+                <div class="driver-chart-metric-switch">
+                  <button type="button" class="metric-switch-btn active" id="btnMetricScore" title="Exibir nota de direção diária">Nota</button>
+                  <button type="button" class="metric-switch-btn" id="btnMetricKm" title="Exibir quilometragem diária">Km</button>
+                </div>
+              </div>
+
+              <!-- Canvas / SVG do Gráfico Interativo -->
+              <div class="driver-chart-card" id="driverChartCard">
+                <div class="driver-chart-svg-wrap" id="driverChartSvgWrap">
+                  <!-- SVG gerado dinamicamente -->
+                </div>
+                <div class="driver-chart-tooltip" id="driverChartTooltip" style="display: none;"></div>
+              </div>
+
+              <!-- Legenda e Botão de Acessibilidade -->
+              <div class="driver-chart-footer">
+                <div class="driver-chart-legend">
+                  <span class="chart-legend-chip"><span class="legend-dot good"></span> &ge;90 Excelente</span>
+                  <span class="chart-legend-chip"><span class="legend-dot warn"></span> 75-89 Bom</span>
+                  <span class="chart-legend-chip"><span class="legend-dot danger"></span> &lt;75 Atenção</span>
+                  <span class="chart-legend-chip"><span class="legend-dot empty"></span> Sem viagens</span>
+                </div>
+                <button type="button" class="driver-table-toggle-btn" id="btnToggleDriverTable" title="Exibir tabela de dados">
+                  📋 Ver Tabela
+                </button>
+              </div>
+
+              <!-- Tabela Acessível WCAG de Dados Diários -->
+              <div class="driver-accessible-table-wrap" id="driverTableWrap" style="display: none;">
+                <table class="driver-data-table" id="driverDataTable">
+                  <thead>
+                    <tr>
+                      <th>Data</th>
+                      <th>Dia</th>
+                      <th>Nota</th>
+                      <th>Km</th>
+                      <th>Tempo</th>
+                      <th>Máx</th>
+                      <th>Viagens</th>
+                    </tr>
+                  </thead>
+                  <tbody id="driverTableBody"></tbody>
+                </table>
+              </div>
+            </div>
+
             <!-- Viagens Individuais Segmentadas (Life360 Gold - Etapa 8.4) -->
             <div class="trips-section" id="tripsSection">
               <div class="trips-section-header">
-                <span class="trips-section-title">🛣️ Viagens Individuais</span>
+                <span class="trips-section-title" id="tripsSectionTitle">🛣️ Viagens Individuais</span>
                 <span class="badge-count" id="tripsCount">0</span>
               </div>
               <div class="trips-list" id="tripsList">
@@ -750,7 +828,7 @@
 
   <!-- Leaflet JS -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
-  <script src="/app.js?v=24"></script>
+  <script src="/app.js?v=25"></script>
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {

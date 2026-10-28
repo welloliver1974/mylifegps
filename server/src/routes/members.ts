@@ -4,7 +4,7 @@ import fs from 'fs';
 import { fileURLToPath } from 'url';
 import { prisma } from '../db.js';
 import { calculateDistanceMeters } from '../services/geofence.js';
-import { segmentPointsIntoTrips } from '../services/tripDetection.js';
+import { segmentPointsIntoTrips, getHistoricalDrivingReport } from '../services/tripDetection.js';
 import { broadcastLocationUpdateRequest } from '../services/websocket.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -256,6 +256,35 @@ export async function membersRoutes(fastify: FastifyInstance) {
 
     const result = segmentPointsIntoTrips(records, places);
     return reply.send(result);
+  });
+
+  // Retorna a nota de direção histórica com agregação semanal/mensal e evolução diária (Etapa 9.6)
+  fastify.get('/api/members/:userId/driving-history', async (request, reply) => {
+    const authUser = (request as any).authUser || (request as any).user;
+    const { userId } = request.params as { userId: string };
+
+    if (authUser && authUser.id !== userId && authUser.role !== 'admin') {
+      const shared = await prisma.circleMember.findFirst({
+        where: {
+          userId: authUser.id,
+          circle: {
+            members: {
+              some: { userId },
+            },
+          },
+        },
+      });
+      if (!shared) {
+        return reply.status(403).send({ error: 'Você não tem permissão para visualizar o histórico deste membro.' });
+      }
+    }
+
+    const { period = 'week', endDate } = request.query as { period?: string; endDate?: string };
+    const validPeriod = period === 'month' ? 'month' : 'week';
+    const refDate = endDate ? new Date(endDate) : new Date();
+
+    const report = await getHistoricalDrivingReport(userId, validPeriod, refDate);
+    return reply.send(report);
   });
 
   // Cadastro de novo membro

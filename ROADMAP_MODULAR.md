@@ -190,7 +190,7 @@
 ---
 
 ## BLOCO 9: Círculo Real (Convites & Membros) + Deploy na VPS
-- [/] **Status:** EM ANDAMENTO (Etapa 9.1 concluída — Próxima: Etapa 9.2 Deploy na VPS)
+- [/] **Status:** EM ANDAMENTO (Etapas 9.1, 9.2, 9.4, 9.5 e 9.6 concluídas — Próximas: Etapa 9.7 Recuperação de senha ou Etapa 9.3 Detecção de acidente)
 - **Origem:** lacunas levantadas na auditoria pós-Etapa 8.9 (ver `FEATURE_PARITY.md`). Ordem definida por impacto real para a família.
 - **Referência obrigatória:** [`FEATURE_PARITY.md`](FEATURE_PARITY.md) — linhas `Código de convite`, `Adicionar/remover membros de verdade`, `Atualizar agora`, `Score semanal/mensal histórico`, `Recuperação de senha`, `HTTPS / túnel seguro`.
 
@@ -239,8 +239,20 @@
   - **Interface Web:** seletor flutuante de 8 emojis (botão ☺+ no balão ou toque longo no celular), pílulas de reação com contador e destaque das suas próprias reações, autocomplete `@nome` acima do campo de chat com avatar e inserção por clique, menções destacadas no texto e overrides completos de modo escuro. Cache PWA `life360-v24`.
   - **Correção de bateria:** o servidor agora preserva a última leitura conhecida quando um ponto de telemetria chega sem `battery` (ping web/GPS puro), `/api/members/live` busca até 10 registros por aparelho para resgatar a última bateria válida e o painel/lista exibem `--` em vez de `NaN%`. O envio via WebView também passou a incluir nível de bateria nativo (`navigator.getBattery`) e a ignorar leituras inválidas no app Expo.
 
-- [ ] **Etapa 9.6: Nota de direção histórica**
-  - Score semanal/mensal agregado (hoje só existe o período consultado), com gráfico de evolução.
+- [x] **Etapa 9.6: Nota de direção histórica (CONCLUÍDO)**
+  - **Servidor (`tripDetection.ts` e `routes/members.ts`):**
+    - Novo endpoint `GET /api/members/:userId/driving-history?period=week|month&endDate=YYYY-MM-DD` com isolamento estrito de círculo (403 para terceiros, 401 para não-autenticados, 200 para membros do mesmo círculo).
+    - Agregação por fuso horário local dos pontos de telemetria em baldes diários (`DrivingDaySummary`), com cálculo diário de distância, duração, velocidade máxima, velocidade média, excessos (>90 km/h), nota numérica (0-100) e classificação (Excelente/Bom/Atenção).
+    - Métricas agregadas do período (`HistoricalDrivingSummary`): nota média real dos dias ativos, velocidade máxima absoluta, total de eventos de velocidade, total de km, horas dirigidas, dias ativos vs. dias totais e cálculo de tendência (`improving` 📈 / `stable` ➡️ / `declining` 📉).
+    - Normalização robusta de unidades de velocidade (`extractSpeedKmH`) que valida leituras do GPS contra distâncias/tempos reais e evita a multiplicação duplicada de km/h por 3.6.
+    - Correção na segmentação de viagens (`segmentPointsIntoTrips`): intervalos sem dados ou parados > 5 minutos agora fecham viagens confiavelmente, mesmo em gaps superiores a 1 hora ou entre dias diferentes.
+  - **Interface Web / PWA:**
+    - Abas de período no cabeçalho do relatório de direção: "Hoje", "Semana" (7 dias) e "Mês" (30 dias).
+    - Painel Hero com anel circular de pontuação numérica (`XX/100`), classificação textual, pílula de tendência com ícone e rótulo do período.
+    - Gráfico vetorial SVG responsivo de evolução (`viewBox="0 0 340 180"`) seguindo as diretrizes do skill `dataviz`: eixos com grade suave, barras com cantos arredondados coloridas por faixa de status (verde `#10B981`, âmbar `#F59E0B`, vermelho `#EF4444` e cinza fantasma para dias sem viagem), alternador de métrica entre "Pontuação" e "Quilômetros (km)", colunas invisíveis de toque/hover para dispositivos móveis e tooltip interativo flutuante.
+    - Legenda com rótulos explicativos ("≥90 Excelente", "75-89 Bom", "<75 Atenção") e tabela de dados acessível alternativa ativada pelo botão "📋 Ver Tabela".
+    - Overrides visuais completos em Modo Escuro (`[data-theme="dark"]`). Cache PWA atualizado para `life360-v25` (`sw.js` e `index.html`).
+  - **Testes automatizados:** 54/54 asserções aprovadas cobrindo período semanal de 7 dias cronológicos, mensal de 30 dias, exclusão de dias fora da janela, cálculo de médias, notas diárias coerentes, isolamento de permissões 403/401/200, comportamento neutro para membros sem aparelho e compatibilidade com o relatório diário legado.
 
 - [ ] **Etapa 9.7: Recuperação de senha**
   - Requer SMTP configurado; sem e-mail hoje a redefinição exige acesso ao banco. Alternativa mínima: código de recuperação de uso único gerado no painel admin.
