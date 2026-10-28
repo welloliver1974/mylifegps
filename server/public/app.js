@@ -105,6 +105,11 @@ document.addEventListener('DOMContentLoaded', () => {
   function hideAuthScreen() {
     document.getElementById('authScreen').classList.add('hidden');
     document.getElementById('authError').style.display = 'none';
+    setTimeout(() => {
+      if (map) {
+        try { map.invalidateSize(); } catch (_e) {}
+      }
+    }, 100);
   }
 
   async function checkAuthStatus() {
@@ -299,40 +304,69 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // 2. Inicializa o Mapa Leaflet
   async function initMap() {
-    map = L.map('map', {
-      zoomControl: false,
-      attributionControl: true,
-    }).setView([-23.55052, -46.633308], 14);
-
-    try {
-      const cfgRes = await apiFetch('/api/config');
-      const cfg = await cfgRes.json();
-      if (cfg?.cartoApiKey) {
-        cartoKey = cfg.cartoApiKey;
-      }
-    } catch (err) {
-      console.warn('Não foi possível obter config do servidor:', err);
+    if (map) {
+      try { map.invalidateSize(); } catch (_e) {}
+      return;
     }
 
-    switchBaseLayer(currentLayerType);
+    try {
+      map = L.map('map', {
+        zoomControl: false,
+        attributionControl: true,
+      }).setView([-23.55052, -46.633308], 14);
 
-    map.on('click', (e) => {
-      document.getElementById('placeLat').value = e.latlng.lat.toFixed(6);
-      document.getElementById('placeLng').value = e.latlng.lng.toFixed(6);
-      document.getElementById('placeModal').style.display = 'flex';
-    });
+      try {
+        const cfgRes = await fetch('/api/config');
+        if (cfgRes.ok) {
+          const cfg = await cfgRes.json();
+          if (cfg?.cartoApiKey) {
+            cartoKey = cfg.cartoApiKey;
+          }
+        }
+      } catch (err) {
+        console.warn('Não foi possível obter config do servidor:', err);
+      }
 
-    setupFloatingControls();
-    setupBottomsheetGestures();
-    setupCircleMenu();
-    setupChat();
-    setupAlerts();
-    setupSosFlow();
-    setupProfileModal();
-    setupReplayPlayer();
-    setupDriverReportAndHistory();
-    setupDevicesModal();
-    setupAdminModal();
+      switchBaseLayer(currentLayerType);
+
+      map.on('click', (e) => {
+        const latInput = document.getElementById('placeLat');
+        const lngInput = document.getElementById('placeLng');
+        const modal = document.getElementById('placeModal');
+        if (latInput && lngInput && modal) {
+          latInput.value = e.latlng.lat.toFixed(6);
+          lngInput.value = e.latlng.lng.toFixed(6);
+          modal.style.display = 'flex';
+        }
+      });
+
+      setupFloatingControls();
+      setupBottomsheetGestures();
+      setupCircleMenu();
+      setupChat();
+      setupAlerts();
+      setupSosFlow();
+      setupProfileModal();
+      setupReplayPlayer();
+      setupDriverReportAndHistory();
+      setupDevicesModal();
+      setupAdminModal();
+
+      // Força Leaflet a calcular as dimensões reais da tela após o container se tornar visível
+      setTimeout(() => {
+        if (map) map.invalidateSize();
+      }, 100);
+      setTimeout(() => {
+        if (map) map.invalidateSize();
+      }, 500);
+
+      window.addEventListener('resize', () => {
+        if (map) map.invalidateSize();
+      });
+    } catch (err) {
+      console.error('Erro crítico ao inicializar mapa:', err);
+      showToast('Erro ao carregar mapa: ' + (err?.message || err));
+    }
   }
 
   // 3. Controles Flutuantes do Mapa
@@ -340,29 +374,47 @@ document.addEventListener('DOMContentLoaded', () => {
     const popover = document.getElementById('layerPopover');
     const btnLayers = document.getElementById('btnToggleLayers');
 
-    btnLayers.addEventListener('click', (e) => {
-      e.stopPropagation();
-      const isVisible = popover.style.display === 'block';
-      popover.style.display = isVisible ? 'none' : 'block';
-    });
+    if (btnLayers && popover) {
+      btnLayers.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const isVisible = popover.style.display === 'block';
+        popover.style.display = isVisible ? 'none' : 'block';
+      });
 
-    document.addEventListener('click', (e) => {
-      if (!popover.contains(e.target) && e.target !== btnLayers) {
-        popover.style.display = 'none';
-      }
-    });
+      document.addEventListener('click', (e) => {
+        if (!popover.contains(e.target) && e.target !== btnLayers) {
+          popover.style.display = 'none';
+        }
+      });
+    }
 
     document.querySelectorAll('.layer-card').forEach((card) => {
       card.addEventListener('click', () => {
         const type = card.dataset.layer;
         switchBaseLayer(type);
-        popover.style.display = 'none';
+        if (popover) popover.style.display = 'none';
       });
     });
 
-    document.getElementById('btnRecenterFab').addEventListener('click', fitAllMembers);
-    document.getElementById('btnZoomIn').addEventListener('click', () => map.zoomIn());
-    document.getElementById('btnZoomOut').addEventListener('click', () => map.zoomOut());
+    const btnRecenter = document.getElementById('btnRecenterFab');
+    if (btnRecenter) {
+      btnRecenter.addEventListener('click', fitAllMembers);
+    }
+
+    const btnFitAll = document.getElementById('btnFitAll');
+    if (btnFitAll) {
+      btnFitAll.addEventListener('click', fitAllMembers);
+    }
+
+    const btnZoomIn = document.getElementById('btnZoomIn');
+    if (btnZoomIn) {
+      btnZoomIn.addEventListener('click', () => map && map.zoomIn());
+    }
+
+    const btnZoomOut = document.getElementById('btnZoomOut');
+    if (btnZoomOut) {
+      btnZoomOut.addEventListener('click', () => map && map.zoomOut());
+    }
   }
 
   // 4. Gestos e Interação do Bottom Sheet (Arrasto Touch / Mouse + Minimizar)
@@ -1077,6 +1129,42 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
+  // 6.5 Enquadra todos os membros e lugares no mapa
+  function fitAllMembers() {
+    if (!map) return;
+    try {
+      map.invalidateSize();
+    } catch (_e) {}
+
+    const validCoords = (membersData || [])
+      .filter((m) => m.location && typeof m.location.latitude === 'number' && typeof m.location.longitude === 'number')
+      .map((m) => [m.location.latitude, m.location.longitude]);
+
+    const placeCoords = (placesData || [])
+      .filter((p) => typeof p.latitude === 'number' && typeof p.longitude === 'number')
+      .map((p) => [p.latitude, p.longitude]);
+
+    const allCoords = [...validCoords, ...placeCoords];
+
+    if (validCoords.length > 0) {
+      if (validCoords.length === 1) {
+        map.setView(validCoords[0], 15, { animate: true });
+      } else {
+        const bounds = L.latLngBounds(validCoords);
+        map.fitBounds(bounds, { padding: [60, 60], maxZoom: 16, animate: true });
+      }
+    } else if (allCoords.length > 0) {
+      if (allCoords.length === 1) {
+        map.setView(allCoords[0], 15, { animate: true });
+      } else {
+        const bounds = L.latLngBounds(allCoords);
+        map.fitBounds(bounds, { padding: [60, 60], maxZoom: 16, animate: true });
+      }
+    } else {
+      map.setView([-23.55052, -46.633308], 14, { animate: true });
+    }
+  }
+
   // 7. Carrega Membros Iniciais da API
   async function loadMembers() {
     try {
@@ -1398,7 +1486,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // 14. Seleciona Membro e Abre Painel de Detalhes
-  window.selectMember = function (userId) {
+  function selectMember(userId) {
     selectedMemberId = userId;
     const member = membersData.find((m) => m.id === userId);
     if (!member) return;
@@ -1416,7 +1504,8 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('memberDetailPanel').style.display = 'flex';
     renderMemberDetails(member);
     loadDriverReportForMember(userId);
-  };
+  }
+  window.selectMember = selectMember;
 
   function renderMemberDetails(member) {
     const initials = member.name.substring(0, 2).toUpperCase();
@@ -3065,7 +3154,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Inicialização
   // Inicializa a aplicação somente após autenticação bem-sucedida
-  function startApp() {
+  async function startApp() {
     if (appStarted) {
       loadMembers();
       loadPlaces();
@@ -3075,11 +3164,14 @@ document.addEventListener('DOMContentLoaded', () => {
       loadCircleData();
       connectWebSocket();
       updatePushNotificationUI();
+      if (map) {
+        try { map.invalidateSize(); } catch (_e) {}
+      }
       return;
     }
     appStarted = true;
 
-    initMap();
+    await initMap();
     connectWebSocket();
     loadCircleData();
     loadMembers();
@@ -3088,6 +3180,12 @@ document.addEventListener('DOMContentLoaded', () => {
     loadUnreadDms();
     loadSosHistory();
     setupPushNotifications();
+
+    setTimeout(() => {
+      if (map) {
+        try { map.invalidateSize(); } catch (_e) {}
+      }
+    }, 200);
   }
 
   async function bootstrapAuth() {
@@ -3095,7 +3193,9 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('btnLogout').addEventListener('click', logout);
 
     const authenticated = await checkAuthStatus();
-    if (authenticated) startApp();
+    if (authenticated) {
+      await startApp();
+    }
   }
 
   bootstrapAuth();

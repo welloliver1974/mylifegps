@@ -47,8 +47,8 @@ fastify.addContentTypeParser('application/json', { parseAs: 'string' }, (_req, b
   }
 });
 
-// Rotas de API que não exigem sessão: autenticação e ingestão de telemetria dos aparelhos
-const PUBLIC_API_PREFIXES = ['/api/auth/', '/api/telemetry'];
+// Rotas de API que não exigem sessão: autenticação, ingestão de telemetria dos aparelhos, config pública e health
+const PUBLIC_API_PREFIXES = ['/api/auth/', '/api/telemetry', '/api/config', '/health'];
 
 function isPublicApi(url: string) {
   return PUBLIC_API_PREFIXES.some((prefix) => url.startsWith(prefix));
