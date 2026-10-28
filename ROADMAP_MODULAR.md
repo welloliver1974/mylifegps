@@ -186,3 +186,49 @@
 
 - **Fora de escopo (não replicável):** despacho para polícia/SAMU e proteção contra roubo de identidade (serviços de parceiros comerciais pagos).
 - **Critério de Conclusão do Bloco 8:** `FEATURE_PARITY.md` com 100% dos itens técnicos concluídos e app pronto para deploy definitivo na VPS Oracle Cloud.
+
+---
+
+## BLOCO 9: Círculo Real (Convites & Membros) + Deploy na VPS
+- [ ] **Status:** PENDENTE — **É AQUI QUE O TRABALHO RETOMA**
+- **Origem:** lacunas levantadas na auditoria pós-Etapa 8.9 (ver `FEATURE_PARITY.md`). Ordem definida por impacto real para a família.
+- **Referência obrigatória:** [`FEATURE_PARITY.md`](FEATURE_PARITY.md) — linhas `Código de convite`, `Adicionar/remover membros de verdade`, `Atualizar agora`, `Score semanal/mensal histórico`, `Recuperação de senha`, `HTTPS / túnel seguro`.
+
+### Sub-etapas (executar em ordem; cada uma é um bloco fechável e commitável):
+
+- [ ] **Etapa 9.1: Convite real por código (PRIORIDADE MÁXIMA)**
+  - **Problema atual:** o código de convite é gerado no `localStorage` do navegador (`life360_circle_invite_code` em `public/app.js`, dentro de `setupCircleMenu`) e **não existe na API**. Ninguém consegue entrar com ele; todos os usuários cadastrados caem no mesmo círculo implícito.
+  - **A fazer:**
+    - Criar modelo `Circle` (id, `inviteCode` único sem ambiguidade visual — evitar `0/O/1/I`, `createdAt`) e `CircleMember` (circleId, userId, `roleInCircle`, joinedAt) no `prisma/schema.prisma`; `npx prisma db push`.
+    - Migração de dados: mover o código hoje salvo no `localStorage` para o banco no primeiro acesso do admin (ou gerar um novo e exibir).
+    - Rotas novas em `server/src/routes/circle.ts`: `GET /api/circle` (dados do círculo + membros), `POST /api/circle/invite/regenerate` (admin), `POST /api/circle/join` (usuário autenticado entra com o código, 404 se inválido, 409 se já é membro), `DELETE /api/circle/members/:id` (admin remove).
+    - Tela de entrada no `public/index.html` + `app.js`: campo "Tenho um código de convite" no fluxo de primeiro acesso, além do "criar meu círculo".
+    - Corrigir `GET /api/members/live` e as listas da UI para filtrar **por círculo**, não por todos os usuários.
+  - **Critério de conclusão:** teste automatizado (script `tsx` descartável + servidor em background na porta 3099) provando: código inválido → 404; código válido → entra e passa a aparecer em `/api/members/live`; membro de outro círculo **não** aparece; admin remove membro e ele some da lista.
+
+- [ ] **Etapa 9.2: Deploy definitivo na VPS Oracle Cloud**
+  - **Problema atual:** o stack nunca subiu para a VPS; tudo validado apenas na máquina local.
+  - **A fazer:** `systemd` unit ou PM2, `.env` de produção (chaves VAPID novas + `CARTO_API_KEY` + `TELEMETRY_REQUIRE_KEY=true`), Cloudflare Tunnel para **HTTPS** (o app ainda roda em HTTP), backup do `dev.db` para fora do disco da VPS, `npx prisma db push` no servidor.
+  - **Critério de conclusão:** painel acessível por HTTPS pelo celular, telemetria de um aparelho real chegando, push funcionando com navegador fechado. **A chave CARTO nunca vai na linha de comando — ler de `server/.env` dentro de um script.**
+
+- [ ] **Etapa 9.3: Etapa 8.10 — Detecção de acidente real (acelerômetro)**
+  - `expo-sensors` no app mobile; limiar de desaceleração brusca → evento `CRASH_DETECTED` real via WebSocket, com confirmação/cancelamento na tela antes de virar SOS.
+
+- [ ] **Etapa 9.4: "Atualizar agora" (forçar posição do aparelho)**
+  - Canal de comando servidor→aparelho: flag persistida por dispositivo que o app lê no próximo ciclo (ou push de comando), endpoint `POST /api/devices/:id/request-update`, botão no painel de detalhes do membro com feedback "aguardando resposta".
+
+- [ ] **Etapa 9.5: Refinamentos de chat**
+  - Reações/curtir mensagem (modelo + UI) e menções `@nome` com notificação dedicada.
+
+- [ ] **Etapa 9.6: Nota de direção histórica**
+  - Score semanal/mensal agregado (hoje só existe o período consultado), com gráfico de evolução.
+
+- [ ] **Etapa 9.7: Recuperação de senha**
+  - Requer SMTP configurado; sem e-mail hoje a redefinição exige acesso ao banco. Alternativa mínima: código de recuperação de uso único gerado no painel admin.
+
+### Como retomar (checklist para qualquer IA)
+1. Ler `ROADMAP_MODULAR.md` (este arquivo) e `FEATURE_PARITY.md`.
+2. `cd server && npm run build` para confirmar que o último commit compila.
+3. Para testar: subir `$env:PORT='3099'; node dist/index.js` em background e rodar um script `tsx` descartável contra `http://127.0.0.1:3099` (**não** tentar spawnar o servidor de dentro do `tsx` — não funciona nesta máquina). Apagar o script depois.
+4. Bump do cache PWA (`sw.js` `CACHE_NAME` + `?v=N` em `index.html`) a cada etapa com mudança de frontend.
+5. Fechar a etapa: atualizar `ROADMAP_MODULAR.md` + `FEATURE_PARITY.md` + memória, commit e push.
