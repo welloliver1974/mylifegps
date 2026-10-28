@@ -205,10 +205,19 @@
   - Interface Web / PWA: tela de autenticação com alternador "Tenho um código de convite da família", modal do círculo com código real sincronizado, botão de cópia, regeneração de código para admins, listagem completa de membros com badges e remoção interativa. Cache PWA `life360-v16`.
   - **22/22 testes automatizados aprovados** (validação de código inválido 404, cadastro com convite 201, acesso a membros, bloqueio 403 para não-admin, exibição em live, remoção com sumiço síncrono e reentrada com código).
 
-- [ ] **Etapa 9.2: Deploy definitivo na VPS Oracle Cloud**
+- [/] **Etapa 9.2: Deploy definitivo na VPS Oracle Cloud** (scripts prontos — aguardando execução pelo usuário)
   - **Problema atual:** o stack nunca subiu para a VPS; tudo validado apenas na máquina local.
-  - **A fazer:** `systemd` unit ou PM2, `.env` de produção (chaves VAPID novas + `CARTO_API_KEY` + `TELEMETRY_REQUIRE_KEY=true`), Cloudflare Tunnel para **HTTPS** (o app ainda roda em HTTP), backup do `dev.db` para fora do disco da VPS, `npx prisma db push` no servidor.
-  - **Critério de conclusão:** painel acessível por HTTPS pelo celular, telemetria de um aparelho real chegando, push funcionando com navegador fechado. **A chave CARTO nunca vai na linha de comando — ler de `server/.env` dentro de um script.**
+  - **Decisão de segurança (2026-10-28):** o usuário já teve a VPS invadida e não quer conceder acesso SSH. O deploy é feito por **scripts que ele mesmo executa**. Arquitetura escolhida: **nenhuma porta pública aberta** — SSH somente pela Tailscale e app publicado pelo Cloudflare Tunnel (conexão de saída).
+  - **Artefatos entregues em `deploy/`:**
+    - `DEPLOY_VPS.md` — guia passo a passo (Tailscale, auditoria, instalação, túnel, hardening, validação).
+    - `check-vps-security.sh` — auditoria somente-leitura procurando backdoor da invasão antiga.
+    - `install-vps.sh` — instala Node 20, PM2, cloudflared, clona o repo, gera VAPID, cria `.env` 600 com CARTO digitada sem eco, sobe no PM2 e testa `/health`.
+    - `harden-vps.sh` — SSH só por chave, `PermitRootLogin no`, fail2ban, ufw liberando apenas `tailscale0`, **rollback automático do firewall em 10 min** para não trancar o usuário fora, updates automáticos.
+    - `ecosystem.config.cjs` — caminho dinâmico via `APP_DIR`/`HOME`.
+    - `quick-deploy.sh` — atualização idempotente com `git pull` + build + reload.
+    - `server/scripts/export-local-db.ts` — exporta o `dev.db` local (checkpoint WAL + `VACUUM INTO`) para migrar os dados da família.
+  - **VPS alvo:** `150.230.94.243` (a antiga `137.131.187.156` está desligada). Domínio já existe no Cloudflare.
+  - **Critério de conclusão:** painel acessível por HTTPS pelo celular, telemetria de um aparelho real chegando, push funcionando com navegador fechado, `ss -tulpn` sem porta pública e `ufw` liberando só `tailscale0`. **A chave CARTO nunca vai na linha de comando — é lida dentro do script.**
 
 - [ ] **Etapa 9.3: Etapa 8.10 — Detecção de acidente real (acelerômetro)**
   - `expo-sensors` no app mobile; limiar de desaceleração brusca → evento `CRASH_DETECTED` real via WebSocket, com confirmação/cancelamento na tela antes de virar SOS.
