@@ -10,21 +10,22 @@
     "build:apk": "eas build -p android --profile preview"
   },
   "dependencies": {
+    "@react-native-async-storage/async-storage": "1.23.1",
     "expo": "~51.0.0",
-    "expo-status-bar": "~1.12.1",
-    "react": "18.2.0",
-    "react-native": "0.74.5",
-    "expo-location": "~17.0.1",
-    "expo-task-manager": "~11.8.2",
     "expo-battery": "~8.0.1",
     "expo-device": "~6.0.2",
-    "react-native-webview": "13.8.6",
-    "@react-native-async-storage/async-storage": "1.23.1"
+    "expo-location": "~17.0.1",
+    "expo-status-bar": "~1.12.1",
+    "expo-task-manager": "~11.8.2",
+    "react": "18.2.0",
+    "react-native": "0.74.5",
+    "react-native-webview": "13.8.6"
   },
   "devDependencies": {
     "@babel/core": "^7.20.0",
     "@types/react": "~18.2.45",
     "babel-preset-expo": "~11.0.0",
+    "eas-cli": "^26.0.0",
     "typescript": "~5.3.3"
   },
   "private": true
