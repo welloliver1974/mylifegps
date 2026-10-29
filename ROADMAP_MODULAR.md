@@ -329,8 +329,21 @@
     - **Testes automatizados:** 14/14 testes unitários de motor de cálculo e overlap + 17/17 testes E2E aprovados contra servidor real na porta 3099 validando autenticação por chave/Bearer, bloqueio 422 em baixa velocidade, deduplicação 409, agregação no `/trips` e no `/driving-history`.
     - **Não exige novo APK:** roda 100% no servidor e no PWA/WebView.
 
+  - [x] **Refinamento Crítico: Correção do Anel de Bateria (sempre 100%) e Separação da Tag de Lugar no Mapa (CONCLUÍDO)**
+    - **Diagnóstico e Correção da Bateria:**
+      - O marcador no mapa utilizava `batt = rawBatt !== undefined && rawBatt !== null ? Math.round(rawBatt) : 100;`, forçando o anel circular SVG a renderizar 100% verde preenchido para qualquer membro sem leitura de bateria ou antes do envio de telemetria.
+      - A lógica agora diferencia formalmente dados ausentes (`hasBattery = false`): o anel SVG de preenchimento (`.battery-fill`) não é desenhado, mantendo apenas o contorno neutro (`.battery-track`), eliminando a falsa indicação de 100%.
+      - Suporte e normalização automática para leituras em escala decimal 0..1 (ex: `0.85` vira `85%`) no servidor (`routes/telemetry.ts` e `services/telemetry.ts`), no app mobile (`locationTask.ts` e `crashDetection.ts`) e no frontend (`app.js`), além de suportar os parâmetros `batt` e `battery` do Traccar Client.
+      - Remoção do fallback falso `battery: 95` em `getCurrentUser()`.
+    - **Separação da Tag de Lugar e Marcador do Membro:**
+      - A pílula de lugar (`.place-floating-pill`, ex: "🏡 Casa") era renderizada exatamente no centro da cerca virtual `[place.latitude, place.longitude]`, colidindo pixel a pixel com a etiqueta de status do membro que está no local.
+      - A pílula de lugar foi reposicionada na borda norte da cerca virtual (`place.latitude + radiusMeters / 111320`), com âncora inferior e `zIndexOffset: -100`.
+      - Agora a pílula do lugar coroa a parte superior da cerca tracejada, deixando todo o interior livre e legível para os avatares dos membros, sem sobreposição nem conflito de cliques.
+    - **Cache PWA:** atualizado para `life360-v32` (`sw.js`, `style.css?v=32` e `app.js?v=32`).
+    - **Testes automatizados:** normalização e ingestão validadas via script de teste no banco real.
+
   - Candidatos restantes do Bloco 10:
-    - **Etapa 10.4: Inicialização automática no Boot do Android** (`RECEIVE_BOOT_COMPLETED`).
+    - **Etapa 10.4: Inicialização automática no Boot do Android** (`RECEIVE_BOOT_COMPLETED`) — *postergado a pedido do usuário*.
     - **Etapa 10.5: Seletor de múltiplos círculos no topo** (Família / Amigos).
     - **Envio automático de e-mail opcional** (recuperação de senha e resumo semanal).
 

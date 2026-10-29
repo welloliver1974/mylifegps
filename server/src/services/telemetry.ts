@@ -50,7 +50,7 @@ export async function processTelemetry(input: TelemetryInput) {
   // Preserva a última bateria conhecida se o ponto atual não informou (ex: ping web sem sensor ou GPS puro)
   let effectiveBattery =
     input.battery !== undefined && input.battery !== null && !isNaN(input.battery) && input.battery >= 0
-      ? input.battery
+      ? (input.battery > 0 && input.battery <= 1 ? Math.round(input.battery * 100) : Math.round(input.battery))
       : undefined;
   let effectiveIsCharging = input.isCharging;
 

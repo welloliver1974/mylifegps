@@ -6,7 +6,7 @@
 
 **Legenda:** ✅ implementado e funcionando · ⚠️ parcial / simplificado · ❌ ausente · 🚫 depende de terceiro (impossível auto-hospedar)
 
-*Última auditoria: 2026-10-29 — Etapa 10.3 concluída: detecção de uso de celular ao volante (tela ativa em trânsito com keepalive), card de KPI, chip no cartão da viagem e penalidade na nota de direção. (Etapas 10.1 e 10.2: alerta de bateria fraca, anel limpo, push nativo, frenagem brusca e arrancada rápida.) Bloco 10 em andamento.*
+*Última auditoria: 2026-10-29 — Correção de paridade visual: anel de bateria agora só preenche com dados válidos (sem forçar 100% verde falso), suporte a escala decimal e tag de lugar posicionada na borda norte sem colidir com avatares (PWA v32). Etapa 10.3 concluída (celular ao volante). Bloco 10 em andamento.*
 
 ---
 
@@ -17,7 +17,7 @@
 | Mapa ao vivo com todos os membros | ✅ | Leaflet + WebSocket em tempo real |
 | Estilos de mapa (claro, satélite, escuro) | ✅ | CARTO Voyager / Esri Imagery / CARTO Dark |
 | Avatar do membro no mapa | ✅ | Iniciais coloridas ou foto real do membro via upload (@fastify/multipart) e preview dinâmico (Etapa 8.7) |
-| Anel circular de bateria | ✅ | SVG dinâmico contínuo sem cortes e porcentagem integrada na etiqueta inferior (Etapa 10.1) |
+| Anel circular de bateria | ✅ | SVG dinâmico contínuo sem cortes; preenchimento apenas com leitura real (sem forçar 100% verde falso quando nulo), suporte a escala decimal e porcentagem integrada na etiqueta inferior (Etapa 10.1 / PWA v32) |
 | **Alerta de bateria fraca (< 15%)** | ✅ | Monitoramento em telemetria com histerese (cooldown 4h, reset aos 30%), push para todo o círculo e aviso WebSocket em tempo real (Etapa 10.1) |
 | Status de carregamento (⚡) | ✅ | Indicador animado no anel e ícone ⚡ no status |
 | Velocidade / "em trânsito" | ✅ | Tag `🚗 km/h` acima de 5 km/h |
@@ -37,7 +37,7 @@
 |---|---|---|
 | Criar lugares | ✅ | Com ícone e cor |
 | **Lugares ilimitados** | ✅ | Recurso Platinum liberado |
-| Cercas visíveis no mapa | ✅ | Círculo tracejado + pílula |
+| Cercas visíveis no mapa | ✅ | Círculo tracejado + pílula posicionada na borda norte para não sobrepor avatares dos membros (PWA v32) |
 | Excluir lugar | ✅ | No chip e na API |
 | Alertas de ENTER/EXIT | ✅ | Motor com histerese (Bloco 3) |
 | Timeline de alertas de lugares | ✅ | Últimas 30 entradas/saídas |

@@ -1567,7 +1567,7 @@ document.addEventListener('DOMContentLoaded', () => {
         name: currentAuthUser.name || own?.name || 'Você',
         color: currentAuthUser.color || own?.color || '#3B82F6',
         avatarUrl: currentAuthUser.avatarUrl || own?.avatarUrl || '',
-        location: own?.location || { latitude: -23.55052, longitude: -46.633308, battery: 95 },
+        location: own?.location || { latitude: -23.55052, longitude: -46.633308 },
       };
     }
 
@@ -1577,7 +1577,7 @@ document.addEventListener('DOMContentLoaded', () => {
       name: user.name || 'Você',
       color: user.color || '#3B82F6',
       avatarUrl: user.avatarUrl || '',
-      location: user.location || { latitude: -23.55052, longitude: -46.633308, battery: 95 },
+      location: user.location || { latitude: -23.55052, longitude: -46.633308 },
     };
   }
 
@@ -1856,6 +1856,11 @@ document.addEventListener('DOMContentLoaded', () => {
         radius: place.radiusMeters,
       }).addTo(map);
 
+      // Posiciona a pílula do lugar na borda superior da cerca virtual (borda norte),
+      // evitando sobreposição direta com o marcador do membro que fica no centro do lugar
+      const latOffset = (place.radiusMeters || 100) / 111320;
+      const labelLat = place.latitude + latOffset;
+
       const labelHtml = `
         <div class="place-floating-pill" style="border-color: ${color};">
           <span class="place-pill-icon">${iconEmoji}</span>
@@ -1867,12 +1872,13 @@ document.addEventListener('DOMContentLoaded', () => {
         html: labelHtml,
         className: 'place-pill-div',
         iconSize: [120, 32],
-        iconAnchor: [60, 16],
+        iconAnchor: [60, 30],
       });
 
-      const labelMarker = L.marker([place.latitude, place.longitude], {
+      const labelMarker = L.marker([labelLat, place.longitude], {
         icon: labelIcon,
         interactive: true,
+        zIndexOffset: -100,
       }).addTo(map);
 
       labelMarker.on('click', () => {
@@ -1968,19 +1974,41 @@ document.addEventListener('DOMContentLoaded', () => {
     const isSelected = selectedMemberId === userId;
 
     const rawBatt = member.location.battery;
-    const batt = rawBatt !== undefined && rawBatt !== null ? Math.round(rawBatt) : 100;
+    let batt = null;
+    if (rawBatt !== undefined && rawBatt !== null && rawBatt !== '' && !isNaN(Number(rawBatt))) {
+      let num = Number(rawBatt);
+      if (num > 0 && num <= 1) {
+        num = num * 100;
+      }
+      batt = Math.max(0, Math.min(100, Math.round(num)));
+    }
+    const hasBattery = batt !== null;
     const isCharging = !!member.location.isCharging;
 
-    const battColor = batt < 20 ? '#EF4444' : batt < 50 ? '#F59E0B' : '#10B981';
-    const battClass = batt < 20 ? 'low' : batt < 50 ? 'medium' : 'high';
+    const battColor = !hasBattery
+      ? 'transparent'
+      : batt < 20
+      ? '#EF4444'
+      : batt < 50
+      ? '#F59E0B'
+      : '#10B981';
+
+    const battClass = !hasBattery
+      ? ''
+      : batt < 20
+      ? 'low'
+      : batt < 50
+      ? 'medium'
+      : 'high';
 
     const circumference = 150.8;
-    const progressOffset = circumference * (1 - Math.max(0, Math.min(100, batt)) / 100);
+    const progressOffset = hasBattery
+      ? circumference * (1 - batt / 100)
+      : circumference;
 
     const speed = member.location.speed ? Math.round(member.location.speed) : 0;
     const isMoving = speed > 5;
 
-    const hasBattery = rawBatt !== undefined && rawBatt !== null;
     const battText = hasBattery ? `${isCharging ? '⚡' : ''}${batt}%` : '';
     const battBadgeHtml = hasBattery
       ? `<span class="tag-batt ${battClass}" title="Bateria: ${batt}%${isCharging ? ' (Carregando)' : ''}">${battText}</span>`
@@ -2003,11 +2031,13 @@ document.addEventListener('DOMContentLoaded', () => {
         <div class="marker-avatar-container">
           <svg class="battery-svg" viewBox="0 0 58 58">
             <circle class="battery-track" cx="29" cy="29" r="24"></circle>
+            ${hasBattery ? `
             <circle class="battery-fill ${isCharging ? 'charging' : ''}"
                     cx="29" cy="29" r="24"
                     stroke="${battColor}"
                     stroke-dasharray="150.8"
                     stroke-dashoffset="${progressOffset}"></circle>
+            ` : ''}
           </svg>
           <div class="avatar-photo" style="background-color: ${member.color || '#3B82F6'};">
             ${member.avatarUrl ? `<img src="${member.avatarUrl}" alt="${member.name}" />` : initials}
@@ -2080,11 +2110,16 @@ document.addEventListener('DOMContentLoaded', () => {
       .map((m) => {
         const initials = m.name.substring(0, 2).toUpperCase();
         const rawBatt = m.location?.battery;
-        const hasBatt = rawBatt !== undefined && rawBatt !== null && rawBatt !== '';
-        const batt = hasBatt ? Math.round(Number(rawBatt)) : null;
-        const battText = batt !== null ? `${batt}%` : '--';
+        let batt = null;
+        if (rawBatt !== undefined && rawBatt !== null && rawBatt !== '' && !isNaN(Number(rawBatt))) {
+          let num = Number(rawBatt);
+          if (num > 0 && num <= 1) num = num * 100;
+          batt = Math.max(0, Math.min(100, Math.round(num)));
+        }
+        const hasBatt = batt !== null;
+        const battText = hasBatt ? `${batt}%` : '--';
         const isCharging = m.location?.isCharging ? '⚡' : '';
-        const battClass = batt !== null && batt < 20 ? 'low' : batt !== null && batt < 50 ? 'medium' : 'high';
+        const battClass = hasBatt && batt < 20 ? 'low' : hasBatt && batt < 50 ? 'medium' : 'high';
 
         let subtext = 'Sem localização recente';
         if (m.location) {
@@ -2247,8 +2282,14 @@ document.addEventListener('DOMContentLoaded', () => {
   function renderMemberDetails(member) {
     const initials = member.name.substring(0, 2).toUpperCase();
     const rawBatt = member.location?.battery;
-    const hasBatt = rawBatt !== undefined && rawBatt !== null && rawBatt !== '';
-    const batt = hasBatt ? `${Math.round(Number(rawBatt))}%` : '--';
+    let batt = null;
+    if (rawBatt !== undefined && rawBatt !== null && rawBatt !== '' && !isNaN(Number(rawBatt))) {
+      let num = Number(rawBatt);
+      if (num > 0 && num <= 1) num = num * 100;
+      batt = Math.max(0, Math.min(100, Math.round(num)));
+    }
+    const hasBatt = batt !== null;
+    const battText = hasBatt ? `${batt}%` : '--';
     const isCharging = member.location?.isCharging ? ' ⚡' : '';
     const speed = member.location?.speed ? `${Math.round(member.location.speed)} km/h` : '0 km/h';
     const accuracy = member.location?.accuracy ? `${Math.round(member.location.accuracy)} m` : '--';

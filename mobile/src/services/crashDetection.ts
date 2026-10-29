@@ -255,7 +255,9 @@ export async function sendCrashEmergencySos(event: CrashEvent): Promise<{
     let batteryLevel: number | undefined;
     try {
       const b = await Battery.getBatteryLevelAsync();
-      if (typeof b === 'number' && b >= 0) batteryLevel = Math.round(b * 100);
+      if (typeof b === 'number' && b >= 0) {
+        batteryLevel = b <= 1 ? Math.round(b * 100) : Math.round(b);
+      }
     } catch {}
 
     const payload = {

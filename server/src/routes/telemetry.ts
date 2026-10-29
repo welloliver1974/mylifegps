@@ -143,6 +143,15 @@ export async function telemetryRoutes(fastify: FastifyInstance) {
     // Usa o deviceIdentifier oficial do banco para garantir que as posições fiquem vinculadas ao mesmo aparelho
     const deviceIdentifier = auth.device?.deviceIdentifier || rawIdentifier || 'device-default';
 
+    let rawBattery = body.battery !== undefined && body.battery !== null ? Number(body.battery) : undefined;
+    if (rawBattery !== undefined && !isNaN(rawBattery)) {
+      if (rawBattery > 0 && rawBattery <= 1) {
+        rawBattery = Math.round(rawBattery * 100);
+      } else {
+        rawBattery = Math.round(rawBattery);
+      }
+    }
+
     const result = await processTelemetry({
       deviceIdentifier,
       latitude: Number(body.latitude),
@@ -151,7 +160,7 @@ export async function telemetryRoutes(fastify: FastifyInstance) {
       accuracy: body.accuracy !== undefined && body.accuracy !== null ? Number(body.accuracy) : undefined,
       speed: body.speed !== undefined && body.speed !== null ? Number(body.speed) : undefined,
       heading: body.heading !== undefined && body.heading !== null ? Number(body.heading) : undefined,
-      battery: body.battery !== undefined && body.battery !== null ? Number(body.battery) : undefined,
+      battery: rawBattery,
       isCharging: Boolean(body.isCharging),
       recordedAt: body.timestamp ? new Date(body.timestamp) : undefined,
     });
@@ -192,7 +201,13 @@ export async function telemetryRoutes(fastify: FastifyInstance) {
         data.bearing !== undefined || data.heading !== undefined
           ? parseFloat(data.bearing || data.heading)
           : undefined,
-      battery: data.batt !== undefined ? parseFloat(data.batt) : undefined,
+      battery: (() => {
+        const raw = data.batt !== undefined ? data.batt : data.battery;
+        if (raw === undefined || raw === null || raw === '') return undefined;
+        const parsed = parseFloat(String(raw));
+        if (isNaN(parsed)) return undefined;
+        return parsed > 0 && parsed <= 1 ? Math.round(parsed * 100) : Math.round(parsed);
+      })(),
       isCharging: data.charge === 'true' || data.charge === true,
       recordedAt: timestamp,
     });
