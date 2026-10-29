@@ -24,6 +24,7 @@ model User {
   resolvedSosEvents      SosEvent[]         @relation("SosResolver")
   sentDirectMessages     DirectMessage[]    @relation("SentDMs")
   receivedDirectMessages DirectMessage[]    @relation("ReceivedDMs")
+  passwordResetTokens    PasswordResetToken[]
   createdAt              DateTime   @default(now())
   updatedAt              DateTime   @updatedAt
 }
@@ -228,5 +229,21 @@ model CircleMember {
   @@index([circleId])
   @@index([userId])
 }
+
+// Códigos de Recuperação de Senha (Etapa 9.7 - uso único e temporário)
+model PasswordResetToken {
+  id        String    @id @default(uuid())
+  code      String    @unique // Ex: "REC-K7W2-9M4P" (sem caracteres ambíguos)
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdBy String?   // ID do admin que gerou ou "system" / "cli"
+  createdAt DateTime  @default(now())
+
+  @@index([code])
+  @@index([userId])
+}
+
 
 

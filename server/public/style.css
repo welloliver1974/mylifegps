@@ -2539,6 +2539,21 @@ input[type="range"]::-moz-range-thumb {
   background: rgba(239, 68, 68, 0.12);
 }
 
+.circle-member-reset-btn {
+  background: none;
+  border: none;
+  color: var(--primary, #6366F1);
+  cursor: pointer;
+  padding: 4px 6px;
+  border-radius: 6px;
+  font-size: 13px;
+  transition: background 0.15s;
+}
+
+.circle-member-reset-btn:hover {
+  background: rgba(99, 102, 241, 0.14);
+}
+
 /* ==========================================================
    Chat do Círculo Familiar
    ========================================================== */

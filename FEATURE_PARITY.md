@@ -6,7 +6,7 @@
 
 **Legenda:** ✅ implementado e funcionando · ⚠️ parcial / simplificado · ❌ ausente · 🚫 depende de terceiro (impossível auto-hospedar)
 
-*Última auditoria: 2026-10-28 — Etapa 9.6 concluída: nota de direção histórica semanal/mensal com agregação diária, gráfico SVG de evolução, cálculo de tendência e isolamento por círculo*
+*Última auditoria: 2026-10-29 — Etapa 9.7 concluída: recuperação de senha com código temporário de uso único (REC-XXXX-XXXX), fluxo "Esqueci minha senha" no PWA, geração por admin de círculo com cópia para WhatsApp e CLI de emergência na VPS*
 
 ---
 
@@ -100,16 +100,16 @@
 | **Notificações push (VAPID)** | ✅ | Web Push W3C com chaves VAPID, service worker em segundo plano, alertas de cerca (ENTER/EXIT), SOS e check-in mesmo com navegador fechado (Etapa 8.5) |
 | **Auditoria / log de acessos** | ✅ | Modelo `AccessLog` + hook `onResponse`: usuário, método, rota, status, IP, user-agent e duração; retenção de 30 dias; visualizador com resumo de 24 h e filtro de erros (Etapa 8.9) |
 | **Ingestão de telemetria autenticada** | ✅ | Chave por aparelho (`l360_...`) validada com `timingSafeEqual`, aceita por header, query ou corpo; rotação de chave revoga a anterior na hora; `TELEMETRY_REQUIRE_KEY=false` só como escape consciente (Etapa 8.9) |
-| **Recuperação de senha** | ❌ | Sem e-mail configurado; redefinição hoje exige acesso ao banco |
+| **Recuperação de senha** | ✅ | Código temporário de uso único (`REC-XXXX-XXXX`, 30 min) gerado por admin no modal do círculo com cópia para WhatsApp, tela "Esqueci minha senha" no PWA, revogação de sessões antigas e CLI de emergência na VPS sem depender de SMTP (Etapa 9.7) |
 | **Gestão de aparelhos pelo painel** | ✅ | Modal "📱 Dispositivos Conectados": cadastro, chave mascarada com revelar/copiar, status online, rotacionar chave e excluir (Etapa 8.9) |
 
 ---
 
 ## Resumo executivo
 
-- **Pronto (pode usar hoje):** mapa ao vivo, cercas, alertas, histórico ilimitado, replay, relatório de direção com viagens e nota histórica semanal/mensal com gráfico de evolução, push notifications em segundo plano, SOS com histórico persistido e resolução, perfil de membro com upload de foto real, chat coletivo do círculo com reações/menções e mensagens diretas 1:1 privadas com notificações, check-in, lugares ilimitados, estilos de mapa, modo escuro, entrada e gestão de membros por código de convite, VPS Oracle em produção via Cloudflare Tunnel e app nativo Android (.APK) compilado.
-- **Lacunas visíveis ao usuário:** recuperação de senha diretamente pelo app (sem intervenção de admin no banco).
-- **Resolvido nas últimas etapas:** Bloco 9 avançado com convite real por código e isolamento por círculo (9.1), deploy na VPS Oracle com Cloudflare Tunnel e app mobile Expo (.APK) com foreground service (9.2), recurso "Atualizar agora" com bridge WebView nativa e tolerância a falhas na sessão (9.4), reações emoji e menções `@nome` com push dedicado (9.5) e nota de direção histórica semanal e mensal com gráfico SVG de evolução diária e tendência (9.6).
-- **Lacunas de plataforma restantes:** sem recuperação de senha automatizada (exige SMTP ou código de recuperação de uso único gerado no painel admin).
+- **Pronto (pode usar hoje):** mapa ao vivo, cercas, alertas, histórico ilimitado, replay, relatório de direção com viagens e nota histórica semanal/mensal com gráfico de evolução, push notifications em segundo plano, SOS com histórico persistido e resolução, perfil de membro com upload de foto real, chat coletivo do círculo com reações/menções e mensagens diretas 1:1 privadas com notificações, check-in, lugares ilimitados, estilos de mapa, modo escuro, entrada e gestão de membros por código de convite, recuperação de senha por código único gerado por admin ou CLI, VPS Oracle em produção via Cloudflare Tunnel e app nativo Android (.APK) compilado.
+- **Lacunas visíveis ao usuário:** nenhuma bloqueante para o uso diário da família (redefinição de senha plenamente suportada via admin/WhatsApp ou CLI).
+- **Resolvido nas últimas etapas:** Bloco 9 avançado com convite real por código e isolamento por círculo (9.1), deploy na VPS Oracle com Cloudflare Tunnel e app mobile Expo (.APK) com foreground service (9.2), recurso "Atualizar agora" com bridge WebView nativa e tolerância a falhas na sessão (9.4), reações emoji e menções `@nome` com push dedicado (9.5), nota de direção histórica semanal e mensal com gráfico SVG de evolução diária (9.6) e recuperação de senha sem SMTP com código temporário e CLI de emergência (9.7).
+- **Lacunas de plataforma restantes:** envio automático de e-mail opcional (caso no futuro se queira contratar serviço SMTP dedicado; hoje suprido com total independência por código e WhatsApp).
 - **Impossível sem parceiro comercial:** despacho de emergência, monitoramento 24h, proteção de identidade.
 - **Depende de hardware (app mobile):** detecção de acidente por acelerômetro (Etapa 9.3), frenagem brusca.

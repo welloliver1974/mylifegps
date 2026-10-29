@@ -122,11 +122,16 @@ document.addEventListener('DOMContentLoaded', () => {
     const subtitle = document.getElementById('authSubtitle');
     const nameGroup = document.getElementById('authNameGroup');
     const inviteGroup = document.getElementById('authInviteGroup');
+    const resetCodeGroup = document.getElementById('authResetCodeGroup');
+    const passwordLabel = document.getElementById('authPasswordLabel');
+    const confirmGroup = document.getElementById('authConfirmPasswordGroup');
     const submitBtn = document.getElementById('authSubmitBtn');
     const footnote = document.getElementById('authFootnote');
     const errorEl = document.getElementById('authError');
     const toggleWrap = document.getElementById('authToggleWrap');
     const toggleBtn = document.getElementById('btnToggleAuthMode');
+    const forgotWrap = document.getElementById('authForgotWrap');
+    const backToLoginWrap = document.getElementById('authBackToLoginWrap');
 
     screen.classList.remove('hidden');
 
@@ -134,28 +139,56 @@ document.addEventListener('DOMContentLoaded', () => {
       subtitle.textContent = 'Primeira configuração: crie sua conta de administrador e seu círculo';
       nameGroup.style.display = 'block';
       if (inviteGroup) inviteGroup.style.display = 'none';
+      if (resetCodeGroup) resetCodeGroup.style.display = 'none';
+      if (confirmGroup) confirmGroup.style.display = 'none';
+      if (passwordLabel) passwordLabel.textContent = 'Senha';
       submitBtn.textContent = 'Criar conta e entrar';
       footnote.textContent = 'Esta conta protegerá o acesso a todas as localizações da família.';
       document.getElementById('authPassword').setAttribute('autocomplete', 'new-password');
       if (toggleWrap) toggleWrap.style.display = 'none';
+      if (forgotWrap) forgotWrap.style.display = 'none';
+      if (backToLoginWrap) backToLoginWrap.style.display = 'none';
     } else if (mode === 'invite') {
       subtitle.textContent = 'Entre no círculo da sua família com seu código de convite';
       nameGroup.style.display = 'block';
       if (inviteGroup) inviteGroup.style.display = 'block';
+      if (resetCodeGroup) resetCodeGroup.style.display = 'none';
+      if (confirmGroup) confirmGroup.style.display = 'none';
+      if (passwordLabel) passwordLabel.textContent = 'Senha';
       submitBtn.textContent = 'Criar conta e entrar no círculo';
       footnote.textContent = 'Você fará parte do círculo familiar correspondente ao código.';
       document.getElementById('authPassword').setAttribute('autocomplete', 'new-password');
       if (toggleWrap) toggleWrap.style.display = 'block';
       if (toggleBtn) toggleBtn.textContent = 'Já tem uma conta? Fazer login';
+      if (forgotWrap) forgotWrap.style.display = 'none';
+      if (backToLoginWrap) backToLoginWrap.style.display = 'none';
+    } else if (mode === 'reset') {
+      subtitle.textContent = 'Redefinir senha com código de recuperação';
+      nameGroup.style.display = 'none';
+      if (inviteGroup) inviteGroup.style.display = 'none';
+      if (resetCodeGroup) resetCodeGroup.style.display = 'block';
+      if (confirmGroup) confirmGroup.style.display = 'block';
+      if (passwordLabel) passwordLabel.textContent = 'Nova Senha';
+      submitBtn.textContent = 'Redefinir Senha e Entrar';
+      footnote.textContent = 'Insira o código fornecido pelo administrador da família ou gerado no servidor.';
+      document.getElementById('authPassword').setAttribute('autocomplete', 'new-password');
+      if (toggleWrap) toggleWrap.style.display = 'none';
+      if (forgotWrap) forgotWrap.style.display = 'none';
+      if (backToLoginWrap) backToLoginWrap.style.display = 'block';
     } else {
       subtitle.textContent = 'Entre para acessar o círculo da família';
       nameGroup.style.display = 'none';
       if (inviteGroup) inviteGroup.style.display = 'none';
+      if (resetCodeGroup) resetCodeGroup.style.display = 'none';
+      if (confirmGroup) confirmGroup.style.display = 'none';
+      if (passwordLabel) passwordLabel.textContent = 'Senha';
       submitBtn.textContent = 'Entrar';
       footnote.textContent = 'Seus dados ficam apenas no seu próprio servidor.';
       document.getElementById('authPassword').setAttribute('autocomplete', 'current-password');
       if (toggleWrap) toggleWrap.style.display = 'block';
       if (toggleBtn) toggleBtn.textContent = 'Tenho um código de convite da família';
+      if (forgotWrap) forgotWrap.style.display = 'block';
+      if (backToLoginWrap) backToLoginWrap.style.display = 'none';
     }
 
     if (message) {
@@ -221,6 +254,20 @@ document.addEventListener('DOMContentLoaded', () => {
       });
     }
 
+    const forgotBtn = document.getElementById('btnForgotPass');
+    if (forgotBtn) {
+      forgotBtn.addEventListener('click', () => {
+        showAuthScreen('reset');
+      });
+    }
+
+    const backToLoginBtn = document.getElementById('btnBackToLogin');
+    if (backToLoginBtn) {
+      backToLoginBtn.addEventListener('click', () => {
+        showAuthScreen('login');
+      });
+    }
+
     document.getElementById('authForm').addEventListener('submit', async (e) => {
       e.preventDefault();
 
@@ -230,6 +277,8 @@ document.addEventListener('DOMContentLoaded', () => {
       const password = document.getElementById('authPassword').value;
       const name = document.getElementById('authName').value.trim();
       const inviteCode = document.getElementById('authInviteCode')?.value.trim();
+      const resetCode = document.getElementById('authResetCode')?.value.trim();
+      const confirmPassword = document.getElementById('authConfirmPassword')?.value;
 
       errorEl.style.display = 'none';
       submitBtn.disabled = true;
@@ -243,6 +292,27 @@ document.addEventListener('DOMContentLoaded', () => {
       } else if (authMode === 'invite') {
         endpoint = '/api/auth/register-with-invite';
         payload = { name, email, password, inviteCode };
+      } else if (authMode === 'reset') {
+        if (!resetCode) {
+          errorEl.textContent = 'Informe o código de recuperação (REC-XXXX-XXXX).';
+          errorEl.style.display = 'block';
+          submitBtn.disabled = false;
+          return;
+        }
+        if (password.length < 8) {
+          errorEl.textContent = 'A nova senha precisa ter ao menos 8 caracteres.';
+          errorEl.style.display = 'block';
+          submitBtn.disabled = false;
+          return;
+        }
+        if (password !== confirmPassword) {
+          errorEl.textContent = 'A confirmação de senha não confere com a nova senha.';
+          errorEl.style.display = 'block';
+          submitBtn.disabled = false;
+          return;
+        }
+        endpoint = '/api/auth/reset-password';
+        payload = { email, code: resetCode, newPassword: password };
       }
 
       try {
@@ -263,7 +333,12 @@ document.addEventListener('DOMContentLoaded', () => {
         currentAuthUser = data.user || null;
         localStorage.setItem(AUTH_TOKEN_KEY, authToken);
         document.getElementById('authPassword').value = '';
+        if (document.getElementById('authConfirmPassword')) document.getElementById('authConfirmPassword').value = '';
+        if (document.getElementById('authResetCode')) document.getElementById('authResetCode').value = '';
         hideAuthScreen();
+        if (authMode === 'reset') {
+          showToast('Senha redefinida com sucesso! Bem-vindo.');
+        }
         startApp();
       } catch (err) {
         console.error(err);
@@ -426,6 +501,7 @@ document.addEventListener('DOMContentLoaded', () => {
       setupDriverReportAndHistory();
       setupDevicesModal();
       setupAdminModal();
+      setupResetCodeModal();
 
       // Força Leaflet a calcular as dimensões reais da tela após o container se tornar visível
       setTimeout(() => {
@@ -681,10 +757,15 @@ document.addEventListener('DOMContentLoaded', () => {
                   </div>
                 </div>
               </div>
-              <div style="display: flex; align-items: center; gap: 8px;">
+              <div style="display: flex; align-items: center; gap: 6px;">
                 <span class="circle-member-role-badge ${isAdmin ? 'admin' : 'member'}">
                   ${isAdmin ? 'Admin' : 'Membro'}
                 </span>
+                ${
+                  data.myRole === 'admin'
+                    ? `<button type="button" class="circle-member-reset-btn" title="Gerar código de recuperação de senha" data-reset-id="${escapeHtml(m.id)}" data-member-name="${escapeHtml(m.name)}" data-member-email="${escapeHtml(m.email || '')}">🔑</button>`
+                    : ''
+                }
                 ${
                   canRemove
                     ? `<button type="button" class="circle-member-remove-btn" title="Remover membro do círculo" data-remove-id="${escapeHtml(m.id)}" data-member-name="${escapeHtml(m.name)}">🗑️</button>`
@@ -694,6 +775,43 @@ document.addEventListener('DOMContentLoaded', () => {
             </div>
           `;
         }).join('');
+
+        // Listeners para botões de geração de código de recuperação de senha (Etapa 9.7)
+        listEl.querySelectorAll('.circle-member-reset-btn').forEach((btn) => {
+          btn.addEventListener('click', async () => {
+            const memberId = btn.getAttribute('data-reset-id');
+            const memberName = btn.getAttribute('data-member-name');
+
+            if (!confirm(`Gerar código temporário de recuperação de senha para ${memberName}?`)) {
+              return;
+            }
+
+            try {
+              const res = await apiFetch('/api/auth/generate-reset-code', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ targetUserId: memberId }),
+              });
+              const resData = await res.json();
+              if (!res.ok) {
+                showToast(resData.error || 'Erro ao gerar código de recuperação.');
+                return;
+              }
+
+              const modal = document.getElementById('resetCodeModal');
+              const targetNameEl = document.getElementById('resetTargetName');
+              const displayCodeEl = document.getElementById('resetDisplayCode');
+
+              if (targetNameEl) targetNameEl.textContent = memberName;
+              if (displayCodeEl) displayCodeEl.textContent = resData.code;
+              if (modal) modal.style.display = 'flex';
+              showToast(`Código de recuperação gerado para ${memberName}!`);
+            } catch (err) {
+              console.error(err);
+              showToast('Falha de conexão ao gerar código de recuperação.');
+            }
+          });
+        });
 
         // Listeners para botões de remoção
         listEl.querySelectorAll('.circle-member-remove-btn').forEach((btn) => {
@@ -4282,6 +4400,52 @@ document.addEventListener('DOMContentLoaded', () => {
         loadAuditSummary();
         loadAuditLogs(chkOnlyErrors?.checked || false);
         showToast('Logs atualizados.');
+      });
+    }
+  }
+
+  // Modal de Código de Recuperação de Senha (Etapa 9.7)
+  function setupResetCodeModal() {
+    const modal = document.getElementById('resetCodeModal');
+    const btnClose = document.getElementById('btnCloseResetCodeModal');
+    const btnCopy = document.getElementById('btnCopyResetCode');
+    const btnCopyWhatsapp = document.getElementById('btnCopyResetWhatsapp');
+
+    if (btnClose && modal) {
+      btnClose.addEventListener('click', () => {
+        modal.style.display = 'none';
+      });
+      modal.addEventListener('click', (e) => {
+        if (e.target === modal) modal.style.display = 'none';
+      });
+    }
+
+    if (btnCopy) {
+      btnCopy.addEventListener('click', async () => {
+        const code = document.getElementById('resetDisplayCode')?.textContent?.trim() || '';
+        if (!code) return;
+        try {
+          await navigator.clipboard.writeText(code);
+          showToast('Código copiado para a área de transferência! 📋');
+        } catch {
+          showToast(`Código: ${code}`);
+        }
+      });
+    }
+
+    if (btnCopyWhatsapp) {
+      btnCopyWhatsapp.addEventListener('click', async () => {
+        const targetName = document.getElementById('resetTargetName')?.textContent?.trim() || 'Membro';
+        const code = document.getElementById('resetDisplayCode')?.textContent?.trim() || '';
+        const appUrl = window.location.origin;
+        const msg = `Oi ${targetName}! Seu código de recuperação de senha no My Life360 é: *${code}*.\n\nEle é válido por 30 minutos.\nAcesse ${appUrl} e clique em "Esqueci minha senha" para cadastrar sua nova senha.`;
+
+        try {
+          await navigator.clipboard.writeText(msg);
+          showToast('Mensagem pronta copiada para o WhatsApp! 💬');
+        } catch {
+          showToast('Não foi possível copiar automaticamente.');
+        }
       });
     }
   }

@@ -10,6 +10,11 @@ import {
   verifyPassword,
 } from '../services/auth.js';
 import { ensureDefaultCircle, normalizeInviteCode } from '../services/circle.js';
+import {
+  canUserManageReset,
+  generatePasswordResetCode,
+  resetPasswordWithCode,
+} from '../services/passwordReset.js';
 
 const MIN_PASSWORD_LENGTH = 8;
 
@@ -213,5 +218,89 @@ export async function authRoutes(fastify: FastifyInstance) {
     if (!user) return reply.status(401).send({ error: 'Não autenticado' });
 
     return reply.send({ user: publicUser(user) });
+  });
+
+  // Gera código de recuperação de uso único (apenas Administrador do círculo ou do sistema)
+  fastify.post('/api/auth/generate-reset-code', async (request, reply) => {
+    const token = extractBearerToken(request.headers.authorization);
+    const authUser = await getUserFromToken(token);
+
+    if (!authUser) {
+      return reply.status(401).send({ error: 'Não autenticado' });
+    }
+
+    const body = request.body as any;
+    const targetUserId = (body?.targetUserId || authUser.id).toString();
+
+    const allowed = await canUserManageReset(authUser.id, targetUserId);
+    if (!allowed) {
+      return reply.status(403).send({
+        error: 'Você não tem permissão de administrador para gerar código de recuperação para este membro.',
+      });
+    }
+
+    try {
+      const result = await generatePasswordResetCode(targetUserId, authUser.id);
+      return reply.send({
+        success: true,
+        code: result.code,
+        expiresAt: result.expiresAt,
+        validMinutes: result.validMinutes,
+        targetUser: result.targetUser,
+        message: 'Código de recuperação gerado com sucesso.',
+      });
+    } catch (err: any) {
+      return reply.status(err.status || 500).send({
+        error: err.message || 'Erro ao gerar código de recuperação.',
+      });
+    }
+  });
+
+  // Redefine a senha utilizando o código de recuperação
+  fastify.post('/api/auth/reset-password', async (request, reply) => {
+    const body = request.body as any;
+    const email = (body?.email || '').toString().trim().toLowerCase();
+    const code = (body?.code || '').toString().trim();
+    const newPassword = (body?.newPassword || '').toString();
+
+    try {
+      const result = await resetPasswordWithCode(email, code, newPassword);
+      return reply.send(result);
+    } catch (err: any) {
+      return reply.status(err.status || 400).send({
+        error: err.message || 'Erro ao redefinir a senha.',
+      });
+    }
+  });
+
+  // Solicitação pública de esquecimento de senha (gera código e avisa no log/console)
+  fastify.post('/api/auth/forgot-password-request', async (request, reply) => {
+    const body = request.body as any;
+    const email = (body?.email || '').toString().trim().toLowerCase();
+
+    if (!email || !email.includes('@')) {
+      return reply.status(400).send({ error: 'Informe um e-mail válido.' });
+    }
+
+    const user = await prisma.user.findUnique({ where: { email } });
+
+    if (user && user.passwordHash) {
+      try {
+        const generated = await generatePasswordResetCode(user.id, 'system');
+        // Log seguro no servidor para o administrador visualizar via `atualizar logs` / terminal da VPS
+        console.log(
+          `🔑 [RECUPERAÇÃO DE SENHA] Código gerado para "${user.name}" (${user.email}): ${generated.code} (Válido por ${generated.validMinutes} min)`
+        );
+      } catch (err) {
+        console.error('Erro ao gerar código de recuperação em forgot-password-request:', err);
+      }
+    }
+
+    // Resposta deliberadamente neutra por segurança
+    return reply.send({
+      success: true,
+      message:
+        'Se o e-mail estiver cadastrado, a solicitação foi registrada. Peça ao administrador do círculo o código de recuperação ou consulte os logs do servidor.',
+    });
   });
 }
