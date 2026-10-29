@@ -357,7 +357,7 @@
 
   - Candidatos restantes do Bloco 10:
     - **Etapa 10.4: Inicialização automática no Boot do Android** (`RECEIVE_BOOT_COMPLETED`) — *postergado a pedido do usuário*.
-    - **Etapa 10.5: Seletor de múltiplos círculos no topo** (Família / Amigos).
+    - **Etapa 10.5: Seletor de múltiplos círculos no topo** — *descartado pelo usuário (o app é de uso estritamente pessoal/familiar em círculo único, mantendo a interface leve e direta)*.
     - **Envio automático de e-mail opcional** (recuperação de senha e resumo semanal).
 
 ---
