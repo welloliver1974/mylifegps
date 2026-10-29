@@ -6,7 +6,7 @@
 
 **Legenda:** ✅ implementado e funcionando · ⚠️ parcial / simplificado · ❌ ausente · 🚫 depende de terceiro (impossível auto-hospedar)
 
-*Última auditoria: 2026-10-29 — Etapa 10.1 concluída: alerta automático de bateria fraca (< 15%) com histerese, anel de bateria limpo sem sobreposição no avatar e notificações push nativas no APK Android via Expo Notifications. Bloco 10 iniciado.*
+*Última auditoria: 2026-10-29 — Etapa 10.2 concluída: detecção de frenagem brusca e arrancada rápida no trajeto, com eventos geolocalizados no mapa do replay, contadores no relatório de direção e nota reponderada. (Etapa 10.1: alerta de bateria fraca, anel limpo e push nativo no APK.) Bloco 10 em andamento.*
 
 ---
 
@@ -70,7 +70,7 @@
 | Rota imediata para o membro em SOS | ✅ | Google Maps |
 | **Histórico de alertas SOS** | ✅ | Tabela `SosEvent`, status ACTIVE/RESOLVED/CANCELED, resolução com timestamp e nome do membro, filtros de status, botão 'Ver no Mapa' e 'Marcar como Seguro' (Etapa 8.6) |
 | **Detecção de acidente real** | ✅ | `expo-sensors` no app mobile com magnitude vetorial em Gs, 3 níveis de sensibilidade (2.5G / 3.0G / 3.8G), filtro de velocidade mínima (>20 km/h) contra falso positivo, cooldown de 45 s, contagem de segurança de 30 s com "Estou Bem" ou envio imediato, rota pública `POST /api/emergency/crash` autenticada pela chave do aparelho (o sensor dispara sem sessão carregada), alerta distinguido por `type: 'CRASH'` no WebSocket e no push, histórico com badge próprio e botão de simulação para teste (Etapa 9.3) |
-| **Frenagem/aceleração brusca** | ❌ | Requer processamento contínuo de giroscópio; o acelerômetro hoje é usado exclusivamente para detecção de colisão |
+| **Frenagem/aceleração brusca** | ✅ | Derivada de velocidade entre pontos GPS consecutivos: frenagem $\le -11$ km/h/s com queda $\ge 12$ km/h e arrancada $\ge +10$ km/h/s com ganho $\ge 12$ km/h (ambas acima de 20 km/h), debounce de 8 s por manobra e filtro anti-pedestre. Eventos geolocalizados plotados no mapa do replay, chips no cartão da viagem e nota de direção reponderada (Etapa 10.2) |
 | **Despacho para polícia/SAMU** | 🚫 | Serviço de monitoramento pago |
 | **Proteção contra roubo de identidade** | 🚫 | Serviço de parceiro comercial |
 
@@ -82,8 +82,10 @@
 | Velocidade máxima | ✅ | |
 | Distância percorrida | ✅ | Haversine |
 | Tempo em movimento | ✅ | Calculado com precisão pela soma da duração das viagens individuais |
-| Eventos de excesso de velocidade | ✅ | Acima de 90 km/h |
-| Nota de direção (Excelente/Bom/Atenção) | ✅ | Baseada em excessos e picos de velocidade |
+| Eventos de excesso de velocidade | ✅ | Acima de 90 km/h, com debounce de 25 s para contar episódios e não pontos (Etapa 10.2) |
+| **Frenagem brusca no trajeto** | ✅ | Detectada por desaceleração (≤ -11 km/h/s), com marcador vermelho no mapa do replay, contador no KPI e chip no cartão da viagem (Etapa 10.2) |
+| **Aceleração brusca no trajeto** | ✅ | Detectada por aceleração (≥ +10 km/h/s), com marcador âmbar no mapa, contador no KPI e chip no cartão (Etapa 10.2) |
+| Nota de direção (Excelente/Bom/Atenção) | ✅ | Ponderada por excesso de velocidade, frenagens e arrancadas bruscas, além do pico de velocidade (Etapa 10.2) |
 | **Detalhamento por viagem individual** | ✅ | Segmentação por tempo de parada (>5 min) e deslocamento; cards individuais com horário, duração, trajeto (lugares/endereços), distância, velocidade e replay de trecho (Etapa 8.4) |
 | **Score semanal/mensal histórico** | ✅ | Agregação semanal (7 dias) e mensal (30 dias) via `GET /api/members/:id/driving-history`, gráfico SVG responsivo com alternador pontuação/km, colunas interativas de toque e tooltip, indicador de tendência (Melhorando/Estável/Em queda), tabela acessível e isolamento por círculo (Etapa 9.6) |
 
@@ -108,9 +110,9 @@
 
 ## Resumo executivo
 
-- **Pronto (pode usar hoje):** mapa ao vivo, cercas, alertas, histórico ilimitado, replay, relatório de direção com viagens e nota histórica semanal/mensal com gráfico de evolução, push notifications em segundo plano, SOS com histórico persistido e resolução, **detecção de acidente veicular por acelerômetro com contagem de segurança de 30 s e disparo automático do SOS**, perfil de membro com upload de foto real, chat coletivo do círculo com reações/menções e mensagens diretas 1:1 privadas com notificações, check-in, lugares ilimitados, estilos de mapa, modo escuro, entrada e gestão de membros por código de convite, recuperação de senha por código único gerado por admin ou CLI, VPS Oracle em produção via Cloudflare Tunnel e app nativo Android (.APK) compilado.
+- **Pronto (pode usar hoje):** mapa ao vivo, cercas, alertas, histórico ilimitado, replay, relatório de direção com viagens, frenagem brusca e arrancada rápida geolocalizadas e nota histórica semanal/mensal com gráfico de evolução, push notifications em segundo plano, SOS com histórico persistido e resolução, **detecção de acidente veicular por acelerômetro com contagem de segurança de 30 s e disparo automático do SOS**, perfil de membro com upload de foto real, chat coletivo do círculo com reações/menções e mensagens diretas 1:1 privadas com notificações, check-in, lugares ilimitados, estilos de mapa, modo escuro, entrada e gestão de membros por código de convite, recuperação de senha por código único gerado por admin ou CLI, VPS Oracle em produção via Cloudflare Tunnel e app nativo Android (.APK) compilado.
 - **Lacunas visíveis ao usuário:** nenhuma bloqueante para o uso diário da família (redefinição de senha plenamente suportada via admin/WhatsApp ou CLI; detecção de acidente ativa com o app em execução).
-- **Resolvido nas últimas etapas:** Bloco 9 avançado com convite real por código e isolamento por círculo (9.1), deploy na VPS Oracle com Cloudflare Tunnel e app mobile Expo (.APK) com foreground service (9.2), recurso "Atualizar agora" com bridge WebView nativa e tolerância a falhas na sessão (9.4), reações emoji e menções `@nome` com push dedicado (9.5), nota de direção histórica semanal e mensal com gráfico SVG de evolução diária (9.6), recuperação de senha sem SMTP com código temporário e CLI de emergência (9.7) e detecção de acidente real por acelerômetro com rota pública autenticada por chave de aparelho (9.3) — **Bloco 9 concluído**.
+- **Resolvido nas últimas etapas:** Etapa 10.1 (alerta de bateria fraca com histerese, anel de bateria limpo e push nativo no APK) e Etapa 10.2 (frenagem brusca e arrancada rápida com eventos geolocalizados no mapa do replay e nota de direção reponderada); Bloco 9 avançado com convite real por código e isolamento por círculo (9.1), deploy na VPS Oracle com Cloudflare Tunnel e app mobile Expo (.APK) com foreground service (9.2), recurso "Atualizar agora" com bridge WebView nativa e tolerância a falhas na sessão (9.4), reações emoji e menções `@nome` com push dedicado (9.5), nota de direção histórica semanal e mensal com gráfico SVG de evolução diária (9.6), recuperação de senha sem SMTP com código temporário e CLI de emergência (9.7) e detecção de acidente real por acelerômetro com rota pública autenticada por chave de aparelho (9.3) — **Bloco 9 concluído**.
 - **Lacunas de plataforma restantes:** envio automático de e-mail opcional (hoje suprido com total independência por código único e WhatsApp); sensor de colisão com o app totalmente encerrado pelo usuário exigiria um serviço nativo dedicado (hoje a escuta vale com o app vivo ou em segundo plano).
 - **Impossível sem parceiro comercial:** despacho de emergência, monitoramento 24h, proteção de identidade.
-- **Depende de hardware (app mobile):** frenagem brusca detalhada e classificação de manobras por giroscópio (a detecção de colisão por acelerômetro já está implementada — Etapa 9.3).
+- **Depende de hardware (app mobile):** classificação fina de manobras por giroscópio (curvas acentuadas, derrapagem) — a frenagem/arrancada brusca por GPS e a detecção de colisão por acelerômetro já estão implementadas (Etapas 10.2 e 9.3).

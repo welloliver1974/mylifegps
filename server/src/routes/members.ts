@@ -233,7 +233,11 @@ export async function membersRoutes(fastify: FastifyInstance) {
           totalDistanceKm: 0,
           totalDurationMinutes: 0,
           maxSpeedKmH: 0,
+          totalSpeedEvents: 0,
+          totalHardBrakingEvents: 0,
+          totalRapidAccelEvents: 0,
           score: 'Excelente',
+          scoreValue: 100,
         },
       });
     }

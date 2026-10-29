@@ -17,7 +17,7 @@
   <!-- Leaflet CSS -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
 
-  <link rel="stylesheet" href="/style.css?v=29">
+  <link rel="stylesheet" href="/style.css?v=30">
 </head>
 <body>
   <!-- Tela de Autenticação (Login / Configuração Inicial / Convite / Recuperação) -->
@@ -367,8 +367,16 @@
                 <span class="d-val" id="dTime">-- min</span>
               </div>
               <div class="driver-stat">
-                <span class="d-label">Eventos Rápidos</span>
+                <span class="d-label">Excesso de Velocidade</span>
                 <span class="d-val" id="dEvents">0</span>
+              </div>
+              <div class="driver-stat">
+                <span class="d-label">Frenagens Bruscas</span>
+                <span class="d-val" id="dHardBrakes">0</span>
+              </div>
+              <div class="driver-stat">
+                <span class="d-label">Arrancadas Bruscas</span>
+                <span class="d-val" id="dRapidAccels">0</span>
               </div>
             </div>
 
@@ -884,7 +892,7 @@
 
   <!-- Leaflet JS -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
-  <script src="/app.js?v=29"></script>
+  <script src="/app.js?v=30"></script>
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {

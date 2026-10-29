@@ -15,12 +15,22 @@ document.addEventListener('DOMContentLoaded', () => {
   let historyPolyline = null;
   let tripStartMarker = null;
   let tripEndMarker = null;
+  let tripEventMarkers = [];
   let replayMarker = null;
   let replayTimer = null;
   let replayIndex = 0;
   let replayPoints = [];
   let replayPlaying = false;
   let replaySpeedMultiplier = 1;
+
+  function clearTripEventMarkers() {
+    if (tripEventMarkers && tripEventMarkers.length > 0) {
+      tripEventMarkers.forEach((m) => {
+        try { map.removeLayer(m); } catch {}
+      });
+      tripEventMarkers = [];
+    }
+  }
 
   let membersData = [];
   let placesData = [];
@@ -2200,6 +2210,7 @@ document.addEventListener('DOMContentLoaded', () => {
       try { map.removeLayer(tripEndMarker); } catch {}
       tripEndMarker = null;
     }
+    clearTripEventMarkers();
 
     const replayPlayerBar = document.getElementById('replayPlayerBar');
     if (replayPlayerBar) replayPlayerBar.style.display = 'none';
@@ -2675,6 +2686,24 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
+  function setDrivingStatValue(elId, val) {
+    const el = document.getElementById(elId);
+    if (!el) return;
+    const num = Number(val) || 0;
+    el.textContent = num;
+    if (num > 0) {
+      if (elId === 'dHardBrakes') {
+        el.style.color = '#DC2626';
+      } else if (elId === 'dRapidAccels') {
+        el.style.color = '#D97706';
+      } else if (elId === 'dEvents') {
+        el.style.color = '#B91C1C';
+      }
+    } else {
+      el.style.color = '';
+    }
+  }
+
   async function loadDriverReportForMember(userId, dateStr = null) {
     if (!userId) return;
 
@@ -2720,10 +2749,22 @@ document.addEventListener('DOMContentLoaded', () => {
         const trips = data?.trips || [];
         memberTrips = trips;
 
+        const totalHardBrakes = typeof summary.totalHardBrakingEvents === 'number'
+          ? summary.totalHardBrakingEvents
+          : trips.reduce((acc, t) => acc + (t.hardBrakingEvents || 0), 0);
+        const totalRapidAccels = typeof summary.totalRapidAccelEvents === 'number'
+          ? summary.totalRapidAccelEvents
+          : trips.reduce((acc, t) => acc + (t.rapidAccelEvents || 0), 0);
+        const totalSpeedEvents = typeof summary.totalSpeedEvents === 'number'
+          ? summary.totalSpeedEvents
+          : trips.reduce((acc, t) => acc + (t.speedEvents || 0), 0);
+
         document.getElementById('dMaxSpeed').textContent = `${summary.maxSpeedKmH || 0} km/h`;
         document.getElementById('dDistance').textContent = `${(summary.totalDistanceKm || 0).toFixed(1)} km`;
         document.getElementById('dTime').textContent = `${summary.totalDurationMinutes || 0} min`;
-        document.getElementById('dEvents').textContent = trips.reduce((acc, t) => acc + (t.speedEvents || 0), 0);
+        setDrivingStatValue('dEvents', totalSpeedEvents);
+        setDrivingStatValue('dHardBrakes', totalHardBrakes);
+        setDrivingStatValue('dRapidAccels', totalRapidAccels);
 
         const score = summary.score || 'Excelente';
         const numScore = typeof summary.scoreValue === 'number'
@@ -2767,7 +2808,9 @@ document.addEventListener('DOMContentLoaded', () => {
       document.getElementById('dMaxSpeed').textContent = `${summary.overallMaxSpeedKmH || 0} km/h`;
       document.getElementById('dDistance').textContent = `${(summary.totalDistanceKm || 0).toFixed(1)} km`;
       document.getElementById('dTime').textContent = `${summary.totalDurationMinutes || 0} min`;
-      document.getElementById('dEvents').textContent = summary.totalSpeedEvents || 0;
+      setDrivingStatValue('dEvents', summary.totalSpeedEvents || 0);
+      setDrivingStatValue('dHardBrakes', summary.totalHardBrakingEvents || 0);
+      setDrivingStatValue('dRapidAccels', summary.totalRapidAccelEvents || 0);
 
       if (scoreNumEl) scoreNumEl.textContent = summary.averageScore || 100;
       applyGradeElement(gradeEl, summary.overallGrade || 'Excelente');
@@ -2933,7 +2976,13 @@ document.addEventListener('DOMContentLoaded', () => {
           content += `Distância: <b>${day.totalDistanceKm.toFixed(1)} km</b> em ${day.tripsCount} viagem(ns)<br/>`;
           content += `Tempo: <b>${formatTripDuration(day.totalDurationMinutes)}</b> • Máx: <b>${day.maxSpeedKmH} km/h</b>`;
           if (day.speedEvents > 0) {
-            content += `<br/><span style="color: #F87171;">⚠️ ${day.speedEvents} evento(s) acima de 90 km/h</span>`;
+            content += `<br/><span style="color: #F87171;">⚠️ ${day.speedEvents} excesso(s) > 90 km/h</span>`;
+          }
+          if (day.hardBrakingEvents > 0) {
+            content += `<br/><span style="color: #EF4444;">🛑 ${day.hardBrakingEvents} frenagem(ns) brusca(s)</span>`;
+          }
+          if (day.rapidAccelEvents > 0) {
+            content += `<br/><span style="color: #F59E0B;">🚀 ${day.rapidAccelEvents} arrancada(s) brusca(s)</span>`;
           }
         } else {
           content += `Sem viagens registradas neste dia.`;
@@ -3008,9 +3057,20 @@ document.addEventListener('DOMContentLoaded', () => {
 
     listEl.innerHTML = ordered
       .map((t) => {
-        const alertChip = t.speedEvents > 0
-          ? `<span class="trip-stat-chip alert">⚠️ ${t.speedEvents} excesso${t.speedEvents === 1 ? '' : 's'}</span>`
+        const brakeChip = (t.hardBrakingEvents || 0) > 0
+          ? `<span class="trip-stat-chip brake" title="${t.hardBrakingEvents} frenagem(ns) brusca(s)">🛑 ${t.hardBrakingEvents} frenage${t.hardBrakingEvents === 1 ? 'm' : 'ns'}</span>`
           : '';
+        const accelChip = (t.rapidAccelEvents || 0) > 0
+          ? `<span class="trip-stat-chip accel" title="${t.rapidAccelEvents} arrancada(s) brusca(s)">🚀 ${t.rapidAccelEvents} arrancada${t.rapidAccelEvents === 1 ? '' : 's'}</span>`
+          : '';
+        const speedChip = (t.speedEvents || 0) > 0
+          ? `<span class="trip-stat-chip alert" title="${t.speedEvents} excesso(s) > 90 km/h">⚠️ ${t.speedEvents} excesso${t.speedEvents === 1 ? '' : 's'}</span>`
+          : '';
+        const hasAnyEvent = (t.hardBrakingEvents || 0) > 0 || (t.rapidAccelEvents || 0) > 0 || (t.speedEvents || 0) > 0;
+        const smoothChip = !hasAnyEvent
+          ? `<span class="trip-stat-chip smooth" title="Condução suave sem manobras bruscas">🛡️ Suave</span>`
+          : '';
+
         return `
           <div class="trip-card" onclick="window.replayTrip('${t.id}')">
             <div class="trip-card-header">
@@ -3029,9 +3089,12 @@ document.addEventListener('DOMContentLoaded', () => {
             </div>
             <div class="trip-stats-row">
               <span class="trip-stat-chip">📏 ${t.distanceKm} km</span>
-              <span class="trip-stat-chip">🚀 máx ${t.maxSpeedKmH} km/h</span>
+              <span class="trip-stat-chip">⚡ máx ${t.maxSpeedKmH} km/h</span>
               <span class="trip-stat-chip">📊 méd ${t.avgSpeedKmH} km/h</span>
-              ${alertChip}
+              ${brakeChip}
+              ${accelChip}
+              ${speedChip}
+              ${smoothChip}
             </div>
           </div>
         `;
@@ -3076,6 +3139,43 @@ document.addEventListener('DOMContentLoaded', () => {
       fillOpacity: 1,
     }).addTo(map).bindTooltip(`Fim ${formatTripTime(trip.endTime)}`);
 
+    // Limpa marcadores de eventos de condução anteriores (Etapa 10.2)
+    clearTripEventMarkers();
+
+    // Plota no mapa os marcadores de frenagens bruscas, arrancadas e excessos
+    if (trip.events && trip.events.length > 0) {
+      trip.events.forEach((evt) => {
+        let emoji = '⚠️';
+        let cssClass = 'speed';
+        let title = 'Excesso de Velocidade';
+        if (evt.type === 'hard_brake') {
+          emoji = '🛑';
+          cssClass = 'brake';
+          title = 'Frenagem Brusca';
+        } else if (evt.type === 'rapid_accel') {
+          emoji = '🚀';
+          cssClass = 'accel';
+          title = 'Arrancada Brusca';
+        }
+
+        const icon = L.divIcon({
+          className: `trip-event-div-icon ${cssClass}`,
+          html: `<span class="event-emoji">${emoji}</span>`,
+          iconSize: [26, 26],
+          iconAnchor: [13, 13],
+        });
+
+        const marker = L.marker([evt.latitude, evt.longitude], { icon })
+          .addTo(map)
+          .bindTooltip(
+            `<b>${emoji} ${title}</b><br/>${evt.description}<br/><small style="opacity: 0.75;">⏰ ${formatTripTime(evt.timestamp)}</small>`,
+            { direction: 'top', offset: [0, -10] }
+          );
+
+        tripEventMarkers.push(marker);
+      });
+    }
+
     map.fitBounds(historyPolyline.getBounds(), { padding: [50, 50] });
     document.getElementById('btnClearHistory').style.display = 'block';
 
@@ -3087,7 +3187,9 @@ document.addEventListener('DOMContentLoaded', () => {
     replayIndex = 0;
     updateReplayUI();
 
-    showToast(`Viagem de ${formatTripTime(trip.startTime)} • ${trip.distanceKm} km`);
+    const eventCount = trip.events ? trip.events.length : 0;
+    const eventSuffix = eventCount > 0 ? ` • ⚠️ ${eventCount} evento(s) no trajeto` : ' • 🛡️ Condução suave';
+    showToast(`Viagem de ${formatTripTime(trip.startTime)} (${trip.distanceKm} km)${eventSuffix}`);
   };
 
   function calcHaversineDist(lat1, lon1, lat2, lon2) {
@@ -3119,6 +3221,7 @@ document.addEventListener('DOMContentLoaded', () => {
       map.removeLayer(replayMarker);
       replayMarker = null;
     }
+    clearTripEventMarkers();
     stopReplay();
     document.getElementById('replayPlayerBar').style.display = 'none';
     document.getElementById('btnClearHistory').style.display = 'none';

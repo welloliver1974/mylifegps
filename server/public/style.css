@@ -1793,6 +1793,88 @@ body, html {
   background: #FEF2F2;
 }
 
+.trip-stat-chip.brake {
+  color: #DC2626;
+  border-color: #FCA5A5;
+  background: #FEF2F2;
+}
+
+.trip-stat-chip.accel {
+  color: #D97706;
+  border-color: #FDE68A;
+  background: #FFFBEB;
+}
+
+.trip-stat-chip.smooth {
+  color: #059669;
+  border-color: #A7F3D0;
+  background: #ECFDF5;
+}
+
+[data-theme="dark"] .trip-stat-chip {
+  background: rgba(30, 41, 59, 0.7);
+  border-color: rgba(255, 255, 255, 0.12);
+  color: #E2E8F0;
+}
+
+[data-theme="dark"] .trip-stat-chip.alert {
+  color: #F87171;
+  background: rgba(239, 68, 68, 0.18);
+  border-color: rgba(239, 68, 68, 0.35);
+}
+
+[data-theme="dark"] .trip-stat-chip.brake {
+  color: #F87171;
+  background: rgba(239, 68, 68, 0.22);
+  border-color: rgba(239, 68, 68, 0.45);
+}
+
+[data-theme="dark"] .trip-stat-chip.accel {
+  color: #FBBF24;
+  background: rgba(245, 158, 11, 0.22);
+  border-color: rgba(245, 158, 11, 0.45);
+}
+
+[data-theme="dark"] .trip-stat-chip.smooth {
+  color: #34D399;
+  background: rgba(16, 185, 129, 0.22);
+  border-color: rgba(16, 185, 129, 0.45);
+}
+
+/* Marcadores de eventos de condução no mapa (Etapa 10.2) */
+.trip-event-div-icon {
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.35);
+  border: 2px solid #FFFFFF;
+  cursor: pointer;
+  transition: transform 0.18s ease;
+}
+
+.trip-event-div-icon:hover {
+  transform: scale(1.25);
+  z-index: 10000 !important;
+}
+
+.trip-event-div-icon.brake {
+  background: #EF4444;
+}
+
+.trip-event-div-icon.accel {
+  background: #F59E0B;
+}
+
+.trip-event-div-icon.speed {
+  background: #6366F1;
+}
+
+.trip-event-div-icon .event-emoji {
+  font-size: 13px;
+  line-height: 1;
+}
+
 /* ==========================================================
    Seção de Lugares no Sheet
    ========================================================== */

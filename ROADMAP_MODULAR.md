@@ -277,7 +277,7 @@
   - **Ferramenta de emergência (CLI):** `npm run reset-password` (`server/scripts/reset-admin-password.ts`) lista as contas com acesso, permite redefinir direto (`npm run reset-password email NovaSenha123`) ou gerar código de uso único (`npm run reset-password email --code`) para quando o próprio admin estiver deslogado — sem SQL manual e sem SMTP.
   - **Testes automatizados:** 26/26 asserções de serviço aprovadas (formato e normalização do código, matriz de permissões admin/membro/terceiro, senha curta, código inválido, expirado e já consumido, invalidação do código anterior, revogação de sessão antiga e hash bcrypt) + 13/13 testes E2E HTTP contra servidor real na porta 3099 (login admin/membro, 403 para membro comum, 401 sem token, geração de código, rejeições 400, reset 200, login com senha antiga 401, login com senha nova 200, sessão antiga revogada e rota pública de esqueci a senha).
 
-- [/] **BLOCO 10: O Toque Final de Paridade (Experiência 1:1 Life360)**
+- [/] **BLOCO 10: O Toque Final de Paridade (Experiência 1:1 Life360)** — 10.1 e 10.2 concluídas
   - [x] **Etapa 10.1: Alerta Automático de Bateria Fraca (< 15%) e Correção Visual do Marcador (CONCLUÍDO)**
     - **Correção da sobreposição do anel de bateria no mapa:** remoção da antiga pílula colada no canto inferior do avatar (`.avatar-battery-pill`) que cortava o traço circular do SVG e cobria o nome do membro. A porcentagem agora é exibida de forma limpa e integrada dentro da etiqueta de status inferior (`[ Wellington • 94% ]` ou `[ 🚗 45 km/h • 94% ]`), com cores adaptativas por faixa (verde $\ge 50\%$, amarelo $20\text{--}49\%$, vermelho $<20\%$) e suporte a modo escuro. O anel contorna o avatar com visibilidade 100% contínua e sem colisões. Cache PWA atualizado para `life360-v29`.
     - **Serviço de Alerta de Bateria (`server/src/services/batteryAlert.ts`):** monitoramento automático da telemetria recebida em `telemetry.ts`. Quando qualquer aparelho cai para $\le 15\%$ sem estar no carregador, o servidor dispara:
@@ -290,8 +290,25 @@
       - Suporte híbrido no servidor (`services/push.ts`): entrega automática tanto para Web Push VAPID (Chrome/PWA) quanto para Expo Push Service (`https://exp.host/--/api/v2/push/send`) para o APK nativo.
     - **Testes automatizados:** 7/7 asserções unitárias do motor de histerese de bateria aprovadas + 6/6 testes E2E aprovados contra servidor real na porta 3099 validando registro de push por chave de aparelho, 400/401 de segurança, persistência e upsert no SQLite.
 
+  - [x] **Etapa 10.2: Frenagem e Aceleração Brusca no Cartão da Viagem (CONCLUÍDO)**
+    - **Motor de detecção (`detectDrivingEvents` em `server/src/services/tripDetection.ts`):** analisa a derivada da velocidade entre pontos GPS consecutivos (janela válida de 0,8 s a 12 s).
+      - **Frenagem brusca:** desaceleração $\le -11$ km/h/s, queda total $\ge 12$ km/h e velocidade anterior $\ge 20$ km/h.
+      - **Arrancada rápida:** aceleração $\ge +10$ km/h/s, ganho total $\ge 12$ km/h e velocidade atingida $\ge 20$ km/h.
+      - **Excesso de velocidade:** leitura $> 90$ km/h, agora com debounce de 25 s (antes contava cada ponto e inflava o total).
+      - **Anti-duplicação:** debounce de 8 s por manobra, para que uma frenagem contínua de 3 s não vire 3 eventos.
+      - **Filtro de pedestre:** manobras abaixo de 20 km/h são descartadas, evitando falso positivo de caminhada/corrida.
+    - **Novo tipo `DrivingEvent`:** cada evento carrega `id`, `type` (`hard_brake` / `rapid_accel` / `speeding`), coordenadas, timestamp, velocidade, `deltaKmH`, `deltaSec`, `rateKmHPerSec` e uma descrição legível (`"Frenagem brusca: 65 → 25 km/h em 2.0s (-20.0 km/h/s)"`).
+    - **Contadores por viagem e agregados:** `Trip` ganhou `hardBrakingEvents`, `rapidAccelEvents` e `events`; `TripSummary`, `DrivingDaySummary` e `HistoricalDrivingSummary` ganharam `totalHardBrakingEvents` / `totalRapidAccelEvents` e os equivalentes diários.
+    - **Nota de direção reponderada (`calculateDrivingScore`):** $100 - \min(30, \text{excessos} \times 6) - \min(25, \text{frenagens} \times 5) - \min(15, \text{arrancadas} \times 3)$ menos a penalidade de velocidade máxima (30/20/12/5). O piso da classificação "Atenção" passou a considerar excessos + frenagens > 2.
+    - **Interface Web / PWA:** painel de KPIs do relatório agora tem 6 cartões (Velocidade Máxima, Distância, Tempo em Movimento, Excesso de Velocidade, Frenagens Bruscas e Arrancadas Bruscas), com cor de alerta quando o valor é maior que zero.
+    - **Cartão de viagem:** chips `🛑 N frenagens`, `🚀 N arrancadas`, `⚠️ N excessos` e, quando não há nenhum evento, o selo verde `🛡️ Suave`.
+    - **Mapa do replay:** ao tocar numa viagem, cada evento vira um marcador circular colorido no trajeto (vermelho = frenagem, âmbar = arrancada, roxo = excesso) com tooltip mostrando a descrição e o horário; os marcadores são limpos ao fechar o replay/histórico.
+    - **Tooltip do gráfico histórico:** passou a listar excessos, frenagens e arrancadas do dia.
+    - **Cache PWA:** `life360-v30` (`style.css?v=30` / `app.js?v=30`).
+    - **Testes automatizados:** 7/7 asserções unitárias (condução suave sem falso positivo, frenagem correta, arrancada correta, debounce, filtro de pedestre, nota ponderada e integração com a segmentação) + 16/16 asserções E2E contra servidor real na porta 3099 validando `/trips` e `/driving-history`.
+    - **Não exige novo APK:** roda 100% no servidor e no PWA.
+
   - Candidatos restantes do Bloco 10:
-    - **Etapa 10.2: Frenagem e aceleração brusca no cartão da viagem** (detecção de desacelerações no trajeto com marcadores visuais).
     - **Etapa 10.3: Uso de celular ao volante** (tempo de tela ativa com velocidade > 20 km/h).
     - **Etapa 10.4: Inicialização automática no Boot do Android** (`RECEIVE_BOOT_COMPLETED`).
     - **Etapa 10.5: Seletor de múltiplos círculos no topo** (Família / Amigos).

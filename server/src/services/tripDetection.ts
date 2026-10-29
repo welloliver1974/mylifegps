@@ -9,6 +9,19 @@ export interface TripPoint {
   recordedAt: Date | string;
 }
 
+export interface DrivingEvent {
+  id: string;
+  type: 'hard_brake' | 'rapid_accel' | 'speeding';
+  latitude: number;
+  longitude: number;
+  timestamp: string;
+  speedKmH: number;
+  deltaKmH?: number;
+  deltaSec?: number;
+  rateKmHPerSec?: number;
+  description: string;
+}
+
 export interface Trip {
   id: string;
   startTime: string;
@@ -18,6 +31,9 @@ export interface Trip {
   maxSpeedKmH: number;
   avgSpeedKmH: number;
   speedEvents: number;
+  hardBrakingEvents: number;
+  rapidAccelEvents: number;
+  events: DrivingEvent[];
   startLocation: {
     latitude: number;
     longitude: number;
@@ -39,6 +55,9 @@ export interface TripSummary {
   totalDistanceKm: number;
   totalDurationMinutes: number;
   maxSpeedKmH: number;
+  totalSpeedEvents: number;
+  totalHardBrakingEvents: number;
+  totalRapidAccelEvents: number;
   score: 'Excelente' | 'Bom' | 'Atenção';
   scoreValue?: number; // 0 a 100
 }
@@ -53,6 +72,8 @@ export interface DrivingDaySummary {
   maxSpeedKmH: number;
   avgSpeedKmH: number;
   speedEvents: number;
+  hardBrakingEvents: number;
+  rapidAccelEvents: number;
   scoreValue: number | null; // 0-100 (null se sem viagens)
   scoreGrade: 'Excelente' | 'Bom' | 'Atenção' | null;
   hasTrips: boolean;
@@ -69,6 +90,8 @@ export interface HistoricalDrivingSummary {
   totalDurationMinutes: number;
   overallMaxSpeedKmH: number;
   totalSpeedEvents: number;
+  totalHardBrakingEvents: number;
+  totalRapidAccelEvents: number;
   averageScore: number;
   overallGrade: 'Excelente' | 'Bom' | 'Atenção';
   trend: 'improving' | 'stable' | 'declining';
@@ -110,37 +133,196 @@ export function extractSpeedKmH(speed: number | null | undefined, calculatedKmH?
 
 /**
  * Calcula nota de direção numérica (0-100) e classificação de segurança (Excelente/Bom/Atenção).
+ * Pondera velocidade máxima, excessos de velocidade (>90 km/h), frenagens bruscas e arrancadas rápidas.
  */
 export function calculateDrivingScore(
   maxSpeedKmH: number,
-  speedEvents: number
+  speedEvents: number,
+  hardBrakingEvents: number = 0,
+  rapidAccelEvents: number = 0
 ): { scoreValue: number; scoreGrade: 'Excelente' | 'Bom' | 'Atenção' } {
   let val = 100;
 
   // Penalidade por eventos de excesso de velocidade (>90 km/h)
-  val -= Math.min(35, speedEvents * 7);
+  val -= Math.min(30, speedEvents * 6);
+
+  // Penalidade por frenagens bruscas (risco de colisão e direção distraída)
+  val -= Math.min(25, hardBrakingEvents * 5);
+
+  // Penalidade por arrancadas bruscas (direção agressiva e desgaste)
+  val -= Math.min(15, rapidAccelEvents * 3);
 
   // Penalidade pela velocidade máxima atingida
   if (maxSpeedKmH > 130) {
-    val -= 35;
+    val -= 30;
   } else if (maxSpeedKmH > 110) {
-    val -= 25;
+    val -= 20;
   } else if (maxSpeedKmH > 90) {
-    val -= 15;
+    val -= 12;
   } else if (maxSpeedKmH > 80) {
-    val -= 8;
+    val -= 5;
   }
 
   val = Math.max(0, Math.min(100, Math.round(val)));
 
   let scoreGrade: 'Excelente' | 'Bom' | 'Atenção' = 'Excelente';
-  if (val < 75 || maxSpeedKmH > 100 || speedEvents > 2) {
+  const totalRiskyEvents = speedEvents + hardBrakingEvents;
+  if (val < 75 || maxSpeedKmH > 105 || totalRiskyEvents > 2) {
     scoreGrade = 'Atenção';
-  } else if (val < 90 || maxSpeedKmH > 80 || speedEvents > 0) {
+  } else if (val < 90 || maxSpeedKmH > 85 || (totalRiskyEvents + rapidAccelEvents) > 0) {
     scoreGrade = 'Bom';
   }
 
   return { scoreValue: val, scoreGrade };
+}
+
+/**
+ * Detecta eventos de condução (frenagem brusca, arrancada rápida e excesso de velocidade)
+ * ao longo de uma sequência cronológica de pontos de GPS (Etapa 10.2).
+ *
+ * Critérios físicos de telemática veicular (padrão Life360 / Zendrive):
+ * - Frenagem brusca: desaceleração <= -11 km/h/s, queda total >= 12 km/h, vel. anterior >= 20 km/h.
+ * - Arrancada rápida: aceleração >= +10 km/h/s, ganho total >= 12 km/h, vel. atingida >= 20 km/h.
+ * - Excesso de velocidade: leitura > 90 km/h (com debounce para registrar episódios distintos).
+ * - Debounce anti-duplicação: 8 s para manobras contínuas, 25 s para excessos na mesma rodovia.
+ */
+export function detectDrivingEvents(points: TripPoint[]): {
+  speedEvents: number;
+  hardBrakingEvents: number;
+  rapidAccelEvents: number;
+  events: DrivingEvent[];
+  maxSpeed: number;
+} {
+  if (!points || points.length < 2) {
+    return {
+      speedEvents: 0,
+      hardBrakingEvents: 0,
+      rapidAccelEvents: 0,
+      events: [],
+      maxSpeed: 0,
+    };
+  }
+
+  const events: DrivingEvent[] = [];
+  let maxSpeed = 0;
+  let speedEvents = 0;
+  let hardBrakingEvents = 0;
+  let rapidAccelEvents = 0;
+
+  let lastBrakeTime = 0;
+  let lastAccelTime = 0;
+  let lastSpeedingTime = 0;
+
+  const speeds: number[] = [];
+  const times: number[] = [];
+
+  // Passo 1: normaliza e calcula a velocidade em cada ponto
+  for (let i = 0; i < points.length; i++) {
+    const pt = points[i];
+    const ptTime = new Date(pt.recordedAt).getTime();
+    times.push(ptTime);
+
+    let calcSpd = 0;
+    if (i > 0) {
+      const prev = points[i - 1];
+      const prevTime = times[i - 1];
+      const dSec = (ptTime - prevTime) / 1000;
+      if (dSec > 0 && dSec < 3600) {
+        calcSpd = (calculateDistanceMeters(prev.latitude, prev.longitude, pt.latitude, pt.longitude) / dSec) * 3.6;
+      }
+    }
+
+    const spd = extractSpeedKmH(pt.speed, calcSpd);
+    speeds.push(spd);
+    if (spd > maxSpeed && spd < 220) {
+      maxSpeed = spd;
+    }
+  }
+
+  // Passo 2: analisa derivadas de velocidade (aceleração/desaceleração) e velocidade absoluta
+  let eventIdx = 1;
+  for (let i = 0; i < points.length; i++) {
+    const spd = speeds[i];
+    const ptTime = times[i];
+    const pt = points[i];
+
+    // Excesso de velocidade (> 90 km/h) com debounce de 25 segundos
+    if (spd > 90) {
+      if (ptTime - lastSpeedingTime >= 25000) {
+        speedEvents++;
+        lastSpeedingTime = ptTime;
+        events.push({
+          id: `evt-spd-${eventIdx++}`,
+          type: 'speeding',
+          latitude: pt.latitude,
+          longitude: pt.longitude,
+          timestamp: new Date(pt.recordedAt).toISOString(),
+          speedKmH: spd,
+          description: `Excesso de velocidade: ${spd} km/h`,
+        });
+      }
+    }
+
+    if (i > 0) {
+      const prevSpd = speeds[i - 1];
+      const prevTime = times[i - 1];
+      const deltaSec = (ptTime - prevTime) / 1000;
+
+      // Janela temporal viável para análise de derivada por GPS (0.8s a 12s)
+      if (deltaSec >= 0.8 && deltaSec <= 12.0) {
+        const deltaV = spd - prevSpd;
+        const rate = deltaV / deltaSec;
+
+        // FRENAGEM BRUSCA
+        if (rate <= -11.0 && deltaV <= -12 && prevSpd >= 20) {
+          if (ptTime - lastBrakeTime >= 8000) {
+            hardBrakingEvents++;
+            lastBrakeTime = ptTime;
+            events.push({
+              id: `evt-brk-${eventIdx++}`,
+              type: 'hard_brake',
+              latitude: pt.latitude,
+              longitude: pt.longitude,
+              timestamp: new Date(pt.recordedAt).toISOString(),
+              speedKmH: spd,
+              deltaKmH: Math.round(deltaV),
+              deltaSec: Math.round(deltaSec * 10) / 10,
+              rateKmHPerSec: Math.round(rate * 10) / 10,
+              description: `Frenagem brusca: ${prevSpd} → ${spd} km/h em ${deltaSec.toFixed(1)}s (${rate.toFixed(1)} km/h/s)`,
+            });
+          }
+        }
+
+        // ARRANCADA RÁPIDA / ACELERAÇÃO BRUSCA
+        if (rate >= 10.0 && deltaV >= 12 && spd >= 20) {
+          if (ptTime - lastAccelTime >= 8000) {
+            rapidAccelEvents++;
+            lastAccelTime = ptTime;
+            events.push({
+              id: `evt-acc-${eventIdx++}`,
+              type: 'rapid_accel',
+              latitude: pt.latitude,
+              longitude: pt.longitude,
+              timestamp: new Date(pt.recordedAt).toISOString(),
+              speedKmH: spd,
+              deltaKmH: Math.round(deltaV),
+              deltaSec: Math.round(deltaSec * 10) / 10,
+              rateKmHPerSec: Math.round(rate * 10) / 10,
+              description: `Arrancada rápida: ${prevSpd} → ${spd} km/h em ${deltaSec.toFixed(1)}s (+${rate.toFixed(1)} km/h/s)`,
+            });
+          }
+        }
+      }
+    }
+  }
+
+  return {
+    speedEvents,
+    hardBrakingEvents,
+    rapidAccelEvents,
+    events,
+    maxSpeed: Math.round(maxSpeed),
+  };
 }
 
 export function segmentPointsIntoTrips(points: TripPoint[], places: Array<{ id: string; name: string; latitude: number; longitude: number; radiusMeters: number; icon: string }>): { trips: Trip[]; summary: TripSummary } {
@@ -152,7 +334,11 @@ export function segmentPointsIntoTrips(points: TripPoint[], places: Array<{ id: 
         totalDistanceKm: 0,
         totalDurationMinutes: 0,
         maxSpeedKmH: 0,
+        totalSpeedEvents: 0,
+        totalHardBrakingEvents: 0,
+        totalRapidAccelEvents: 0,
         score: 'Excelente',
+        scoreValue: 100,
       },
     };
   }
@@ -218,6 +404,8 @@ export function segmentPointsIntoTrips(points: TripPoint[], places: Array<{ id: 
   let totalDurationMinutes = 0;
   let overallMaxSpeed = 0;
   let totalSpeedEvents = 0;
+  let totalHardBrakingEvents = 0;
+  let totalRapidAccelEvents = 0;
 
   let tripIdx = 1;
   for (const tPoints of rawTrips) {
@@ -230,33 +418,22 @@ export function segmentPointsIntoTrips(points: TripPoint[], places: Array<{ id: 
     const durationMin = Math.max(1, Math.round((endTime.getTime() - startTime.getTime()) / 60000));
 
     let distKm = 0;
-    let maxSpeed = 0;
-    let speedSum = 0;
-    let speedEvents = 0;
-
-    for (let j = 0; j < tPoints.length; j++) {
+    for (let j = 1; j < tPoints.length; j++) {
+      const prev = tPoints[j - 1];
       const p = tPoints[j];
-      let calcSpd = 0;
-      if (j > 0) {
-        const prev = tPoints[j - 1];
-        const dSec = (new Date(p.recordedAt).getTime() - new Date(prev.recordedAt).getTime()) / 1000;
-        if (dSec > 0 && dSec < 3600) {
-          calcSpd = (calculateDistanceMeters(prev.latitude, prev.longitude, p.latitude, p.longitude) / dSec) * 3.6;
-        }
-      }
-      const spd = extractSpeedKmH(p.speed, calcSpd);
-      if (spd > maxSpeed && spd < 200) maxSpeed = spd;
-      if (spd > 90) speedEvents++;
-      speedSum += spd;
-
-      if (j > 0) {
-        const prev = tPoints[j - 1];
-        distKm += calculateDistanceMeters(prev.latitude, prev.longitude, p.latitude, p.longitude) / 1000;
-      }
+      distKm += calculateDistanceMeters(prev.latitude, prev.longitude, p.latitude, p.longitude) / 1000;
     }
 
     // Critério: pelo menos 150 metros
     if (distKm < 0.15) continue;
+
+    // Detecta velocidade máxima e eventos de condução (frenagens, acelerações e excessos)
+    const detection = detectDrivingEvents(tPoints);
+    const maxSpeed = detection.maxSpeed;
+    const speedEvents = detection.speedEvents;
+    const hardBrakingEvents = detection.hardBrakingEvents;
+    const rapidAccelEvents = detection.rapidAccelEvents;
+    const events = detection.events;
 
     const avgSpeed = distKm / (durationMin / 60);
 
@@ -273,6 +450,9 @@ export function segmentPointsIntoTrips(points: TripPoint[], places: Array<{ id: 
       maxSpeedKmH: Math.round(maxSpeed),
       avgSpeedKmH: Math.round(avgSpeed),
       speedEvents,
+      hardBrakingEvents,
+      rapidAccelEvents,
+      events,
       startLocation: {
         latitude: startPt.latitude,
         longitude: startPt.longitude,
@@ -293,19 +473,18 @@ export function segmentPointsIntoTrips(points: TripPoint[], places: Array<{ id: 
     totalDurationMinutes += durationMin;
     if (maxSpeed > overallMaxSpeed) overallMaxSpeed = maxSpeed;
     totalSpeedEvents += speedEvents;
+    totalHardBrakingEvents += hardBrakingEvents;
+    totalRapidAccelEvents += rapidAccelEvents;
   }
 
   // Se não detectou viagens separadas mas o membro percorreu distância relevante (> 300m), cria viagem única
   if (validTrips.length === 0 && sorted.length >= 2) {
     let distTotal = 0;
-    let maxSpd = 0;
     for (let k = 1; k < sorted.length; k++) {
       const prev = sorted[k - 1];
       const curr = sorted[k];
       if (!prev || !curr) continue;
       distTotal += calculateDistanceMeters(prev.latitude, prev.longitude, curr.latitude, curr.longitude) / 1000;
-      const spd = extractSpeedKmH(curr.speed);
-      if (spd > maxSpd && spd < 200) maxSpd = spd;
     }
 
     if (distTotal >= 0.3) {
@@ -316,6 +495,7 @@ export function segmentPointsIntoTrips(points: TripPoint[], places: Array<{ id: 
       const durMin = Math.max(1, Math.round((endTime.getTime() - startTime.getTime()) / 60000));
       const startPlace = findMatchingPlace(startPt.latitude, startPt.longitude, places);
       const endPlace = findMatchingPlace(endPt.latitude, endPt.longitude, places);
+      const detection = detectDrivingEvents(sorted);
 
       validTrips.push({
         id: 'trip-1',
@@ -323,9 +503,12 @@ export function segmentPointsIntoTrips(points: TripPoint[], places: Array<{ id: 
         endTime: endTime.toISOString(),
         durationMinutes: durMin,
         distanceKm: Math.round(distTotal * 10) / 10,
-        maxSpeedKmH: Math.round(maxSpd),
+        maxSpeedKmH: detection.maxSpeed,
         avgSpeedKmH: Math.round(distTotal / (durMin / 60)),
-        speedEvents: 0,
+        speedEvents: detection.speedEvents,
+        hardBrakingEvents: detection.hardBrakingEvents,
+        rapidAccelEvents: detection.rapidAccelEvents,
+        events: detection.events,
         startLocation: {
           latitude: startPt.latitude,
           longitude: startPt.longitude,
@@ -344,12 +527,20 @@ export function segmentPointsIntoTrips(points: TripPoint[], places: Array<{ id: 
 
       totalDistanceKm = distTotal;
       totalDurationMinutes = durMin;
-      overallMaxSpeed = maxSpd;
+      overallMaxSpeed = detection.maxSpeed;
+      totalSpeedEvents = detection.speedEvents;
+      totalHardBrakingEvents = detection.hardBrakingEvents;
+      totalRapidAccelEvents = detection.rapidAccelEvents;
     }
   }
 
   // Calcula nota de direção numérica e classificação
-  const scoreResult = calculateDrivingScore(overallMaxSpeed, totalSpeedEvents);
+  const scoreResult = calculateDrivingScore(
+    overallMaxSpeed,
+    totalSpeedEvents,
+    totalHardBrakingEvents,
+    totalRapidAccelEvents
+  );
 
   return {
     trips: validTrips,
@@ -358,6 +549,9 @@ export function segmentPointsIntoTrips(points: TripPoint[], places: Array<{ id: 
       totalDistanceKm: Math.round(totalDistanceKm * 10) / 10,
       totalDurationMinutes,
       maxSpeedKmH: Math.round(overallMaxSpeed),
+      totalSpeedEvents,
+      totalHardBrakingEvents,
+      totalRapidAccelEvents,
       score: scoreResult.scoreGrade,
       scoreValue: scoreResult.scoreValue,
     },
@@ -432,6 +626,8 @@ export async function getHistoricalDrivingReport(
         maxSpeedKmH: 0,
         avgSpeedKmH: 0,
         speedEvents: 0,
+        hardBrakingEvents: 0,
+        rapidAccelEvents: 0,
         scoreValue: null,
         scoreGrade: null,
         hasTrips: false,
@@ -452,6 +648,8 @@ export async function getHistoricalDrivingReport(
         totalDurationMinutes: 0,
         overallMaxSpeedKmH: 0,
         totalSpeedEvents: 0,
+        totalHardBrakingEvents: 0,
+        totalRapidAccelEvents: 0,
         averageScore: 100,
         overallGrade: 'Excelente',
         trend: 'stable',
@@ -497,6 +695,8 @@ export async function getHistoricalDrivingReport(
   let totalPeriodTrips = 0;
   let overallMaxSpeed = 0;
   let totalSpeedEvents = 0;
+  let totalHardBrakingEvents = 0;
+  let totalRapidAccelEvents = 0;
   const activeScores: number[] = [];
 
   for (const key of dayKeys) {
@@ -515,6 +715,8 @@ export async function getHistoricalDrivingReport(
         maxSpeedKmH: 0,
         avgSpeedKmH: 0,
         speedEvents: 0,
+        hardBrakingEvents: 0,
+        rapidAccelEvents: 0,
         scoreValue: null,
         scoreGrade: null,
         hasTrips: false,
@@ -532,9 +734,19 @@ export async function getHistoricalDrivingReport(
       if (summary.maxSpeedKmH > overallMaxSpeed) overallMaxSpeed = summary.maxSpeedKmH;
 
       const daySpeedEvents = trips.reduce((acc, t) => acc + (t.speedEvents || 0), 0);
-      totalSpeedEvents += daySpeedEvents;
+      const dayHardBrakingEvents = trips.reduce((acc, t) => acc + (t.hardBrakingEvents || 0), 0);
+      const dayRapidAccelEvents = trips.reduce((acc, t) => acc + (t.rapidAccelEvents || 0), 0);
 
-      const dayScore = calculateDrivingScore(summary.maxSpeedKmH, daySpeedEvents);
+      totalSpeedEvents += daySpeedEvents;
+      totalHardBrakingEvents += dayHardBrakingEvents;
+      totalRapidAccelEvents += dayRapidAccelEvents;
+
+      const dayScore = calculateDrivingScore(
+        summary.maxSpeedKmH,
+        daySpeedEvents,
+        dayHardBrakingEvents,
+        dayRapidAccelEvents
+      );
       activeScores.push(dayScore.scoreValue);
 
       daySummaries.push({
@@ -549,6 +761,8 @@ export async function getHistoricalDrivingReport(
           ? Math.round(summary.totalDistanceKm / (summary.totalDurationMinutes / 60))
           : 0,
         speedEvents: daySpeedEvents,
+        hardBrakingEvents: dayHardBrakingEvents,
+        rapidAccelEvents: dayRapidAccelEvents,
         scoreValue: dayScore.scoreValue,
         scoreGrade: dayScore.scoreGrade,
         hasTrips: true,
@@ -566,6 +780,8 @@ export async function getHistoricalDrivingReport(
         maxSpeedKmH: 0,
         avgSpeedKmH: 0,
         speedEvents: 0,
+        hardBrakingEvents: 0,
+        rapidAccelEvents: 0,
         scoreValue: null,
         scoreGrade: null,
         hasTrips: false,
@@ -613,6 +829,8 @@ export async function getHistoricalDrivingReport(
       totalDurationMinutes: totalPeriodDuration,
       overallMaxSpeedKmH: overallMaxSpeed,
       totalSpeedEvents,
+      totalHardBrakingEvents,
+      totalRapidAccelEvents,
       averageScore,
       overallGrade,
       trend,
