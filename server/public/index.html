@@ -17,7 +17,7 @@
   <!-- Leaflet CSS -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
 
-  <link rel="stylesheet" href="/style.css?v=30">
+  <link rel="stylesheet" href="/style.css?v=31">
 </head>
 <body>
   <!-- Tela de Autenticação (Login / Configuração Inicial / Convite / Recuperação) -->
@@ -352,6 +352,11 @@
               <span>🛡️ Detecção de Acidente Ativa 24/7</span>
             </div>
 
+            <!-- Interruptor do monitor de celular ao volante (Etapa 10.3) -->
+            <button type="button" class="phone-usage-toggle" id="btnTogglePhoneUsage" title="Ligar ou pausar a medição de uso do celular ao volante">
+              📱 Celular ao volante: Medindo
+            </button>
+
             <!-- Métricas KPI do Período -->
             <div class="driver-stats-grid">
               <div class="driver-stat">
@@ -377,6 +382,10 @@
               <div class="driver-stat">
                 <span class="d-label">Arrancadas Bruscas</span>
                 <span class="d-val" id="dRapidAccels">0</span>
+              </div>
+              <div class="driver-stat driver-stat-wide">
+                <span class="d-label">📱 Celular ao Volante</span>
+                <span class="d-val" id="dPhoneUsage">0 min</span>
               </div>
             </div>
 
@@ -892,7 +901,7 @@
 
   <!-- Leaflet JS -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
-  <script src="/app.js?v=30"></script>
+  <script src="/app.js?v=31"></script>
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {

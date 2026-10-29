@@ -5,6 +5,7 @@ import { fileURLToPath } from 'url';
 import { prisma } from '../db.js';
 import { calculateDistanceMeters } from '../services/geofence.js';
 import { segmentPointsIntoTrips, getHistoricalDrivingReport } from '../services/tripDetection.js';
+import { fetchPhoneUsageWindows } from '../services/phoneUsage.js';
 import { broadcastLocationUpdateRequest } from '../services/websocket.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -236,6 +237,8 @@ export async function membersRoutes(fastify: FastifyInstance) {
           totalSpeedEvents: 0,
           totalHardBrakingEvents: 0,
           totalRapidAccelEvents: 0,
+          totalPhoneUsageMinutes: 0,
+          totalPhoneUsageEpisodes: 0,
           score: 'Excelente',
           scoreValue: 100,
         },
@@ -258,7 +261,23 @@ export async function membersRoutes(fastify: FastifyInstance) {
       take: Math.min(parseInt(limit, 10), 2000),
     });
 
-    const result = segmentPointsIntoTrips(records, places);
+    // Janela de busca dos episódios de uso de celular (Etapa 10.3)
+    let usageFrom: Date;
+    let usageTo: Date;
+    if (from || to) {
+      usageFrom = from ? new Date(from) : new Date(records[0]?.recordedAt || Date.now());
+      usageTo = to ? new Date(to) : new Date(records[records.length - 1]?.recordedAt || Date.now());
+    } else if (records.length > 0) {
+      usageFrom = new Date(records[0].recordedAt);
+      usageTo = new Date(records[records.length - 1].recordedAt);
+    } else {
+      usageFrom = new Date(Date.now() - 24 * 60 * 60 * 1000);
+      usageTo = new Date();
+    }
+
+    const phoneUsageWindows = await fetchPhoneUsageWindows(deviceIds, usageFrom, usageTo);
+
+    const result = segmentPointsIntoTrips(records, places, phoneUsageWindows);
     return reply.send(result);
   });
 

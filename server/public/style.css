@@ -1480,6 +1480,54 @@ body, html {
   letter-spacing: -0.3px;
 }
 
+/* Cartão de largura total (métrica de destaque do período) */
+.driver-stat-wide {
+  grid-column: span 2;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+/* Interruptor do monitor de celular ao volante (Etapa 10.3) */
+.phone-usage-toggle {
+  width: 100%;
+  margin-top: 8px;
+  padding: 7px 10px;
+  font-family: inherit;
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 0.2px;
+  color: #1D4ED8;
+  background: rgba(219, 234, 254, 0.85);
+  border: 1px solid #BFDBFE;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: background 0.18s ease, color 0.18s ease;
+}
+
+.phone-usage-toggle:hover {
+  background: rgba(191, 219, 254, 0.95);
+}
+
+.phone-usage-toggle.paused {
+  color: #64748B;
+  background: rgba(241, 245, 249, 0.9);
+  border-color: #E2E8F0;
+}
+
+[data-theme="dark"] .phone-usage-toggle {
+  color: #93C5FD;
+  background: rgba(30, 58, 138, 0.35);
+  border-color: rgba(59, 130, 246, 0.45);
+}
+
+[data-theme="dark"] .phone-usage-toggle.paused {
+  color: #94A3B8;
+  background: rgba(30, 41, 59, 0.7);
+  border-color: rgba(148, 163, 184, 0.35);
+}
+
 /* ==========================================================
    Gráfico de Evolução de Direção (Life360 Platinum - Etapa 9.6)
    ========================================================== */
@@ -1811,6 +1859,12 @@ body, html {
   background: #ECFDF5;
 }
 
+.trip-stat-chip.phone {
+  color: #1D4ED8;
+  border-color: #BFDBFE;
+  background: #EFF6FF;
+}
+
 [data-theme="dark"] .trip-stat-chip {
   background: rgba(30, 41, 59, 0.7);
   border-color: rgba(255, 255, 255, 0.12);
@@ -1839,6 +1893,12 @@ body, html {
   color: #34D399;
   background: rgba(16, 185, 129, 0.22);
   border-color: rgba(16, 185, 129, 0.45);
+}
+
+[data-theme="dark"] .trip-stat-chip.phone {
+  color: #60A5FA;
+  background: rgba(37, 99, 235, 0.22);
+  border-color: rgba(37, 99, 235, 0.45);
 }
 
 /* Marcadores de eventos de condução no mapa (Etapa 10.2) */

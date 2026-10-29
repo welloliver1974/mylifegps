@@ -367,6 +367,10 @@ document.addEventListener('DOMContentLoaded', () => {
       console.error('Erro ao sair:', err);
     }
 
+    // Fecha qualquer episódio de uso de celular ainda em aberto antes de perder o token
+    try { flushPhoneUsage(); } catch (_e) {}
+    try { stopPhoneUsageTracker(); } catch (_e) {}
+
     authToken = '';
     currentAuthUser = null;
     localStorage.removeItem(AUTH_TOKEN_KEY);
@@ -2758,6 +2762,9 @@ document.addEventListener('DOMContentLoaded', () => {
         const totalSpeedEvents = typeof summary.totalSpeedEvents === 'number'
           ? summary.totalSpeedEvents
           : trips.reduce((acc, t) => acc + (t.speedEvents || 0), 0);
+        const totalPhoneMinutes = typeof summary.totalPhoneUsageMinutes === 'number'
+          ? summary.totalPhoneUsageMinutes
+          : trips.reduce((acc, t) => acc + (t.phoneUsageMinutes || 0), 0);
 
         document.getElementById('dMaxSpeed').textContent = `${summary.maxSpeedKmH || 0} km/h`;
         document.getElementById('dDistance').textContent = `${(summary.totalDistanceKm || 0).toFixed(1)} km`;
@@ -2765,6 +2772,11 @@ document.addEventListener('DOMContentLoaded', () => {
         setDrivingStatValue('dEvents', totalSpeedEvents);
         setDrivingStatValue('dHardBrakes', totalHardBrakes);
         setDrivingStatValue('dRapidAccels', totalRapidAccels);
+        const dPhoneEl = document.getElementById('dPhoneUsage');
+        if (dPhoneEl) {
+          dPhoneEl.textContent = `${totalPhoneMinutes} min`;
+          dPhoneEl.style.color = totalPhoneMinutes > 0 ? '#DC2626' : '';
+        }
 
         const score = summary.score || 'Excelente';
         const numScore = typeof summary.scoreValue === 'number'
@@ -2811,6 +2823,12 @@ document.addEventListener('DOMContentLoaded', () => {
       setDrivingStatValue('dEvents', summary.totalSpeedEvents || 0);
       setDrivingStatValue('dHardBrakes', summary.totalHardBrakingEvents || 0);
       setDrivingStatValue('dRapidAccels', summary.totalRapidAccelEvents || 0);
+      const histPhoneEl = document.getElementById('dPhoneUsage');
+      if (histPhoneEl) {
+        const histPhoneMin = summary.totalPhoneUsageMinutes || 0;
+        histPhoneEl.textContent = `${histPhoneMin} min`;
+        histPhoneEl.style.color = histPhoneMin > 0 ? '#DC2626' : '';
+      }
 
       if (scoreNumEl) scoreNumEl.textContent = summary.averageScore || 100;
       applyGradeElement(gradeEl, summary.overallGrade || 'Excelente');
@@ -2984,6 +3002,9 @@ document.addEventListener('DOMContentLoaded', () => {
           if (day.rapidAccelEvents > 0) {
             content += `<br/><span style="color: #F59E0B;">🚀 ${day.rapidAccelEvents} arrancada(s) brusca(s)</span>`;
           }
+          if (day.phoneUsageMinutes > 0) {
+            content += `<br/><span style="color: #3B82F6;">📱 ${day.phoneUsageMinutes} min celular ao volante</span>`;
+          }
         } else {
           content += `Sem viagens registradas neste dia.`;
         }
@@ -3066,7 +3087,10 @@ document.addEventListener('DOMContentLoaded', () => {
         const speedChip = (t.speedEvents || 0) > 0
           ? `<span class="trip-stat-chip alert" title="${t.speedEvents} excesso(s) > 90 km/h">⚠️ ${t.speedEvents} excesso${t.speedEvents === 1 ? '' : 's'}</span>`
           : '';
-        const hasAnyEvent = (t.hardBrakingEvents || 0) > 0 || (t.rapidAccelEvents || 0) > 0 || (t.speedEvents || 0) > 0;
+        const phoneChip = (t.phoneUsageMinutes || 0) > 0
+          ? `<span class="trip-stat-chip phone" title="${t.phoneUsageMinutes} min de tela ativa em movimento (${t.phoneUsageEpisodes || 0} episódio(s))">📱 ${t.phoneUsageMinutes} min celular</span>`
+          : '';
+        const hasAnyEvent = (t.hardBrakingEvents || 0) > 0 || (t.rapidAccelEvents || 0) > 0 || (t.speedEvents || 0) > 0 || (t.phoneUsageMinutes || 0) > 0;
         const smoothChip = !hasAnyEvent
           ? `<span class="trip-stat-chip smooth" title="Condução suave sem manobras bruscas">🛡️ Suave</span>`
           : '';
@@ -3094,6 +3118,7 @@ document.addEventListener('DOMContentLoaded', () => {
               ${brakeChip}
               ${accelChip}
               ${speedChip}
+              ${phoneChip}
               ${smoothChip}
             </div>
           </div>
@@ -4592,6 +4617,163 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Inicialização
   // Inicializa a aplicação somente após autenticação bem-sucedida
+  // ---------- Uso de celular ao volante (Etapa 10.3) ----------
+  // O cliente só enxerga a própria tela: enquanto ela estiver ATIVA (documento
+  // visível) e o veículo se deslocando acima do limiar, contamos tempo de
+  // "celular ao volante". Vale igual para o navegador e para o WebView do APK.
+  // Limitação honesta: mexer em OUTRO app não é detectável sem a permissão
+  // Android UsageStats (build nativo dedicado) — esse tempo não é contado.
+  const PHONE_USAGE_MIN_SPEED_KMH = 20;
+  const PHONE_USAGE_TICK_MS = 5000;
+  const PHONE_USAGE_MIN_EPISODE_SEC = 15;
+  const PHONE_USAGE_HEARTBEAT_MS = 60000;
+  const PHONE_USAGE_PREF_KEY = 'life360_phone_usage_enabled';
+
+  let phoneUsageEnabled = localStorage.getItem(PHONE_USAGE_PREF_KEY) !== 'false';
+  let phoneUsageState = { startedAt: 0, lastTick: 0, maxSpeed: 0 };
+  let phoneUsageTimer = null;
+
+  function isLikelyMobileDevice() {
+    try {
+      const coarse = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
+      const mobileUa = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent || '');
+      return Boolean(coarse || mobileUa);
+    } catch (_e) {
+      return false;
+    }
+  }
+
+  // Velocidade do próprio aparelho, vinda da telemetria ao vivo
+  function getOwnSpeedKmH() {
+    if (!currentAuthUser || !currentAuthUser.id) return 0;
+    const me = membersData.find((m) => m.id === currentAuthUser.id);
+    const spd = Number(me?.location?.speed);
+    return Number.isFinite(spd) && spd > 0 ? spd : 0;
+  }
+
+  function flushPhoneUsage() {
+    const { startedAt, lastTick, maxSpeed } = phoneUsageState;
+    phoneUsageState = { startedAt: 0, lastTick: 0, maxSpeed: 0 };
+
+    if (!startedAt || !lastTick) return;
+    const durationSeconds = Math.round((lastTick - startedAt) / 1000);
+    if (durationSeconds < PHONE_USAGE_MIN_EPISODE_SEC) return;
+
+    const body = JSON.stringify({
+      startedAt: new Date(startedAt).toISOString(),
+      endedAt: new Date(lastTick).toISOString(),
+      durationSeconds,
+      maxSpeedKmH: Math.round(maxSpeed || getOwnSpeedKmH()),
+      source: window.ReactNativeWebView ? 'apk_appstate' : 'pwa_visible',
+    });
+
+    // keepalive permite que o envio sobreviva ao fechamento/troca de app
+    fetch('/api/phone-usage/ingest', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${authToken}`,
+      },
+      body,
+      keepalive: true,
+    }).catch((err) => console.warn('[PhoneUsage] Falha ao enviar episódio:', err));
+  }
+
+  function tickPhoneUsage() {
+    if (!phoneUsageEnabled || !authToken) return;
+
+    const now = Date.now();
+    const visible = document.visibilityState === 'visible';
+    const isMoving = getOwnSpeedKmH() > PHONE_USAGE_MIN_SPEED_KMH;
+
+    if (visible && isMoving && isLikelyMobileDevice()) {
+      if (!phoneUsageState.startedAt) {
+        phoneUsageState.startedAt = now;
+      }
+      phoneUsageState.lastTick = now;
+      phoneUsageState.maxSpeed = Math.max(phoneUsageState.maxSpeed, getOwnSpeedKmH());
+
+      // Envia em blocos de 1 min para não perder um episódio longo se a aba fechar
+      if (now - phoneUsageState.startedAt >= PHONE_USAGE_HEARTBEAT_MS) {
+        const segmentStart = phoneUsageState.startedAt;
+        const segmentEnd = now;
+        phoneUsageState.startedAt = now;
+        phoneUsageState.lastTick = now;
+
+        const durationSeconds = Math.round((segmentEnd - segmentStart) / 1000);
+        if (durationSeconds >= PHONE_USAGE_MIN_EPISODE_SEC) {
+          fetch('/api/phone-usage/ingest', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${authToken}`,
+            },
+            body: JSON.stringify({
+              startedAt: new Date(segmentStart).toISOString(),
+              endedAt: new Date(segmentEnd).toISOString(),
+              durationSeconds,
+              maxSpeedKmH: Math.round(phoneUsageState.maxSpeed || getOwnSpeedKmH()),
+              source: window.ReactNativeWebView ? 'apk_appstate' : 'pwa_visible',
+            }),
+            keepalive: true,
+          }).catch((err) => console.warn('[PhoneUsage] Falha ao enviar bloco:', err));
+        }
+      }
+    } else {
+      flushPhoneUsage();
+    }
+  }
+
+  function startPhoneUsageTracker() {
+    if (phoneUsageTimer) return;
+    phoneUsageTimer = setInterval(tickPhoneUsage, PHONE_USAGE_TICK_MS);
+    updatePhoneUsageToggleUI();
+  }
+
+  function stopPhoneUsageTracker() {
+    if (phoneUsageTimer) {
+      clearInterval(phoneUsageTimer);
+      phoneUsageTimer = null;
+    }
+    phoneUsageState = { startedAt: 0, lastTick: 0, maxSpeed: 0 };
+  }
+
+  function updatePhoneUsageToggleUI() {
+    const btn = document.getElementById('btnTogglePhoneUsage');
+    if (!btn) return;
+    btn.textContent = phoneUsageEnabled ? '📱 Celular ao volante: Medindo' : '📵 Celular ao volante: Pausado';
+    btn.classList.toggle('paused', !phoneUsageEnabled);
+  }
+
+  function setupPhoneUsageToggle() {
+    const btn = document.getElementById('btnTogglePhoneUsage');
+    if (!btn || btn.dataset.bound === '1') return;
+    btn.dataset.bound = '1';
+    updatePhoneUsageToggleUI();
+
+    btn.addEventListener('click', () => {
+      phoneUsageEnabled = !phoneUsageEnabled;
+      localStorage.setItem(PHONE_USAGE_PREF_KEY, phoneUsageEnabled ? 'true' : 'false');
+      if (!phoneUsageEnabled) flushPhoneUsage();
+      updatePhoneUsageToggleUI();
+      showToast(
+        phoneUsageEnabled
+          ? '📱 Monitoramento de celular ao volante ativado.'
+          : '📵 Monitoramento de celular ao volante pausado.'
+      );
+    });
+  }
+
+  // Fecha o episódio em aberto quando a tela apaga / o app vai para segundo plano
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') {
+      flushPhoneUsage();
+    }
+  });
+  window.addEventListener('pagehide', () => {
+    flushPhoneUsage();
+  });
+
   async function startApp() {
     if (appStarted) {
       loadMembers();
@@ -4602,6 +4784,8 @@ document.addEventListener('DOMContentLoaded', () => {
       loadCircleData();
       connectWebSocket();
       updatePushNotificationUI();
+      setupPhoneUsageToggle();
+      startPhoneUsageTracker();
       if (map) {
         try { map.invalidateSize(); } catch (_e) {}
       }
@@ -4618,6 +4802,8 @@ document.addEventListener('DOMContentLoaded', () => {
     loadUnreadDms();
     loadSosHistory();
     setupPushNotifications();
+    setupPhoneUsageToggle();
+    startPhoneUsageTracker();
 
     setTimeout(() => {
       if (map) {

@@ -1,6 +1,13 @@
 import { calculateDistanceMeters } from './geofence.js';
 import { prisma } from '../db.js';
 import { roundCoord } from './geocoding.js';
+import {
+  PhoneUsageWindow,
+  sumPhoneUsageSeconds,
+  secondsToMinutes,
+  phoneUsagePenalty,
+  fetchPhoneUsageWindows,
+} from './phoneUsage.js';
 
 export interface TripPoint {
   latitude: number;
@@ -33,6 +40,8 @@ export interface Trip {
   speedEvents: number;
   hardBrakingEvents: number;
   rapidAccelEvents: number;
+  phoneUsageMinutes: number;
+  phoneUsageEpisodes: number;
   events: DrivingEvent[];
   startLocation: {
     latitude: number;
@@ -58,6 +67,8 @@ export interface TripSummary {
   totalSpeedEvents: number;
   totalHardBrakingEvents: number;
   totalRapidAccelEvents: number;
+  totalPhoneUsageMinutes: number;
+  totalPhoneUsageEpisodes: number;
   score: 'Excelente' | 'Bom' | 'Atenção';
   scoreValue?: number; // 0 a 100
 }
@@ -74,6 +85,7 @@ export interface DrivingDaySummary {
   speedEvents: number;
   hardBrakingEvents: number;
   rapidAccelEvents: number;
+  phoneUsageMinutes: number;
   scoreValue: number | null; // 0-100 (null se sem viagens)
   scoreGrade: 'Excelente' | 'Bom' | 'Atenção' | null;
   hasTrips: boolean;
@@ -92,6 +104,7 @@ export interface HistoricalDrivingSummary {
   totalSpeedEvents: number;
   totalHardBrakingEvents: number;
   totalRapidAccelEvents: number;
+  totalPhoneUsageMinutes: number;
   averageScore: number;
   overallGrade: 'Excelente' | 'Bom' | 'Atenção';
   trend: 'improving' | 'stable' | 'declining';
@@ -139,7 +152,8 @@ export function calculateDrivingScore(
   maxSpeedKmH: number,
   speedEvents: number,
   hardBrakingEvents: number = 0,
-  rapidAccelEvents: number = 0
+  rapidAccelEvents: number = 0,
+  phoneUsageMinutes: number = 0
 ): { scoreValue: number; scoreGrade: 'Excelente' | 'Bom' | 'Atenção' } {
   let val = 100;
 
@@ -151,6 +165,9 @@ export function calculateDrivingScore(
 
   // Penalidade por arrancadas bruscas (direção agressiva e desgaste)
   val -= Math.min(15, rapidAccelEvents * 3);
+
+  // Penalidade por uso de celular ao volante (distração — a mais grave das quatro)
+  val -= phoneUsagePenalty(phoneUsageMinutes);
 
   // Penalidade pela velocidade máxima atingida
   if (maxSpeedKmH > 130) {
@@ -167,9 +184,10 @@ export function calculateDrivingScore(
 
   let scoreGrade: 'Excelente' | 'Bom' | 'Atenção' = 'Excelente';
   const totalRiskyEvents = speedEvents + hardBrakingEvents;
-  if (val < 75 || maxSpeedKmH > 105 || totalRiskyEvents > 2) {
+  // Qualquer minuto de celular ao volante já impede a classificação "Excelente"
+  if (val < 75 || maxSpeedKmH > 105 || totalRiskyEvents > 2 || phoneUsageMinutes >= 3) {
     scoreGrade = 'Atenção';
-  } else if (val < 90 || maxSpeedKmH > 85 || (totalRiskyEvents + rapidAccelEvents) > 0) {
+  } else if (val < 90 || maxSpeedKmH > 85 || (totalRiskyEvents + rapidAccelEvents) > 0 || phoneUsageMinutes > 0) {
     scoreGrade = 'Bom';
   }
 
@@ -325,7 +343,11 @@ export function detectDrivingEvents(points: TripPoint[]): {
   };
 }
 
-export function segmentPointsIntoTrips(points: TripPoint[], places: Array<{ id: string; name: string; latitude: number; longitude: number; radiusMeters: number; icon: string }>): { trips: Trip[]; summary: TripSummary } {
+export function segmentPointsIntoTrips(
+  points: TripPoint[],
+  places: Array<{ id: string; name: string; latitude: number; longitude: number; radiusMeters: number; icon: string }>,
+  phoneUsageWindows: PhoneUsageWindow[] = []
+): { trips: Trip[]; summary: TripSummary } {
   if (!points || points.length < 2) {
     return {
       trips: [],
@@ -337,6 +359,8 @@ export function segmentPointsIntoTrips(points: TripPoint[], places: Array<{ id: 
         totalSpeedEvents: 0,
         totalHardBrakingEvents: 0,
         totalRapidAccelEvents: 0,
+        totalPhoneUsageMinutes: 0,
+        totalPhoneUsageEpisodes: 0,
         score: 'Excelente',
         scoreValue: 100,
       },
@@ -406,6 +430,8 @@ export function segmentPointsIntoTrips(points: TripPoint[], places: Array<{ id: 
   let totalSpeedEvents = 0;
   let totalHardBrakingEvents = 0;
   let totalRapidAccelEvents = 0;
+  let totalPhoneUsageMinutes = 0;
+  let totalPhoneUsageEpisodes = 0;
 
   let tripIdx = 1;
   for (const tPoints of rawTrips) {
@@ -437,6 +463,17 @@ export function segmentPointsIntoTrips(points: TripPoint[], places: Array<{ id: 
 
     const avgSpeed = distKm / (durationMin / 60);
 
+    // Tempo de celular ao volante dentro da janela desta viagem (Etapa 10.3)
+    const phoneSeconds = sumPhoneUsageSeconds(phoneUsageWindows, startTime, endTime);
+    const phoneUsageMinutes = secondsToMinutes(phoneSeconds);
+    const phoneUsageEpisodes = phoneSeconds > 0
+      ? phoneUsageWindows.filter((w) => {
+          const wStart = new Date(w.startedAt).getTime();
+          const wEnd = new Date(w.endedAt).getTime();
+          return wEnd > startTime.getTime() && wStart < endTime.getTime();
+        }).length
+      : 0;
+
     // Identifica lugares de início e fim
     const startPlace = findMatchingPlace(startPt.latitude, startPt.longitude, places);
     const endPlace = findMatchingPlace(endPt.latitude, endPt.longitude, places);
@@ -452,6 +489,8 @@ export function segmentPointsIntoTrips(points: TripPoint[], places: Array<{ id: 
       speedEvents,
       hardBrakingEvents,
       rapidAccelEvents,
+      phoneUsageMinutes,
+      phoneUsageEpisodes,
       events,
       startLocation: {
         latitude: startPt.latitude,
@@ -475,6 +514,8 @@ export function segmentPointsIntoTrips(points: TripPoint[], places: Array<{ id: 
     totalSpeedEvents += speedEvents;
     totalHardBrakingEvents += hardBrakingEvents;
     totalRapidAccelEvents += rapidAccelEvents;
+    totalPhoneUsageMinutes += phoneUsageMinutes;
+    totalPhoneUsageEpisodes += phoneUsageEpisodes;
   }
 
   // Se não detectou viagens separadas mas o membro percorreu distância relevante (> 300m), cria viagem única
@@ -497,6 +538,16 @@ export function segmentPointsIntoTrips(points: TripPoint[], places: Array<{ id: 
       const endPlace = findMatchingPlace(endPt.latitude, endPt.longitude, places);
       const detection = detectDrivingEvents(sorted);
 
+      const phoneSeconds = sumPhoneUsageSeconds(phoneUsageWindows, startTime, endTime);
+      const phoneUsageMinutes = secondsToMinutes(phoneSeconds);
+      const phoneUsageEpisodes = phoneSeconds > 0
+        ? phoneUsageWindows.filter((w) => {
+            const wStart = new Date(w.startedAt).getTime();
+            const wEnd = new Date(w.endedAt).getTime();
+            return wEnd > startTime.getTime() && wStart < endTime.getTime();
+          }).length
+        : 0;
+
       validTrips.push({
         id: 'trip-1',
         startTime: startTime.toISOString(),
@@ -508,6 +559,8 @@ export function segmentPointsIntoTrips(points: TripPoint[], places: Array<{ id: 
         speedEvents: detection.speedEvents,
         hardBrakingEvents: detection.hardBrakingEvents,
         rapidAccelEvents: detection.rapidAccelEvents,
+        phoneUsageMinutes,
+        phoneUsageEpisodes,
         events: detection.events,
         startLocation: {
           latitude: startPt.latitude,
@@ -531,6 +584,8 @@ export function segmentPointsIntoTrips(points: TripPoint[], places: Array<{ id: 
       totalSpeedEvents = detection.speedEvents;
       totalHardBrakingEvents = detection.hardBrakingEvents;
       totalRapidAccelEvents = detection.rapidAccelEvents;
+      totalPhoneUsageMinutes = phoneUsageMinutes;
+      totalPhoneUsageEpisodes = phoneUsageEpisodes;
     }
   }
 
@@ -539,7 +594,8 @@ export function segmentPointsIntoTrips(points: TripPoint[], places: Array<{ id: 
     overallMaxSpeed,
     totalSpeedEvents,
     totalHardBrakingEvents,
-    totalRapidAccelEvents
+    totalRapidAccelEvents,
+    totalPhoneUsageMinutes
   );
 
   return {
@@ -552,6 +608,8 @@ export function segmentPointsIntoTrips(points: TripPoint[], places: Array<{ id: 
       totalSpeedEvents,
       totalHardBrakingEvents,
       totalRapidAccelEvents,
+      totalPhoneUsageMinutes,
+      totalPhoneUsageEpisodes,
       score: scoreResult.scoreGrade,
       scoreValue: scoreResult.scoreValue,
     },
@@ -628,6 +686,7 @@ export async function getHistoricalDrivingReport(
         speedEvents: 0,
         hardBrakingEvents: 0,
         rapidAccelEvents: 0,
+        phoneUsageMinutes: 0,
         scoreValue: null,
         scoreGrade: null,
         hasTrips: false,
@@ -650,6 +709,7 @@ export async function getHistoricalDrivingReport(
         totalSpeedEvents: 0,
         totalHardBrakingEvents: 0,
         totalRapidAccelEvents: 0,
+        totalPhoneUsageMinutes: 0,
         averageScore: 100,
         overallGrade: 'Excelente',
         trend: 'stable',
@@ -688,6 +748,9 @@ export async function getHistoricalDrivingReport(
     }
   }
 
+  // Episódios de uso de celular ao volante no período (Etapa 10.3)
+  const phoneUsageWindows = await fetchPhoneUsageWindows(deviceIds, startDate, endDate);
+
   const daySummaries: DrivingDaySummary[] = [];
   const allTrips: Trip[] = [];
   let totalPeriodDistance = 0;
@@ -697,6 +760,7 @@ export async function getHistoricalDrivingReport(
   let totalSpeedEvents = 0;
   let totalHardBrakingEvents = 0;
   let totalRapidAccelEvents = 0;
+  let totalPhoneUsageMinutes = 0;
   const activeScores: number[] = [];
 
   for (const key of dayKeys) {
@@ -717,6 +781,7 @@ export async function getHistoricalDrivingReport(
         speedEvents: 0,
         hardBrakingEvents: 0,
         rapidAccelEvents: 0,
+        phoneUsageMinutes: 0,
         scoreValue: null,
         scoreGrade: null,
         hasTrips: false,
@@ -724,7 +789,7 @@ export async function getHistoricalDrivingReport(
       continue;
     }
 
-    const { trips, summary } = segmentPointsIntoTrips(points, places);
+    const { trips, summary } = segmentPointsIntoTrips(points, places, phoneUsageWindows);
     const hasTrips = summary.totalTrips > 0 && summary.totalDistanceKm > 0;
 
     if (hasTrips) {
@@ -736,16 +801,19 @@ export async function getHistoricalDrivingReport(
       const daySpeedEvents = trips.reduce((acc, t) => acc + (t.speedEvents || 0), 0);
       const dayHardBrakingEvents = trips.reduce((acc, t) => acc + (t.hardBrakingEvents || 0), 0);
       const dayRapidAccelEvents = trips.reduce((acc, t) => acc + (t.rapidAccelEvents || 0), 0);
+      const dayPhoneUsageMinutes = trips.reduce((acc, t) => acc + (t.phoneUsageMinutes || 0), 0);
 
       totalSpeedEvents += daySpeedEvents;
       totalHardBrakingEvents += dayHardBrakingEvents;
       totalRapidAccelEvents += dayRapidAccelEvents;
+      totalPhoneUsageMinutes += dayPhoneUsageMinutes;
 
       const dayScore = calculateDrivingScore(
         summary.maxSpeedKmH,
         daySpeedEvents,
         dayHardBrakingEvents,
-        dayRapidAccelEvents
+        dayRapidAccelEvents,
+        dayPhoneUsageMinutes
       );
       activeScores.push(dayScore.scoreValue);
 
@@ -763,6 +831,7 @@ export async function getHistoricalDrivingReport(
         speedEvents: daySpeedEvents,
         hardBrakingEvents: dayHardBrakingEvents,
         rapidAccelEvents: dayRapidAccelEvents,
+        phoneUsageMinutes: dayPhoneUsageMinutes,
         scoreValue: dayScore.scoreValue,
         scoreGrade: dayScore.scoreGrade,
         hasTrips: true,
@@ -782,6 +851,7 @@ export async function getHistoricalDrivingReport(
         speedEvents: 0,
         hardBrakingEvents: 0,
         rapidAccelEvents: 0,
+        phoneUsageMinutes: 0,
         scoreValue: null,
         scoreGrade: null,
         hasTrips: false,
@@ -831,6 +901,7 @@ export async function getHistoricalDrivingReport(
       totalSpeedEvents,
       totalHardBrakingEvents,
       totalRapidAccelEvents,
+      totalPhoneUsageMinutes,
       averageScore,
       overallGrade,
       trend,

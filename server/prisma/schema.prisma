@@ -50,9 +50,28 @@ model Device {
   user             User             @relation(fields: [userId], references: [id], onDelete: Cascade)
   locations        LocationRecord[]
   placeEvents      PlaceEvent[]
+  phoneUsages      PhoneUsageEvent[]
   lastSeenAt       DateTime?
   createdAt        DateTime         @default(now())
   updatedAt        DateTime         @updatedAt
+}
+
+// Uso de celular ao volante (Etapa 10.3)
+// Cada linha é um episódio contínuo em que a tela do aparelho esteve ativa
+// enquanto o veículo se deslocava acima do limiar de velocidade.
+model PhoneUsageEvent {
+  id              String   @id @default(uuid())
+  deviceId        String
+  device          Device   @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  startedAt       DateTime // início do episódio (hora do aparelho)
+  endedAt         DateTime // fim do episódio
+  durationSeconds Int      // duração consolidada em segundos
+  maxSpeedKmH     Float?   // maior velocidade observada durante o episódio
+  source          String   @default("pwa_visible") // "pwa_visible" | "apk_appstate" | "manual"
+  createdAt       DateTime @default(now())
+
+  @@index([deviceId, startedAt])
+  @@index([startedAt])
 }
 
 model LocationRecord {

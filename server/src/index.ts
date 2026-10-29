@@ -19,6 +19,7 @@ import { messagesRoutes } from './routes/messages.js';
 import { authRoutes } from './routes/auth.js';
 import { geocodingRoutes } from './routes/geocoding.js';
 import { pushRoutes } from './routes/push.js';
+import { phoneUsageRoutes } from './routes/phoneUsage.js';
 import { emergencyRoutes } from './routes/emergency.js';
 import { devicesRoutes } from './routes/devices.js';
 import { adminRoutes } from './routes/admin.js';
@@ -58,6 +59,7 @@ const PUBLIC_API_PREFIXES = [
   '/api/telemetry',
   '/api/emergency/crash',
   '/api/push/register-device',
+  '/api/phone-usage/ingest',
   '/api/config',
   '/health',
 ];
@@ -222,6 +224,7 @@ async function bootstrap() {
     await fastify.register(messagesRoutes);
     await fastify.register(geocodingRoutes);
     await fastify.register(pushRoutes);
+    await fastify.register(phoneUsageRoutes);
     await fastify.register(emergencyRoutes);
     await fastify.register(devicesRoutes);
     await fastify.register(adminRoutes);

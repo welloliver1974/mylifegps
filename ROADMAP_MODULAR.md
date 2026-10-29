@@ -277,7 +277,7 @@
   - **Ferramenta de emergência (CLI):** `npm run reset-password` (`server/scripts/reset-admin-password.ts`) lista as contas com acesso, permite redefinir direto (`npm run reset-password email NovaSenha123`) ou gerar código de uso único (`npm run reset-password email --code`) para quando o próprio admin estiver deslogado — sem SQL manual e sem SMTP.
   - **Testes automatizados:** 26/26 asserções de serviço aprovadas (formato e normalização do código, matriz de permissões admin/membro/terceiro, senha curta, código inválido, expirado e já consumido, invalidação do código anterior, revogação de sessão antiga e hash bcrypt) + 13/13 testes E2E HTTP contra servidor real na porta 3099 (login admin/membro, 403 para membro comum, 401 sem token, geração de código, rejeições 400, reset 200, login com senha antiga 401, login com senha nova 200, sessão antiga revogada e rota pública de esqueci a senha).
 
-- [/] **BLOCO 10: O Toque Final de Paridade (Experiência 1:1 Life360)** — 10.1 e 10.2 concluídas
+- [/] **BLOCO 10: O Toque Final de Paridade (Experiência 1:1 Life360)** — 10.1, 10.2 e 10.3 concluídas
   - [x] **Etapa 10.1: Alerta Automático de Bateria Fraca (< 15%) e Correção Visual do Marcador (CONCLUÍDO)**
     - **Correção da sobreposição do anel de bateria no mapa:** remoção da antiga pílula colada no canto inferior do avatar (`.avatar-battery-pill`) que cortava o traço circular do SVG e cobria o nome do membro. A porcentagem agora é exibida de forma limpa e integrada dentro da etiqueta de status inferior (`[ Wellington • 94% ]` ou `[ 🚗 45 km/h • 94% ]`), com cores adaptativas por faixa (verde $\ge 50\%$, amarelo $20\text{--}49\%$, vermelho $<20\%$) e suporte a modo escuro. O anel contorna o avatar com visibilidade 100% contínua e sem colisões. Cache PWA atualizado para `life360-v29`.
     - **Serviço de Alerta de Bateria (`server/src/services/batteryAlert.ts`):** monitoramento automático da telemetria recebida em `telemetry.ts`. Quando qualquer aparelho cai para $\le 15\%$ sem estar no carregador, o servidor dispara:
@@ -308,8 +308,28 @@
     - **Testes automatizados:** 7/7 asserções unitárias (condução suave sem falso positivo, frenagem correta, arrancada correta, debounce, filtro de pedestre, nota ponderada e integração com a segmentação) + 16/16 asserções E2E contra servidor real na porta 3099 validando `/trips` e `/driving-history`.
     - **Não exige novo APK:** roda 100% no servidor e no PWA.
 
+  - [x] **Etapa 10.3: Uso de celular ao volante (CONCLUÍDO)**
+    - **Modelo:** tabela `PhoneUsageEvent` (`id`, `deviceId`, `startedAt`, `endedAt`, `durationSeconds`, `maxSpeedKmH`, `source`, `createdAt`), índices por `[deviceId, startedAt]` e `[startedAt]`, aplicada com `prisma db push`.
+    - **Serviço (`server/src/services/phoneUsage.ts`):** validação de limites (duração mínima de 15 s, máxima de 4 h), velocidade mínima de trânsito $\ge 20$ km/h, deduplicação com tolerância a reenvio/overlap $\ge 70\%$ (409 idempotente sem alarme), busca por janela com cálculo de sobreposição proporcional (`sumPhoneUsageSeconds`), penalidade ponderada na nota de direção ($2,5$ pts/minuto com teto de 25 pts; qualquer minuto de celular já impede nota "Excelente" e $\ge 3$ min rebaixa diretamente para "Atenção").
+    - **Rotas (`server/src/routes/phoneUsage.ts`):**
+      - `POST /api/phone-usage/ingest`: pública por prefixo allowlist, autenticação híbrida por chave de aparelho (`l360_...`) ou Bearer token de sessão do usuário (PWA), validação defensiva de velocidade contra o relato e a última telemetria (422 se $< 20$ km/h).
+      - `GET /api/phone-usage/:userId`: protegida por sessão com escopo de círculo, listagem de episódios para auditoria e transparência familiar.
+    - **Integração com Viagens e Histórico (`tripDetection.ts` e `members.ts`):**
+      - `/api/members/:userId/trips` e `/driving-history` cruzam a janela temporal de cada viagem com os episódios de celular registrados para os aparelhos do membro.
+      - `Trip` ganhou `phoneUsageMinutes` e `phoneUsageEpisodes`.
+      - `TripSummary`, `DrivingDaySummary` e `HistoricalDrivingSummary` ganharam `totalPhoneUsageMinutes` e `totalPhoneUsageEpisodes`.
+    - **Interface Web / PWA (PWA `life360-v31`):**
+      - Rastreador inteligente no cliente (`app.js`): detecta visibilidade da tela (`document.visibilityState === 'visible'`) e movimento acima de 20 km/h em aparelhos móveis (coarse pointer / UA mobile).
+      - Batimentos a cada 60 s em viagens longas e descarga imediata no fechamento/troca de aba com `fetch(..., { keepalive: true })` em `visibilitychange` (ao apagar tela ou trocar de app) e `pagehide`.
+      - Botão / toggle de controle do usuário no rodapé do perfil do membro: "📱 Celular ao volante: Medindo" / "📱 Celular ao volante: Pausado" com persistência em `localStorage` (`life360_phone_usage_enabled`).
+      - KPI card no painel de direção: `📱 Celular ao Volante: N min` (destaque vermelho quando $> 0$).
+      - Chip no cartão de viagem: `📱 N min celular` e linha informativa no tooltip do gráfico de evolução histórica.
+      - Limitação honesta documentada: PWA/WebView só consegue medir a tela ativa de sua própria aplicação; detectar outros apps em segundo plano exigiria permissão nativa Android `PACKAGE_USAGE_STATS` (registrada como parcial no relatório de paridade).
+    - **Cache PWA:** atualizado para `life360-v31` (`sw.js`, `style.css?v=31` e `app.js?v=31`).
+    - **Testes automatizados:** 14/14 testes unitários de motor de cálculo e overlap + 17/17 testes E2E aprovados contra servidor real na porta 3099 validando autenticação por chave/Bearer, bloqueio 422 em baixa velocidade, deduplicação 409, agregação no `/trips` e no `/driving-history`.
+    - **Não exige novo APK:** roda 100% no servidor e no PWA/WebView.
+
   - Candidatos restantes do Bloco 10:
-    - **Etapa 10.3: Uso de celular ao volante** (tempo de tela ativa com velocidade > 20 km/h).
     - **Etapa 10.4: Inicialização automática no Boot do Android** (`RECEIVE_BOOT_COMPLETED`).
     - **Etapa 10.5: Seletor de múltiplos círculos no topo** (Família / Amigos).
     - **Envio automático de e-mail opcional** (recuperação de senha e resumo semanal).
