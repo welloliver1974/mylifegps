@@ -21,7 +21,7 @@ function safeEqual(a: string, b: string): boolean {
  * Extrai a chave de telemetria de onde o cliente conseguir enviar:
  * header `x-device-key` / `x-api-key` / `authorization`, query `key`/`apiKey`, ou corpo `apiKey`/`key`/`deviceApiKey`.
  */
-function extractDeviceKey(request: any, body?: any): string | undefined {
+export function extractDeviceKey(request: any, body?: any): string | undefined {
   const headers = request.headers || {};
   const query = (request.query as any) || {};
   const candidates = [
@@ -46,7 +46,7 @@ type AuthResult =
   | { ok: true; device: any | null }
   | { ok: false; status: number; error: string };
 
-async function authorizeDevice(deviceIdentifier: string, key: string | undefined): Promise<AuthResult> {
+export async function authorizeDevice(deviceIdentifier: string, key: string | undefined): Promise<AuthResult> {
   const cleanId = String(deviceIdentifier || '').trim();
   const cleanKey = String(key || '').trim().replace(/^["']|["']$/g, '');
 

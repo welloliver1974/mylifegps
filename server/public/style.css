@@ -3396,6 +3396,20 @@ input[type="range"]::-moz-range-thumb {
   box-shadow: 0 4px 12px rgba(239, 68, 68, 0.15);
 }
 
+/* Cartões de colisão veicular detectada pelo acelerômetro (Etapa 9.3) */
+.sos-card.crash-card {
+  border-left: 4px solid #DC2626;
+}
+
+.sos-card.crash-card .sos-card-message {
+  color: #B91C1C;
+  font-weight: 600;
+}
+
+[data-theme="dark"] .sos-card.crash-card .sos-card-message {
+  color: #FCA5A5;
+}
+
 .sos-card-header {
   display: flex;
   align-items: center;

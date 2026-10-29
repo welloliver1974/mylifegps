@@ -125,7 +125,10 @@ O desenvolvimento foi estruturado em 9 blocos modulares sólidos:
 - **Rastreamento Contínuo:** Configurado com Foreground Service Android (`LOCATION_FOREGROUND`), imune ao modo de economia de energia (*Doze Mode*).
 - **Ajustes Arrastáveis:** Botão flutuante de configurações livre na tela para não obstruir o painel inferior.
 
-### 🚀 Bloco 9: Automação Total & Deploy na VPS
+### 🚀 Bloco 9: Círculo Real, Segurança Veicular & Deploy na VPS
+- **Círculo Real:** Convites por código `FAM-XXXX-XXXX`, gestão de membros pelo painel e isolamento total de dados por família.
+- **Segurança Veicular (9.3):** Detecção de colisão pelo acelerômetro do celular com três níveis de sensibilidade, filtro de velocidade mínima (evita alarme falso com o aparelho na mão), contagem de segurança de 30 segundos ("Estou Bem" / "Enviar SOS Agora") e alerta diferenciado de acidente para todo o círculo.
+- **Recuperação de Senha (9.7):** Código temporário de uso único `REC-XXXX-XXXX` gerado pelo admin (com cópia pronta para WhatsApp) ou pela CLI de emergência na VPS — sem depender de e-mail pago.
 - **Comando Global `atualizar life360`:** Atualizador inteligente em um único comando no Linux.
 - **Monitoramento PM2:** Auto-restart em caso de falha e inicialização automática no boot do sistema operacional.
 
@@ -146,7 +149,7 @@ O desenvolvimento foi estruturado em 9 blocos modulares sólidos:
 | **Chat do Círculo e DMs 1:1** | Apenas grupo | Apenas grupo | **Grupo + Privado 1:1** | <font color="#22c55e">✅ Superior</font> |
 | **Tema Escuro (Dark Mode)** | Parcial | Parcial | **Interface Dark + Mapa Nítido** | <font color="#22c55e">✅ Paridade</font> |
 | **Recuperação de Senha** | E-mail / SMS pago | E-mail / SMS pago | **Código Único + WhatsApp + CLI** | <font color="#22c55e">✅ Paridade</font> |
-| **Sensor de Colisão Real** | ❌ | Sim (Acelerômetro) | *Em desenvolvimento (9.3)* | <font color="#eab308">⚠️ Backlog</font> |
+| **Sensor de Colisão Real** | ❌ | Sim (Acelerômetro) | **Acelerômetro + Contagem 30s + SOS** | <font color="#22c55e">✅ Paridade</font> |
 | **Despacho Policial / Ambulância**| ❌ | Empresa terceirizada | Impossível auto-hospedar | <font color="#ef4444">🚫 N/A</font> |
 
 ---
@@ -208,10 +211,14 @@ npm run reset-password email@exemplo.com NovaSenha123
 
 ## 🎯 7. Próximos Passos (Backlog Futuro)
 
-- [ ] **Etapa 9.3:** Detecção de colisão veicular real via acelerômetro do celular (`expo-sensors`).
-- [ ] **Etapa 9.4:** Função "Atualizar Agora" (disparo de comando remoto que acorda o aparelho na hora).
-- [ ] **Etapa 9.5:** Reações (curtir) e menções `@nome` nas mensagens de chat.
-- [ ] **Etapa 9.6:** Score semanal e mensal consolidado de comportamento de direção.
+> [!success] Bloco 9 concluído (9.1 a 9.7)
+> Convite real por código (9.1), deploy na VPS com Cloudflare Tunnel e APK (9.2), detecção de acidente por acelerômetro (9.3), "Atualizar Agora" (9.4), reações e menções no chat (9.5), nota de direção semanal/mensal (9.6) e recuperação de senha por código único (9.7).
+
+- [ ] **E-mail automático opcional:** recuperação de senha e resumo semanal por e-mail, caso se decida contratar um provedor SMTP dedicado (hoje suprido por código único + WhatsApp + CLI).
+- [ ] **Sensor de colisão com o app totalmente fechado:** exigiria um serviço nativo dedicado; hoje a escuta do acelerômetro vale com o app vivo ou em segundo plano.
+- [ ] **Calibração fina dos limiares de impacto** após uso real na família (varia por veículo e suspensão).
+- [ ] **Exportação de relatórios** de viagens e de segurança em PDF/CSV.
+- [ ] **Zoom/pan no gráfico** da nota de direção histórica.
 
 ---
 

@@ -1,6 +1,73 @@
 import { FastifyInstance } from 'fastify';
 import { prisma } from '../db.js';
 import { broadcastSosAlert, broadcastSosResolved } from '../services/websocket.js';
+import { authorizeDevice, extractDeviceKey } from './telemetry.js';
+
+/**
+ * Cria o evento de emergência, persiste e transmite ao círculo.
+ * Compartilhado entre o SOS manual (sessão) e o acidente veicular (chave do aparelho).
+ */
+async function createEmergencyEvent(params: {
+  userId: string;
+  userName?: string;
+  userAvatar?: string | null;
+  type: 'SOS' | 'CRASH';
+  latitude?: number | null;
+  longitude?: number | null;
+  accuracy?: number | null;
+  battery?: number | null;
+  message: string;
+}) {
+  let { latitude: lat, longitude: lon, accuracy, battery } = params;
+
+  // Sem coordenadas no corpo: usa a última posição conhecida do aparelho
+  if (lat === undefined || lon === undefined || lat === null || lon === null || isNaN(Number(lat)) || isNaN(Number(lon))) {
+    const latestLoc = await prisma.locationRecord.findFirst({
+      where: { device: { userId: params.userId } },
+      orderBy: { recordedAt: 'desc' },
+    });
+    if (latestLoc) {
+      lat = latestLoc.latitude;
+      lon = latestLoc.longitude;
+      accuracy = accuracy ?? latestLoc.accuracy;
+      battery = battery ?? latestLoc.battery;
+    } else {
+      lat = 0;
+      lon = 0;
+    }
+  }
+
+  const event = await prisma.sosEvent.create({
+    data: {
+      userId: params.userId,
+      type: params.type,
+      latitude: Number(lat),
+      longitude: Number(lon),
+      accuracy: accuracy ?? null,
+      battery: battery ?? null,
+      message: params.message,
+      status: 'ACTIVE',
+    },
+    include: {
+      user: { select: { id: true, name: true, color: true, avatarUrl: true } },
+    },
+  });
+
+  broadcastSosAlert({
+    id: event.id,
+    userId: params.userId,
+    userName: params.userName,
+    userAvatar: params.userAvatar,
+    type: params.type,
+    latitude: Number(lat),
+    longitude: Number(lon),
+    battery: battery ?? null,
+    createdAt: event.createdAt.toISOString(),
+    message: params.message,
+  });
+
+  return event;
+}
 
 export async function emergencyRoutes(fastify: FastifyInstance) {
   // Retorna histórico persistido de alertas de SOS
@@ -82,71 +149,130 @@ export async function emergencyRoutes(fastify: FastifyInstance) {
       userAvatar = fallbackUser.avatarUrl;
     }
 
-    let lat = Number(body.latitude);
-    let lon = Number(body.longitude);
-    let accuracy = body.accuracy ? Number(body.accuracy) : null;
-    let battery = body.battery !== undefined ? Number(body.battery) : null;
-
-    // Se coordenadas não foram passadas, busca a última localização conhecida do usuário no banco
-    if (isNaN(lat) || isNaN(lon)) {
-      const latestLoc = await prisma.locationRecord.findFirst({
-        where: { device: { userId } },
-        orderBy: { recordedAt: 'desc' },
-      });
-
-      if (latestLoc) {
-        lat = latestLoc.latitude;
-        lon = latestLoc.longitude;
-        accuracy = latestLoc.accuracy;
-        battery = latestLoc.battery;
-      } else {
-        lat = 0;
-        lon = 0;
-      }
-    }
-
     const message = body.message || `🚨 ALERTA DE EMERGÊNCIA: ${userName} acionou o SOS!`;
+    const type = (body.type === 'CRASH' || message.includes('ACIDENTE')) ? 'CRASH' : 'SOS';
 
-    // Persiste no banco de dados SQLite
-    const event = await prisma.sosEvent.create({
-      data: {
-        userId,
-        latitude: lat,
-        longitude: lon,
-        accuracy,
-        battery,
-        message,
-        status: 'ACTIVE',
-      },
-      include: {
-        user: {
-          select: {
-            id: true,
-            name: true,
-            color: true,
-            avatarUrl: true,
-          },
-        },
-      },
-    });
-
-    // Dispara WebSocket em tempo real e Web Push para todos os aparelhos
-    broadcastSosAlert({
-      id: event.id,
+    const event = await createEmergencyEvent({
       userId,
       userName,
       userAvatar,
-      latitude: lat,
-      longitude: lon,
-      battery,
-      createdAt: event.createdAt.toISOString(),
+      type,
+      latitude: body.latitude !== undefined ? Number(body.latitude) : null,
+      longitude: body.longitude !== undefined ? Number(body.longitude) : null,
+      accuracy: body.accuracy ? Number(body.accuracy) : null,
+      battery: body.battery !== undefined ? Number(body.battery) : null,
       message,
     });
 
     return reply.status(201).send({
       success: true,
       event,
-      message: 'Alerta de SOS gravado e transmitido à família com sucesso.',
+      message: type === 'CRASH'
+        ? 'Alerta de colisão gravado e transmitido à família com sucesso.'
+        : 'Alerta de SOS gravado e transmitido à família com sucesso.',
+    });
+  });
+
+  // Detecção de acidente veicular pelo app mobile (Etapa 9.3)
+  // Autenticada pela chave do aparelho (x-device-key), pois o sensor nativo dispara
+  // mesmo com o app em segundo plano e sem sessão de usuário carregada.
+  fastify.post('/api/emergency/crash', async (request, reply) => {
+    const body = (request.body as any) || {};
+
+    const rawKey = extractDeviceKey(request, body);
+    const rawIdentifier = String(body.deviceIdentifier || body.deviceId || body.identifier || '');
+    const auth = await authorizeDevice(rawIdentifier, rawKey);
+    if (!auth.ok) {
+      return reply.status(auth.status).send({ error: auth.error });
+    }
+
+    if (!auth.device?.userId) {
+      return reply.status(400).send({
+        error: 'Aparelho não vinculado a um usuário. Cadastre e vincule o aparelho no painel em "Dispositivos & Chaves GPS".',
+      });
+    }
+
+    const user = await prisma.user.findUnique({ where: { id: auth.device.userId } });
+    if (!user) {
+      return reply.status(404).send({ error: 'Usuário do aparelho não encontrado.' });
+    }
+
+    const gForce = Number(body.gForce ?? body.metadata?.gForce ?? 0);
+    const speedKmh = Number(body.speedKmh ?? body.metadata?.speedKmh ?? 0);
+    const isSimulation = Boolean(body.isSimulation ?? body.metadata?.isSimulation);
+
+    const message = body.message || `🚗💥 POSSÍVEL ACIDENTE DETECTADO: ${user.name} sofreu impacto de ${gForce.toFixed(1)}G${
+      speedKmh > 0 ? ` a ~${Math.round(speedKmh)} km/h` : ''
+    }!${isSimulation ? ' (Teste de simulação)' : ''}`;
+
+    const event = await createEmergencyEvent({
+      userId: user.id,
+      userName: user.name,
+      userAvatar: user.avatarUrl,
+      type: 'CRASH',
+      latitude: body.latitude !== undefined ? Number(body.latitude) : null,
+      longitude: body.longitude !== undefined ? Number(body.longitude) : null,
+      accuracy: body.accuracy ? Number(body.accuracy) : null,
+      battery: body.battery !== undefined ? Number(body.battery) : null,
+      message,
+    });
+
+    return reply.status(201).send({
+      success: true,
+      event,
+      device: { id: auth.device.id, name: auth.device.name },
+      message: 'Alerta de colisão gravado e transmitido à família com sucesso.',
+    });
+  });
+
+  // Cancela o próprio alerta de colisão quando o condutor confirma que está bem
+  // (o sensor nativo dispara sozinho, então o cancelamento também usa a chave do aparelho)
+  fastify.post('/api/emergency/crash/:id/cancel', async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const body = (request.body as any) || {};
+
+    const rawKey = extractDeviceKey(request, body);
+    const rawIdentifier = String(body.deviceIdentifier || body.deviceId || body.identifier || '');
+    const auth = await authorizeDevice(rawIdentifier, rawKey);
+    if (!auth.ok) {
+      return reply.status(auth.status).send({ error: auth.error });
+    }
+
+    const existing = await prisma.sosEvent.findUnique({ where: { id } });
+    if (!existing) {
+      return reply.status(404).send({ error: 'Alerta de emergência não encontrado' });
+    }
+
+    // Só o aparelho dono do alerta pode cancelá-lo por esta rota pública
+    if (!auth.device?.userId || auth.device.userId !== existing.userId) {
+      return reply.status(403).send({ error: 'Este aparelho não pode cancelar este alerta.' });
+    }
+
+    if (existing.status !== 'ACTIVE') {
+      return reply.send({ success: true, event: existing, message: 'Alerta já estava encerrado.' });
+    }
+
+    const resolvedAt = new Date();
+    const updated = await prisma.sosEvent.update({
+      where: { id },
+      data: {
+        status: 'RESOLVED',
+        resolvedAt,
+        resolvedById: existing.userId,
+      },
+    });
+
+    broadcastSosResolved({
+      id,
+      status: 'RESOLVED',
+      resolvedByName: 'Próprio condutor (app)',
+      resolvedAt: resolvedAt.toISOString(),
+    });
+
+    return reply.send({
+      success: true,
+      event: updated,
+      message: 'Alerta de colisão encerrado pelo condutor.',
     });
   });
 

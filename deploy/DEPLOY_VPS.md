@@ -272,8 +272,10 @@ atualizar restart   # reinicia o servidor sem recompilar
 ## Status das etapas seguintes na VPS
 
 - [x] APK do app mobile (Etapa 9.2b — APK compilado via EAS e conectado ao domínio HTTPS)
-- [ ] Sensor de acidente com acelerômetro (Etapa 9.3 — única restante do Bloco 9)
+- [x] Detecção de acidente por acelerômetro com contagem de segurança e alerta diferenciado (Etapa 9.3) — **exige regerar o .APK** (`cd mobile && npm run build:apk`) para o app receber o sensor
 - [x] "Atualizar agora" via bridge WebView nativa (Etapa 9.4)
 - [x] Reações emoji e menções no chat com push (Etapa 9.5)
 - [x] Nota de direção histórica semanal/mensal com gráfico de evolução (Etapa 9.6)
 - [x] Recuperação de senha por código de uso único e CLI de emergência (Etapa 9.7)
+
+> **Bloco 9 concluído.** O Bloco 10 (backlog) está registrado em `ROADMAP_MODULAR.md`.

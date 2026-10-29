@@ -6,7 +6,7 @@
 
 **Legenda:** ✅ implementado e funcionando · ⚠️ parcial / simplificado · ❌ ausente · 🚫 depende de terceiro (impossível auto-hospedar)
 
-*Última auditoria: 2026-10-29 — Etapa 9.7 concluída: recuperação de senha com código temporário de uso único (REC-XXXX-XXXX), fluxo "Esqueci minha senha" no PWA, geração por admin de círculo com cópia para WhatsApp e CLI de emergência na VPS*
+*Última auditoria: 2026-10-29 — Etapa 9.3 concluída: detecção de acidente veicular por acelerômetro no app mobile com contagem de segurança, rota pública autenticada por chave de aparelho e alerta diferenciado de colisão no painel. Bloco 9 fechado (9.1 a 9.7)*
 
 ---
 
@@ -68,8 +68,8 @@
 | Alerta em tela cheia para o círculo | ✅ | Via WebSocket |
 | Rota imediata para o membro em SOS | ✅ | Google Maps |
 | **Histórico de alertas SOS** | ✅ | Tabela `SosEvent`, status ACTIVE/RESOLVED/CANCELED, resolução com timestamp e nome do membro, filtros de status, botão 'Ver no Mapa' e 'Marcar como Seguro' (Etapa 8.6) |
-| **Detecção de acidente real** | ⚠️ | Existe apenas o selo visual; requer acelerômetro no app mobile |
-| **Frenagem/aceleração brusca** | ❌ | Requer acelerômetro |
+| **Detecção de acidente real** | ✅ | `expo-sensors` no app mobile com magnitude vetorial em Gs, 3 níveis de sensibilidade (2.5G / 3.0G / 3.8G), filtro de velocidade mínima (>20 km/h) contra falso positivo, cooldown de 45 s, contagem de segurança de 30 s com "Estou Bem" ou envio imediato, rota pública `POST /api/emergency/crash` autenticada pela chave do aparelho (o sensor dispara sem sessão carregada), alerta distinguido por `type: 'CRASH'` no WebSocket e no push, histórico com badge próprio e botão de simulação para teste (Etapa 9.3) |
+| **Frenagem/aceleração brusca** | ❌ | Requer processamento contínuo de giroscópio; o acelerômetro hoje é usado exclusivamente para detecção de colisão |
 | **Despacho para polícia/SAMU** | 🚫 | Serviço de monitoramento pago |
 | **Proteção contra roubo de identidade** | 🚫 | Serviço de parceiro comercial |
 
@@ -107,9 +107,9 @@
 
 ## Resumo executivo
 
-- **Pronto (pode usar hoje):** mapa ao vivo, cercas, alertas, histórico ilimitado, replay, relatório de direção com viagens e nota histórica semanal/mensal com gráfico de evolução, push notifications em segundo plano, SOS com histórico persistido e resolução, perfil de membro com upload de foto real, chat coletivo do círculo com reações/menções e mensagens diretas 1:1 privadas com notificações, check-in, lugares ilimitados, estilos de mapa, modo escuro, entrada e gestão de membros por código de convite, recuperação de senha por código único gerado por admin ou CLI, VPS Oracle em produção via Cloudflare Tunnel e app nativo Android (.APK) compilado.
-- **Lacunas visíveis ao usuário:** nenhuma bloqueante para o uso diário da família (redefinição de senha plenamente suportada via admin/WhatsApp ou CLI).
-- **Resolvido nas últimas etapas:** Bloco 9 avançado com convite real por código e isolamento por círculo (9.1), deploy na VPS Oracle com Cloudflare Tunnel e app mobile Expo (.APK) com foreground service (9.2), recurso "Atualizar agora" com bridge WebView nativa e tolerância a falhas na sessão (9.4), reações emoji e menções `@nome` com push dedicado (9.5), nota de direção histórica semanal e mensal com gráfico SVG de evolução diária (9.6) e recuperação de senha sem SMTP com código temporário e CLI de emergência (9.7).
-- **Lacunas de plataforma restantes:** envio automático de e-mail opcional (caso no futuro se queira contratar serviço SMTP dedicado; hoje suprido com total independência por código e WhatsApp).
+- **Pronto (pode usar hoje):** mapa ao vivo, cercas, alertas, histórico ilimitado, replay, relatório de direção com viagens e nota histórica semanal/mensal com gráfico de evolução, push notifications em segundo plano, SOS com histórico persistido e resolução, **detecção de acidente veicular por acelerômetro com contagem de segurança de 30 s e disparo automático do SOS**, perfil de membro com upload de foto real, chat coletivo do círculo com reações/menções e mensagens diretas 1:1 privadas com notificações, check-in, lugares ilimitados, estilos de mapa, modo escuro, entrada e gestão de membros por código de convite, recuperação de senha por código único gerado por admin ou CLI, VPS Oracle em produção via Cloudflare Tunnel e app nativo Android (.APK) compilado.
+- **Lacunas visíveis ao usuário:** nenhuma bloqueante para o uso diário da família (redefinição de senha plenamente suportada via admin/WhatsApp ou CLI; detecção de acidente ativa com o app em execução).
+- **Resolvido nas últimas etapas:** Bloco 9 avançado com convite real por código e isolamento por círculo (9.1), deploy na VPS Oracle com Cloudflare Tunnel e app mobile Expo (.APK) com foreground service (9.2), recurso "Atualizar agora" com bridge WebView nativa e tolerância a falhas na sessão (9.4), reações emoji e menções `@nome` com push dedicado (9.5), nota de direção histórica semanal e mensal com gráfico SVG de evolução diária (9.6), recuperação de senha sem SMTP com código temporário e CLI de emergência (9.7) e detecção de acidente real por acelerômetro com rota pública autenticada por chave de aparelho (9.3) — **Bloco 9 concluído**.
+- **Lacunas de plataforma restantes:** envio automático de e-mail opcional (hoje suprido com total independência por código único e WhatsApp); sensor de colisão com o app totalmente encerrado pelo usuário exigiria um serviço nativo dedicado (hoje a escuta vale com o app vivo ou em segundo plano).
 - **Impossível sem parceiro comercial:** despacho de emergência, monitoramento 24h, proteção de identidade.
-- **Depende de hardware (app mobile):** detecção de acidente por acelerômetro (Etapa 9.3), frenagem brusca.
+- **Depende de hardware (app mobile):** frenagem brusca detalhada e classificação de manobras por giroscópio (a detecção de colisão por acelerômetro já está implementada — Etapa 9.3).

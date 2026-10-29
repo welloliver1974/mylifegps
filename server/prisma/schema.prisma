@@ -152,6 +152,7 @@ model SosEvent {
   id           String    @id @default(uuid())
   userId       String
   user         User      @relation("SosUser", fields: [userId], references: [id], onDelete: Cascade)
+  type         String    @default("SOS") // "SOS" | "CRASH" (Etapa 9.3)
   latitude     Float
   longitude    Float
   accuracy     Float?

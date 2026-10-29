@@ -2,6 +2,7 @@ import * as TaskManager from 'expo-task-manager';
 import * as Location from 'expo-location';
 import * as Battery from 'expo-battery';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { updateMovementState } from './crashDetection';
 
 export const LOCATION_TASK_NAME = 'background-location-task';
 
@@ -50,6 +51,15 @@ export async function sendTelemetryToServer(location: Location.LocationObject): 
 
     const cleanKey = (deviceKey || '').trim().replace(/^["']|["']$/g, '');
     const cleanId = (deviceId || '').trim();
+    const speedKmh = location.coords.speed ? Math.round(location.coords.speed * 3.6) : 0;
+
+    // Sincroniza velocidade e posição com o motor de detecção de colisão (Etapa 9.3)
+    updateMovementState({
+      speedKmh,
+      latitude: location.coords.latitude,
+      longitude: location.coords.longitude,
+      accuracy: typeof location.coords.accuracy === 'number' ? location.coords.accuracy : undefined,
+    });
 
     const payload = {
       deviceIdentifier: cleanId,
@@ -58,7 +68,7 @@ export async function sendTelemetryToServer(location: Location.LocationObject): 
       longitude: location.coords.longitude,
       altitude: location.coords.altitude,
       accuracy: location.coords.accuracy,
-      speed: location.coords.speed ? Math.round(location.coords.speed * 3.6) : 0, // m/s para km/h
+      speed: speedKmh, // m/s para km/h
       heading: location.coords.heading,
       battery: batteryLevel,
       isCharging,

@@ -190,9 +190,9 @@
 ---
 
 ## BLOCO 9: Círculo Real (Convites & Membros) + Deploy na VPS
-- [/] **Status:** EM ANDAMENTO (Etapas 9.1, 9.2, 9.4, 9.5 e 9.6 concluídas — Próximas: Etapa 9.7 Recuperação de senha ou Etapa 9.3 Detecção de acidente)
+- [x] **Status:** CONCLUÍDO (todas as etapas de 9.1 a 9.7 fechadas)
 - **Origem:** lacunas levantadas na auditoria pós-Etapa 8.9 (ver `FEATURE_PARITY.md`). Ordem definida por impacto real para a família.
-- **Referência obrigatória:** [`FEATURE_PARITY.md`](FEATURE_PARITY.md) — linhas `Código de convite`, `Adicionar/remover membros de verdade`, `Atualizar agora`, `Score semanal/mensal histórico`, `Recuperação de senha`, `HTTPS / túnel seguro`.
+- **Referência obrigatória:** [`FEATURE_PARITY.md`](FEATURE_PARITY.md) — linhas `Código de convite`, `Adicionar/remover membros de verdade`, `Atualizar agora`, `Score semanal/mensal histórico`, `Recuperação de senha`, `Detecção de acidente`, `HTTPS / túnel seguro`.
 
 ### Sub-etapas (executar em ordem; cada uma é um bloco fechável e commitável):
 
@@ -223,8 +223,17 @@
     - **Tema Dark (Modo Escuro):** botão de alternância no topo e no menu, tokens escuros completos e desacoplamento do mapa (mantém o estilo Voyager claro por padrão para máxima legibilidade de trajetos e marcadores, com opção Noturno manual no seletor de camadas). Cache PWA `life360-v20`.
     - **Edição do nome do círculo:** campo de edição com validação para administradores via `PUT /api/circle/name`, atualizando instantaneamente no topo.
 
-- [ ] **Etapa 9.3: Etapa 8.10 — Detecção de acidente real (acelerômetro)**
-  - `expo-sensors` no app mobile; limiar de desaceleração brusca → evento `CRASH_DETECTED` real via WebSocket, com confirmação/cancelamento na tela antes de virar SOS.
+- [x] **Etapa 9.3: Detecção de acidente real por acelerômetro (CONCLUÍDO)**
+  - **Matemática pura e auditável (`mobile/src/services/crashMath.ts`):** magnitude vetorial `sqrt(x²+y²+z²)` em Gs (repouso = 1.0G, leituras `NaN`/`Infinity` caem para 1.0 em vez de propagar lixo), classificação de gravidade (`minor` < 3G ≤ `moderate` < 4G ≤ `severe`), limiares por sensibilidade (**Alta 2.5G**, **Média 3.0G**, **Baixa 3.8G**), filtro de velocidade mínima (padrão **20 km/h**), mensagem padronizada e normalização defensiva da configuração salva. Módulo sem nenhum import nativo — testável fora do app.
+  - **Sensor nativo (`mobile/src/services/crashDetection.ts`):** `expo-sensors` com amostragem de **100 ms** (`HIGH_SAMPLING_RATE_SENSORS` declarado no `app.json` para o limite de 200 ms do Android 12+), **cooldown de 45 s** entre disparos para não gerar loop de alertas, vibração forte imediata no momento do impacto e sincronização contínua de velocidade/posição recebida do rastreamento em segundo plano.
+  - **Filtro anti-falso-positivo:** o evento só sai com **impacto ≥ limiar E velocidade ≥ 20 km/h**, eliminando o caso clássico de o celular cair da mão/mesa com o usuário parado.
+  - **Tela de contagem de segurança (30 s):** modal nativo em tela cheia com força G, velocidade e origem (sensor real vs. simulação), contagem regressiva de **30 segundos**, vibração de reforço a cada 5 s e dois caminhos — **"✅ ESTOU BEM"** (cancela na hora) ou **"🚨 ENVIAR SOS AGORA"** (antecipa o disparo). Ao esgotar o tempo sem resposta, o alerta é transmitido automaticamente e a tela muda para o estado "SOS ENVIADO", com botão **"Estou Seguro Agora"** que encerra o alerta no servidor.
+  - **Servidor — rota pública autenticada por chave de aparelho:** `POST /api/emergency/crash` e `POST /api/emergency/crash/:id/cancel`. O sensor nativo dispara com o app em segundo plano e sem sessão carregada, então a autorização usa a chave `l360_...` (`x-device-key` + `authorizeDevice`, extraído de `routes/telemetry.ts` e agora exportado). Sem chave ou com chave errada → **401**; aparelho de outro usuário tentando cancelar → **403**; alerta inexistente → **404**; cancelamento repetido é idempotente.
+  - **Modelo `SosEvent.type`** (`"SOS"` | `"CRASH"`, default `"SOS"`), aplicado com `prisma db push` — aditivo e retrocompatível. A criação do evento foi extraída para um helper compartilhado (`createEmergencyEvent`) entre o SOS manual e o acidente, preservando o fallback de "última posição conhecida" e a última bateria válida quando o corpo não traz coordenadas.
+  - **Alerta diferenciado:** o WebSocket `SOS_ALERT` e o Web Push levam `type: 'CRASH'`, com título e corpo próprios ("🚗💥 DETECÇÃO DE ACIDENTE VEICULAR") em vez de reusar o texto de pânico manual. A mensagem final é composta **no servidor com o nome real do membro** do círculo — o app deliberadamente não envia `message`, para não vazar o identificador técnico do aparelho no alerta da família.
+  - **Painel Web / PWA:** overlay de emergência em tela cheia passa a alternar entre os dois modos (sirene 🚨 / colisão 🚗💥, títulos e cores distintos), novo card de estatísticas com o campo **Tipo**, e o histórico de segurança marca os eventos de colisão com avatar vermelho, badge **"💥 Colisão Ativa"** e borda lateral de destaque. Bridge de entrada adicionada para o app sinalizar `NATIVE_CRASH_DETECTED` e `NATIVE_CRASH_SOS_SENT`. Cache PWA `life360-v28`.
+  - **Teste no aparelho:** botão **"🧪 Simular Alerta de Acidente (Teste)"** nos ajustes do app dispara todo o fluxo (contagem de 15 s) sem precisar bater o carro, marcando o evento como `(Teste de simulação)` — útil para a família validar que o push chega em todos os celulares.
+  - **Testes automatizados:** **52/52 asserções unitárias** na matemática de detecção (força G, gravidade, limiares por sensibilidade, filtro de velocidade, decisão combinada, mensagem e normalização de config, incluindo entradas inválidas) + **31/31 testes E2E HTTP** contra servidor real na porta 3099 (401 sem chave e com chave errada, 201 com chave correta, tipo `CRASH`, mensagem com G e km/h, fallback de coordenadas e bateria, 403 de aparelho alheio, 404, cancelamento idempotente pelo condutor, SOS manual preservado e histórico exigindo sessão).
 
 - [x] **Etapa 9.4: "Atualizar agora" (forçar posição do aparelho em tempo real)**
   - **Servidor:** endpoints `POST /api/members/:id/request-update` e `POST /api/devices/:id/request-update`, broadcast via WebSocket `LOCATION_UPDATE_REQUEST` e disparo de Web Push VAPID direcionado.
@@ -268,7 +277,19 @@
   - **Ferramenta de emergência (CLI):** `npm run reset-password` (`server/scripts/reset-admin-password.ts`) lista as contas com acesso, permite redefinir direto (`npm run reset-password email NovaSenha123`) ou gerar código de uso único (`npm run reset-password email --code`) para quando o próprio admin estiver deslogado — sem SQL manual e sem SMTP.
   - **Testes automatizados:** 26/26 asserções de serviço aprovadas (formato e normalização do código, matriz de permissões admin/membro/terceiro, senha curta, código inválido, expirado e já consumido, invalidação do código anterior, revogação de sessão antiga e hash bcrypt) + 13/13 testes E2E HTTP contra servidor real na porta 3099 (login admin/membro, 403 para membro comum, 401 sem token, geração de código, rejeições 400, reset 200, login com senha antiga 401, login com senha nova 200, sessão antiga revogada e rota pública de esqueci a senha).
 
+- [ ] **BLOCO 10: Pendências e Melhorias Futuras**
+  - Candidatos levantados até aqui, nenhum bloqueante para o uso diário da família:
+    - **Envio automático de e-mail** para recuperação de senha e resumo semanal (hoje suprido por código único + WhatsApp + CLI, sem depender de provedor pago).
+    - **Sensor de colisão em segundo plano real (foreground service dedicado):** o acelerômetro hoje escuta enquanto o app está vivo; estender para um serviço nativo próprio garantiria detecção com o app totalmente fechado pelo usuário.
+    - **Ajuste fino dos limiares de impacto** após uso real na família (calibração por veículo).
+    - **Zoom/pan do gráfico SVG** da nota de direção histórica.
+    - **Exportação de relatórios** de viagens e segurança em PDF/CSV.
+    - **Retenção configurável de histórico** por círculo (hoje o histórico é ilimitado por design).
+
+---
+
 ### Como retomar (checklist para qualquer IA)
+
 1. Ler `ROADMAP_MODULAR.md` (este arquivo) e `FEATURE_PARITY.md`.
 2. `cd server && npm run build` para confirmar que o último commit compila.
 3. Para testar: subir `$env:PORT='3099'; node dist/index.js` em background e rodar um script `tsx` descartável contra `http://127.0.0.1:3099` (**não** tentar spawnar o servidor de dentro do `tsx` — não funciona nesta máquina). Apagar o script depois.

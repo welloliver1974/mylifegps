@@ -3335,9 +3335,22 @@ document.addEventListener('DOMContentLoaded', () => {
   function triggerSosEmergencyOverlay(alert) {
     currentActiveSosAlert = alert;
     const overlay = document.getElementById('sosEmergencyOverlay');
-    document.getElementById('sosSenderText').textContent = `${alert.userName || 'Membro'} acionou o botão de pânico SOS!`;
+    const isCrash = alert?.type === 'CRASH' || String(alert?.message || '').includes('ACIDENTE');
+
+    const sirenEl = overlay.querySelector('.emergency-siren-animation');
+    const titleEl = overlay.querySelector('.emergency-title');
+    if (sirenEl) sirenEl.textContent = isCrash ? '🚗💥' : '🚨';
+    if (titleEl) titleEl.textContent = isCrash ? 'COLISÃO / ACIDENTE VEICULAR' : 'ALERTA DE EMERGÊNCIA / SOS';
+
+    const defaultCrashText = `Possível colisão veicular detectada para ${alert.userName || 'Membro da Família'}!`;
+    const defaultSosText = `${alert.userName || 'Membro'} acionou o botão de pânico SOS!`;
+    document.getElementById('sosSenderText').textContent = alert.message || (isCrash ? defaultCrashText : defaultSosText);
 
     document.getElementById('sosEmergencyStats').innerHTML = `
+      <div class="emergency-stat-item">
+        <div class="e-label">Tipo</div>
+        <div class="e-val">${isCrash ? 'Colisão 🚗' : 'SOS Manual 🚨'}</div>
+      </div>
       <div class="emergency-stat-item">
         <div class="e-label">Bateria</div>
         <div class="e-val">${alert.battery !== undefined && alert.battery !== null ? alert.battery + '%' : '--'}</div>
@@ -3413,9 +3426,10 @@ document.addEventListener('DOMContentLoaded', () => {
       const timeStr = new Date(ev.createdAt).toLocaleString('pt-BR', {
         day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit'
       });
+      const isCrash = ev.type === 'CRASH' || String(ev.message || '').includes('ACIDENTE');
       const isResolved = ev.status === 'RESOLVED';
       const isActive = ev.status === 'ACTIVE';
-      const statusLabel = isActive ? 'Ativo' : isResolved ? 'Resolvido' : 'Cancelado';
+      const statusLabel = isActive ? (isCrash ? '💥 Colisão Ativa' : 'Ativo') : isResolved ? 'Resolvido' : 'Cancelado';
       const badgeClass = isActive ? 'active' : isResolved ? 'resolved' : 'canceled';
 
       let resolvedInfo = '';
@@ -3426,21 +3440,21 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       return `
-        <div class="sos-card ${isActive ? 'active-alert' : ''}">
+        <div class="sos-card ${isActive ? 'active-alert' : ''} ${isCrash ? 'crash-card' : ''}">
           <div class="sos-card-header">
             <div class="sos-user-wrap">
-              <div class="sos-user-avatar" style="background: ${userColor};">
-                ${initials}
+              <div class="sos-user-avatar" style="background: ${isCrash ? '#DC2626' : userColor};">
+                ${isCrash ? '🚗' : initials}
               </div>
               <div class="sos-user-info">
-                <span class="sos-user-name">${u.name || 'Membro'}</span>
+                <span class="sos-user-name">${u.name || 'Membro'}${isCrash ? ' (Acidente)' : ''}</span>
                 <span class="sos-time">${timeStr}${resolvedInfo}</span>
               </div>
             </div>
             <span class="sos-status-badge ${badgeClass}">${statusLabel}</span>
           </div>
 
-          <div class="sos-card-message">${ev.message || 'Alerta de SOS acionado'}</div>
+          <div class="sos-card-message">${ev.message || (isCrash ? 'Colisão veicular detectada' : 'Alerta de SOS acionado')}</div>
 
           <div class="sos-card-meta">
             <span>🔋 ${ev.battery !== null && ev.battery !== undefined ? ev.battery + '%' : '--'}</span>
@@ -3471,6 +3485,22 @@ document.addEventListener('DOMContentLoaded', () => {
   window.resolveSosItem = (id) => {
     resolveSosAlert(id, 'RESOLVED');
   };
+
+  // Bridge nativa para eventos recebidos do app mobile Expo (Etapa 9.3)
+  function handleNativeBridgeMessage(event) {
+    try {
+      const data = typeof event.data === 'string' ? JSON.parse(event.data) : event.data;
+      if (!data || !data.type) return;
+      if (data.type === 'NATIVE_CRASH_DETECTED') {
+        showToast(`🚗💥 Impacto de ${data.gForce}G detectado no sensor. Contagem de segurança ativa.`);
+      } else if (data.type === 'NATIVE_CRASH_SOS_SENT') {
+        showToast('🚨 Alerta de acidente transmitido à família!');
+        loadSosHistory(currentSosFilter);
+      }
+    } catch {}
+  }
+  window.addEventListener('message', handleNativeBridgeMessage);
+  document.addEventListener('message', handleNativeBridgeMessage);
 
   // 16b. Edição de Perfil & Foto Real do Membro (Etapa 8.7)
   let profilePendingAvatarFile = null;

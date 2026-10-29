@@ -37,8 +37,11 @@ export function broadcastLocationUpdate(payload: any) {
   }
 }
 
-// Dispara Alerta de SOS / Pânico de Emergência em tempo real para o Círculo
+// Dispara Alerta de SOS / Pânico de Emergência ou Acidente em tempo real para o Círculo
 export function broadcastSosAlert(payload: any) {
+  const isCrash = payload.type === 'CRASH' || String(payload.message || '').includes('ACIDENTE');
+  const alertType = isCrash ? 'CRASH' : 'SOS';
+
   const message = JSON.stringify({
     type: 'SOS_ALERT',
     alert: {
@@ -46,11 +49,14 @@ export function broadcastSosAlert(payload: any) {
       userId: payload.userId,
       userName: payload.userName,
       userAvatar: payload.userAvatar,
+      type: alertType,
       latitude: payload.latitude,
       longitude: payload.longitude,
       battery: payload.battery,
       triggeredAt: payload.createdAt || new Date().toISOString(),
-      message: payload.message || `🚨 ALERTA DE EMERGÊNCIA: ${payload.userName || 'Membro da Família'} acionou o SOS!`,
+      message: payload.message || (isCrash
+        ? `🚗💥 POSSÍVEL ACIDENTE DETECTADO: ${payload.userName || 'Membro da Família'} sofreu uma colisão veicular!`
+        : `🚨 ALERTA DE EMERGÊNCIA: ${payload.userName || 'Membro da Família'} acionou o SOS!`),
     },
   });
 
@@ -63,12 +69,14 @@ export function broadcastSosAlert(payload: any) {
   // Notifica todos os outros membros do círculo via Web Push no celular
   broadcastPushNotification(
     {
-      title: '🚨 ALERTA DE SOS / PÂNICO',
-      body: payload.message || `Emergência: ${payload.userName || 'Membro da Família'} acionou o SOS!`,
+      title: isCrash ? '🚗💥 DETECÇÃO DE ACIDENTE VEICULAR' : '🚨 ALERTA DE SOS / PÂNICO',
+      body: payload.message || (isCrash
+        ? `Atenção: Possível acidente veicular detectado para ${payload.userName || 'Membro da Família'}!`
+        : `Emergência: ${payload.userName || 'Membro da Família'} acionou o SOS!`),
       icon: '/icon-192.png',
       badge: '/icon-192.png',
       tag: 'sos-alert',
-      data: { url: '/', type: 'sos', userId: payload.userId, sosId: payload.id },
+      data: { url: '/', type: isCrash ? 'crash' : 'sos', userId: payload.userId, sosId: payload.id },
     },
     payload.userId
   ).catch((err) => console.error('[Push SOS Error]', err));
