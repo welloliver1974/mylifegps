@@ -1,6 +1,7 @@
 import { prisma } from '../db.js';
 import { broadcastLocationUpdate } from './websocket.js';
 import { checkGeofencesForDevice } from './geofence.js';
+import { checkBatteryAlert } from './batteryAlert.js';
 
 export interface TelemetryInput {
   deviceIdentifier: string; // Ex: ID do Traccar ou IMEI/UUID
@@ -88,6 +89,13 @@ export async function processTelemetry(input: TelemetryInput) {
     where: { id: device.id },
     data: { lastSeenAt: recordedAt },
   });
+
+  // 3.1 Monitora nível de bateria fraca (< 15%) com histerese (Etapa 10.1)
+  if (record.battery !== null && record.battery !== undefined) {
+    checkBatteryAlert(device, record.battery, record.isCharging).catch((err) => {
+      console.error('[BatteryAlert Error]', err);
+    });
+  }
 
   // 4. Verifica Cercas Virtuais (Geofencing)
   const geofenceEvents = await checkGeofencesForDevice(

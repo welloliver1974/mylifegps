@@ -40,6 +40,7 @@ import {
   CrashSensitivity,
   DEFAULT_CRASH_CONFIG,
 } from './src/services/crashDetection';
+import { registerForNativePushAsync } from './src/services/nativePush';
 
 const DEFAULT_SERVER_URL = 'https://life360.housecloud.tec.br';
 
@@ -256,6 +257,11 @@ export default function App() {
       // Se ainda não configurou o identificador e a chave, abre a tela de ajustes na 1ª vez
       if (!savedDevice || !savedKey) {
         setShowConfig(true);
+      } else {
+        // Registra para notificações push nativas no Android
+        registerForNativePushAsync(savedUrl || DEFAULT_SERVER_URL, savedDevice, savedKey).catch((err) => {
+          console.warn('[NativePush] Registro em segundo plano:', err);
+        });
       }
     } catch (e) {
       console.error(e);
@@ -277,6 +283,11 @@ export default function App() {
       } else {
         stopCrashMonitoring();
       }
+
+      // Registra/atualiza push token nativo no servidor
+      registerForNativePushAsync(serverUrl.trim(), deviceId.trim(), deviceApiKey.trim()).catch((err) => {
+        console.warn('[NativePush] Falha ao registrar token após salvar:', err);
+      });
 
       setShowConfig(false);
       Alert.alert('Configurações Salvas', 'Os parâmetros do aparelho e do sensor foram atualizados com sucesso.');

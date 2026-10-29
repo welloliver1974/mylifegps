@@ -217,6 +217,38 @@ export function broadcastCheckin(payload: any) {
   ).catch((err) => console.error('[Push Checkin Error]', err));
 }
 
+// Dispara Notificação de Bateria Fraca (< 15%) em tempo real (Etapa 10.1)
+export function broadcastBatteryLowAlert(payload: {
+  userId: string;
+  userName: string;
+  deviceId: string;
+  deviceName: string;
+  battery: number;
+  isCharging?: boolean;
+  recordedAt?: string;
+}) {
+  const message = JSON.stringify({
+    type: 'BATTERY_LOW_ALERT',
+    alert: {
+      id: `batt-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      userId: payload.userId,
+      userName: payload.userName,
+      deviceId: payload.deviceId,
+      deviceName: payload.deviceName,
+      battery: payload.battery,
+      isCharging: !!payload.isCharging,
+      message: `🪫 A bateria de ${payload.userName} está em ${payload.battery}%!`,
+      timestamp: payload.recordedAt || new Date().toISOString(),
+    },
+  });
+
+  for (const client of clients) {
+    if (client.readyState === WebSocket.OPEN) {
+      client.send(message);
+    }
+  }
+}
+
 // Dispara mensagem direta (1:1) apenas para o remetente e destinatário
 export function sendDirectMessage(message: any) {
   const payload = JSON.stringify({

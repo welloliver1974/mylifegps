@@ -1603,6 +1603,8 @@ document.addEventListener('DOMContentLoaded', () => {
           loadSosHistory();
         } else if (msg.type === 'CHECKIN_ALERT') {
           showToast(msg.alert?.message || '📍 Um membro fez check-in.');
+        } else if (msg.type === 'BATTERY_LOW_ALERT') {
+          showToast(msg.alert?.message || '🪫 Bateria fraca detectada em um membro.');
         } else if (msg.type === 'CHAT_MESSAGE') {
           if (activeChatChannel === 'circle') {
             appendChatMessage(msg.message);
@@ -1964,13 +1966,21 @@ document.addEventListener('DOMContentLoaded', () => {
     const speed = member.location.speed ? Math.round(member.location.speed) : 0;
     const isMoving = speed > 5;
 
+    const hasBattery = rawBatt !== undefined && rawBatt !== null;
+    const battText = hasBattery ? `${isCharging ? '⚡' : ''}${batt}%` : '';
+    const battBadgeHtml = hasBattery
+      ? `<span class="tag-batt ${battClass}" title="Bateria: ${batt}%${isCharging ? ' (Carregando)' : ''}">${battText}</span>`
+      : '';
+
     const statusTagHtml = isMoving
       ? `<div class="marker-status-tag moving">
            <span class="tag-icon">🚗</span>
            <span class="tag-text">${speed} km/h</span>
+           ${battBadgeHtml ? `<span class="tag-dot">•</span>${battBadgeHtml}` : ''}
          </div>`
       : `<div class="marker-status-tag">
            <span class="tag-text">${member.name}</span>
+           ${battBadgeHtml ? `<span class="tag-dot">•</span>${battBadgeHtml}` : ''}
          </div>`;
 
     const markerHtml = `
@@ -1987,9 +1997,6 @@ document.addEventListener('DOMContentLoaded', () => {
           </svg>
           <div class="avatar-photo" style="background-color: ${member.color || '#3B82F6'};">
             ${member.avatarUrl ? `<img src="${member.avatarUrl}" alt="${member.name}" />` : initials}
-          </div>
-          <div class="avatar-battery-pill ${battClass}">
-            ${isCharging ? '⚡' : batt + '%'}
           </div>
         </div>
         ${statusTagHtml}

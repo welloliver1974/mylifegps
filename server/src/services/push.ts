@@ -43,13 +43,64 @@ export interface SubscriptionRecord {
 }
 
 /**
- * Envia uma notificação Web Push para uma inscrição específica.
- * Remove automaticamente a inscrição do banco se o serviço de push retornar 404/410 (inscrição expirada).
+ * Envia uma notificação Push (Web Push VAPID ou Expo Push Nativo para APK Android).
+ * Remove automaticamente a inscrição do banco se o serviço retornar expirada/desinstalada.
  */
 export async function sendPushNotification(
   subscription: SubscriptionRecord,
   payload: PushPayload
 ): Promise<boolean> {
+  const isExpo =
+    subscription.endpoint.startsWith('ExponentPushToken[') || subscription.p256dh === 'expo';
+
+  // 1. Envio Nativo para o APK Android via Expo Push Service
+  if (isExpo) {
+    try {
+      const isEmergency =
+        payload.title.includes('SOS') ||
+        payload.title.includes('ACIDENTE') ||
+        payload.title.includes('COLISÃO') ||
+        payload.title.includes('CRÍTICA');
+
+      const response = await fetch('https://exp.host/--/api/v2/push/send', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+        },
+        body: JSON.stringify({
+          to: subscription.endpoint,
+          title: payload.title,
+          body: payload.body,
+          sound: 'default',
+          channelId: isEmergency ? 'emergency' : 'default',
+          priority: isEmergency ? 'high' : 'default',
+          data: payload.data || {},
+        }),
+      });
+
+      if (!response.ok) {
+        console.warn(`[ExpoPush] HTTP ${response.status} ao enviar para ${subscription.endpoint}`);
+        return false;
+      }
+
+      const resData = (await response.json()) as any;
+      if (resData?.data?.details?.error === 'DeviceNotRegistered') {
+        console.log(`[ExpoPush] Aparelho desinstalado, removendo token: ${subscription.endpoint}`);
+        await prisma.pushSubscription.deleteMany({
+          where: { endpoint: subscription.endpoint },
+        });
+        return false;
+      }
+
+      return resData?.data?.status === 'ok';
+    } catch (err: any) {
+      console.error('[ExpoPush Error]', err.message);
+      return false;
+    }
+  }
+
+  // 2. Envio Web Push (VAPID) para navegadores / PWA
   if (!pushConfigured) return false;
 
   const pushSubscription = {
@@ -85,14 +136,13 @@ export async function sendPushNotification(
 }
 
 /**
- * Envia notificação Web Push para todos os aparelhos de todos os membros (opcionalmente excluindo o autor do evento).
+ * Envia notificação Web Push / Expo Push para todos os aparelhos de todos os membros
+ * (opcionalmente excluindo o autor do evento).
  */
 export async function broadcastPushNotification(
   payload: PushPayload,
   excludeUserId?: string
 ): Promise<number> {
-  if (!pushConfigured) return 0;
-
   try {
     const where: any = {};
     if (excludeUserId) {
@@ -121,14 +171,12 @@ export async function broadcastPushNotification(
 }
 
 /**
- * Envia notificação Web Push para todos os aparelhos de um usuário específico.
+ * Envia notificação Web Push / Expo Push para todos os aparelhos de um usuário específico.
  */
 export async function sendPushToUser(
   userId: string,
   payload: PushPayload
 ): Promise<number> {
-  if (!pushConfigured) return 0;
-
   try {
     const subscriptions = await prisma.pushSubscription.findMany({
       where: { userId },

@@ -277,14 +277,25 @@
   - **Ferramenta de emergência (CLI):** `npm run reset-password` (`server/scripts/reset-admin-password.ts`) lista as contas com acesso, permite redefinir direto (`npm run reset-password email NovaSenha123`) ou gerar código de uso único (`npm run reset-password email --code`) para quando o próprio admin estiver deslogado — sem SQL manual e sem SMTP.
   - **Testes automatizados:** 26/26 asserções de serviço aprovadas (formato e normalização do código, matriz de permissões admin/membro/terceiro, senha curta, código inválido, expirado e já consumido, invalidação do código anterior, revogação de sessão antiga e hash bcrypt) + 13/13 testes E2E HTTP contra servidor real na porta 3099 (login admin/membro, 403 para membro comum, 401 sem token, geração de código, rejeições 400, reset 200, login com senha antiga 401, login com senha nova 200, sessão antiga revogada e rota pública de esqueci a senha).
 
-- [ ] **BLOCO 10: Pendências e Melhorias Futuras**
-  - Candidatos levantados até aqui, nenhum bloqueante para o uso diário da família:
-    - **Envio automático de e-mail** para recuperação de senha e resumo semanal (hoje suprido por código único + WhatsApp + CLI, sem depender de provedor pago).
-    - **Sensor de colisão em segundo plano real (foreground service dedicado):** o acelerômetro hoje escuta enquanto o app está vivo; estender para um serviço nativo próprio garantiria detecção com o app totalmente fechado pelo usuário.
-    - **Ajuste fino dos limiares de impacto** após uso real na família (calibração por veículo).
-    - **Zoom/pan do gráfico SVG** da nota de direção histórica.
-    - **Exportação de relatórios** de viagens e segurança em PDF/CSV.
-    - **Retenção configurável de histórico** por círculo (hoje o histórico é ilimitado por design).
+- [/] **BLOCO 10: O Toque Final de Paridade (Experiência 1:1 Life360)**
+  - [x] **Etapa 10.1: Alerta Automático de Bateria Fraca (< 15%) e Correção Visual do Marcador (CONCLUÍDO)**
+    - **Correção da sobreposição do anel de bateria no mapa:** remoção da antiga pílula colada no canto inferior do avatar (`.avatar-battery-pill`) que cortava o traço circular do SVG e cobria o nome do membro. A porcentagem agora é exibida de forma limpa e integrada dentro da etiqueta de status inferior (`[ Wellington • 94% ]` ou `[ 🚗 45 km/h • 94% ]`), com cores adaptativas por faixa (verde $\ge 50\%$, amarelo $20\text{--}49\%$, vermelho $<20\%$) e suporte a modo escuro. O anel contorna o avatar com visibilidade 100% contínua e sem colisões. Cache PWA atualizado para `life360-v29`.
+    - **Serviço de Alerta de Bateria (`server/src/services/batteryAlert.ts`):** monitoramento automático da telemetria recebida em `telemetry.ts`. Quando qualquer aparelho cai para $\le 15\%$ sem estar no carregador, o servidor dispara:
+      - Notificação Web Push para todos os membros do círculo (excluindo o próprio usuário autor para não duplicar).
+      - Evento WebSocket `BATTERY_LOW_ALERT` para clientes com o painel aberto (`"🪫 A bateria de Wellington está em 12%!"`).
+    - **Mecanismo de Histerese e Anti-Spam:** cooldown de 4 horas entre alertas ordinários ($\le 15\%$), liberação antecipada para bateria crítica ($\le 5\%$) se já decorreram 30 minutos, e reset automático do cooldown quando a bateria é recarregada para $\ge 30\%$.
+    - **Notificações Push Nativas no APK Android (`expo-notifications`):**
+      - Integração nativa no app mobile Expo com canais Android dedicados (`default` e `emergency` com prioridade máxima e vibração).
+      - Rota pública autenticada por chave de aparelho: `POST /api/push/register-device` permitindo ao APK registrar tokens `ExponentPushToken[...]` diretamente na VPS.
+      - Suporte híbrido no servidor (`services/push.ts`): entrega automática tanto para Web Push VAPID (Chrome/PWA) quanto para Expo Push Service (`https://exp.host/--/api/v2/push/send`) para o APK nativo.
+    - **Testes automatizados:** 7/7 asserções unitárias do motor de histerese de bateria aprovadas + 6/6 testes E2E aprovados contra servidor real na porta 3099 validando registro de push por chave de aparelho, 400/401 de segurança, persistência e upsert no SQLite.
+
+  - Candidatos restantes do Bloco 10:
+    - **Etapa 10.2: Frenagem e aceleração brusca no cartão da viagem** (detecção de desacelerações no trajeto com marcadores visuais).
+    - **Etapa 10.3: Uso de celular ao volante** (tempo de tela ativa com velocidade > 20 km/h).
+    - **Etapa 10.4: Inicialização automática no Boot do Android** (`RECEIVE_BOOT_COMPLETED`).
+    - **Etapa 10.5: Seletor de múltiplos círculos no topo** (Família / Amigos).
+    - **Envio automático de e-mail opcional** (recuperação de senha e resumo semanal).
 
 ---
 

@@ -52,8 +52,15 @@ fastify.addContentTypeParser('application/json', { parseAs: 'string' }, (_req, b
 });
 
 // Rotas de API que não exigem sessão: autenticação, ingestão de telemetria dos aparelhos,
-// alerta de acidente por chave de aparelho, config pública e health
-const PUBLIC_API_PREFIXES = ['/api/auth/', '/api/telemetry', '/api/emergency/crash', '/api/config', '/health'];
+// alerta de acidente por chave de aparelho, registro de push do APK, config pública e health
+const PUBLIC_API_PREFIXES = [
+  '/api/auth/',
+  '/api/telemetry',
+  '/api/emergency/crash',
+  '/api/push/register-device',
+  '/api/config',
+  '/health',
+];
 
 function isPublicApi(url: string) {
   return PUBLIC_API_PREFIXES.some((prefix) => url.startsWith(prefix));

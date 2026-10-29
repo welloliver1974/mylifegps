@@ -16,6 +16,7 @@
     "expo-battery": "~8.0.1",
     "expo-device": "~6.0.2",
     "expo-location": "~17.0.1",
+    "expo-notifications": "~0.28.19",
     "expo-sensors": "~13.0.9",
     "expo-status-bar": "~1.12.1",
     "expo-task-manager": "~11.8.2",

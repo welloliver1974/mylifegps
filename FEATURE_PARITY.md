@@ -6,7 +6,7 @@
 
 **Legenda:** ✅ implementado e funcionando · ⚠️ parcial / simplificado · ❌ ausente · 🚫 depende de terceiro (impossível auto-hospedar)
 
-*Última auditoria: 2026-10-29 — Etapa 9.3 concluída: detecção de acidente veicular por acelerômetro no app mobile com contagem de segurança, rota pública autenticada por chave de aparelho e alerta diferenciado de colisão no painel. Bloco 9 fechado (9.1 a 9.7)*
+*Última auditoria: 2026-10-29 — Etapa 10.1 concluída: alerta automático de bateria fraca (< 15%) com histerese, anel de bateria limpo sem sobreposição no avatar e notificações push nativas no APK Android via Expo Notifications. Bloco 10 iniciado.*
 
 ---
 
@@ -17,8 +17,9 @@
 | Mapa ao vivo com todos os membros | ✅ | Leaflet + WebSocket em tempo real |
 | Estilos de mapa (claro, satélite, escuro) | ✅ | CARTO Voyager / Esri Imagery / CARTO Dark |
 | Avatar do membro no mapa | ✅ | Iniciais coloridas ou foto real do membro via upload (@fastify/multipart) e preview dinâmico (Etapa 8.7) |
-| Anel circular de bateria | ✅ | SVG dinâmico verde/laranja/vermelho |
-| Status de carregamento (⚡) | ✅ | |
+| Anel circular de bateria | ✅ | SVG dinâmico contínuo sem cortes e porcentagem integrada na etiqueta inferior (Etapa 10.1) |
+| **Alerta de bateria fraca (< 15%)** | ✅ | Monitoramento em telemetria com histerese (cooldown 4h, reset aos 30%), push para todo o círculo e aviso WebSocket em tempo real (Etapa 10.1) |
+| Status de carregamento (⚡) | ✅ | Indicador animado no anel e ícone ⚡ no status |
 | Velocidade / "em trânsito" | ✅ | Tag `🚗 km/h` acima de 5 km/h |
 | Precisão do GPS | ✅ | Círculo de acurácia + stat no painel |
 | **Endereço do local atual** | ✅ | Nominatim/OSM com cache SQLite (`GeocodingCache`) e detecção de cerca |
@@ -97,7 +98,7 @@
 | **Permissões por papel (admin/membro)** | ✅ | `role` no `User`; rotas `/api/admin/*` (backup e auditoria) devolvem 403 para membros comuns. Ainda não há papéis intermediários além de admin/membro |
 | **HTTPS / túnel seguro** | ✅ | Cloudflare Tunnel em produção (`life360.housecloud.tec.br`) sem portas públicas abertas |
 | **Backup automático do banco** | ✅ | WAL checkpoint + cópia com fallback `VACUUM INTO`, verificação de cabeçalho, retenção de 14 dias, agendador de 24 h e botão de backup manual no painel (Etapa 8.9) |
-| **Notificações push (VAPID)** | ✅ | Web Push W3C com chaves VAPID, service worker em segundo plano, alertas de cerca (ENTER/EXIT), SOS e check-in mesmo com navegador fechado (Etapa 8.5) |
+| **Notificações push (Híbrido)** | ✅ | Web Push W3C (VAPID) no navegador/PWA + Expo Push Service nativo com canais Android de alta prioridade no APK móvel (Etapa 10.1) |
 | **Auditoria / log de acessos** | ✅ | Modelo `AccessLog` + hook `onResponse`: usuário, método, rota, status, IP, user-agent e duração; retenção de 30 dias; visualizador com resumo de 24 h e filtro de erros (Etapa 8.9) |
 | **Ingestão de telemetria autenticada** | ✅ | Chave por aparelho (`l360_...`) validada com `timingSafeEqual`, aceita por header, query ou corpo; rotação de chave revoga a anterior na hora; `TELEMETRY_REQUIRE_KEY=false` só como escape consciente (Etapa 8.9) |
 | **Recuperação de senha** | ✅ | Código temporário de uso único (`REC-XXXX-XXXX`, 30 min) gerado por admin no modal do círculo com cópia para WhatsApp, tela "Esqueci minha senha" no PWA, revogação de sessões antigas e CLI de emergência na VPS sem depender de SMTP (Etapa 9.7) |

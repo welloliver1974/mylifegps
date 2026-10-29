@@ -6,8 +6,58 @@ import {
   sendPushToUser,
   broadcastPushNotification,
 } from '../services/push.js';
+import { authorizeDevice, extractDeviceKey } from './telemetry.js';
 
 export async function pushRoutes(fastify: FastifyInstance) {
+  // Registra o token nativo do APK Android (Expo Push) autenticado por chave do aparelho
+  fastify.post('/api/push/register-device', async (request, reply) => {
+    const body = request.body as any;
+    const deviceIdentifier = body?.deviceIdentifier;
+    const pushToken = body?.pushToken;
+
+    if (!deviceIdentifier || !pushToken) {
+      return reply.status(400).send({
+        error: 'deviceIdentifier e pushToken são obrigatórios',
+      });
+    }
+
+    const key = extractDeviceKey(request, body);
+    const auth = await authorizeDevice(deviceIdentifier, key);
+
+    if (!auth.ok) {
+      return reply.status(auth.status).send({ error: auth.error });
+    }
+
+    const device = auth.device;
+    if (!device.userId) {
+      return reply.status(400).send({ error: 'Aparelho não vinculado a um usuário familiar' });
+    }
+
+    // Salva ou atualiza no banco a inscrição nativa Expo Push
+    const sub = await prisma.pushSubscription.upsert({
+      where: { endpoint: pushToken },
+      create: {
+        userId: device.userId,
+        endpoint: pushToken,
+        p256dh: 'expo',
+        auth: 'expo',
+        userAgent: `MyLife360-APK/${device.name}`,
+      },
+      update: {
+        userId: device.userId,
+        p256dh: 'expo',
+        auth: 'expo',
+        userAgent: `MyLife360-APK/${device.name}`,
+      },
+    });
+
+    return reply.status(201).send({
+      success: true,
+      subscriptionId: sub.id,
+      message: 'Token de notificação nativa do APK registrado com sucesso na VPS.',
+    });
+  });
+
   // Retorna a chave pública VAPID para o navegador assinar o PushManager
   fastify.get('/api/push/public-key', async (_request, reply) => {
     return reply.send({
