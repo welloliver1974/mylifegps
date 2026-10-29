@@ -134,7 +134,7 @@ O desenvolvimento foi estruturado em 9 blocos modulares sólidos:
 ## 📊 4. Tabela de Paridade com o Life360 Oficial
 
 > [!note] Status Verificado em Código
-> Última auditoria técnica: **28/10/2026**
+> Última auditoria técnica: **29/10/2026**
 
 | Recurso | Life360 Oficial Grátis | Life360 Oficial Pago | My Life360 (Nosso) | Status |
 |:---|:---:|:---:|:---:|:---:|
@@ -145,6 +145,7 @@ O desenvolvimento foi estruturado em 9 blocos modulares sólidos:
 | **Botão de SOS Familiar** | Básico | Com central 24h | **Alerta sonoro + Rota** | <font color="#22c55e">✅ Paridade</font> |
 | **Chat do Círculo e DMs 1:1** | Apenas grupo | Apenas grupo | **Grupo + Privado 1:1** | <font color="#22c55e">✅ Superior</font> |
 | **Tema Escuro (Dark Mode)** | Parcial | Parcial | **Interface Dark + Mapa Nítido** | <font color="#22c55e">✅ Paridade</font> |
+| **Recuperação de Senha** | E-mail / SMS pago | E-mail / SMS pago | **Código Único + WhatsApp + CLI** | <font color="#22c55e">✅ Paridade</font> |
 | **Sensor de Colisão Real** | ❌ | Sim (Acelerômetro) | *Em desenvolvimento (9.3)* | <font color="#eab308">⚠️ Backlog</font> |
 | **Despacho Policial / Ambulância**| ❌ | Empresa terceirizada | Impossível auto-hospedar | <font color="#ef4444">🚫 N/A</font> |
 
@@ -167,6 +168,12 @@ atualizar logs
 
 # Apenas reiniciar o processo (sem recompilar)
 atualizar restart
+
+# Redefinir senha de emergência ou gerar código de recuperação (sem SMTP)
+cd ~/mylifegps/server
+npm run reset-password
+npm run reset-password email@exemplo.com --code
+npm run reset-password email@exemplo.com NovaSenha123
 ```
 
 ### URLs e Acessos:

@@ -263,16 +263,17 @@ atualizar restart   # reinicia o servidor sem recompilar
 | `health` local OK, domínio não | túnel apontando para porta errada | Public Hostname deve ser `localhost:3000` |
 | Push não chega | site aberto por HTTP ou chaves VAPID trocadas | precisa HTTPS; regerar VAPID e reinscrever |
 | "Não autenticado" em tudo | sessão expirada ou `.env` recriado | faça login novamente |
+| Esqueci a senha do admin | sem acesso ao painel | no terminal da VPS: `cd ~/my-life360/server && npm run reset-password` |
 | Perdi o SSH após o hardening | ufw fechou a porta 22 | aguarde o rollback de 10 min ou use o console da Oracle |
 | Telemetria 401 | chave do aparelho errada | gere nova chave em 📱 Dispositivos |
 
 ---
 
-## O que NÃO foi feito aqui (fica para as próximas etapas)
+## Status das etapas seguintes na VPS
 
-- APK do app mobile (Etapa 9.2b — gerar depois que o domínio HTTPS estiver de pé)
-- Sensor de acidente com acelerômetro (Etapa 9.3)
-- "Atualizar agora" (Etapa 9.4)
-- Reações/menções no chat (Etapa 9.5)
-- Nota de direção semanal/mensal (Etapa 9.6)
-- Recuperação de senha por e-mail (Etapa 9.7)
+- [x] APK do app mobile (Etapa 9.2b — APK compilado via EAS e conectado ao domínio HTTPS)
+- [ ] Sensor de acidente com acelerômetro (Etapa 9.3 — única restante do Bloco 9)
+- [x] "Atualizar agora" via bridge WebView nativa (Etapa 9.4)
+- [x] Reações emoji e menções no chat com push (Etapa 9.5)
+- [x] Nota de direção histórica semanal/mensal com gráfico de evolução (Etapa 9.6)
+- [x] Recuperação de senha por código de uso único e CLI de emergência (Etapa 9.7)
