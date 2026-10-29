@@ -253,6 +253,11 @@
     - Legenda com rótulos explicativos ("≥90 Excelente", "75-89 Bom", "<75 Atenção") e tabela de dados acessível alternativa ativada pelo botão "📋 Ver Tabela".
     - Overrides visuais completos em Modo Escuro (`[data-theme="dark"]`). Cache PWA atualizado para `life360-v25` (`sw.js` e `index.html`).
   - **Testes automatizados:** 54/54 asserções aprovadas cobrindo período semanal de 7 dias cronológicos, mensal de 30 dias, exclusão de dias fora da janela, cálculo de médias, notas diárias coerentes, isolamento de permissões 403/401/200, comportamento neutro para membros sem aparelho e compatibilidade com o relatório diário legado.
+  - **Refinamentos pós-9.6 (PWA `life360-v26`, Velocidade, UI Mobile e Fuso Horário):**
+    - **Barra superior no celular:** botão de enquadramento redundante (`#btnFitAll`) ocultado no mobile em favor do FAB do mapa (`#btnRecenterFab`), preservando o layout em uma linha única e blindando o nome do círculo com `text-overflow: ellipsis` sem sobreposição dos botões de ação ou SOS.
+    - **Correção da velocidade (156 km/h):** reescrita da função `extractSpeedKmH` em `tripDetection.ts` e remoção da multiplicação duplicada no replay do `app.js`. Leituras reais do sensor em km/h agora são aceitas diretamente, impedindo que velocidades de 43-50 km/h fossem erroneamente multiplicadas por 3.6.
+    - **Ícones reais do PWA e Web Push:** criação dos arquivos `icon-192.png` e `icon-512.png` em `server/public/`, correção do `manifest.json` para PNGs válidos e inclusão nos assets em cache do Service Worker, corrigindo o bloqueio silencioso de notificações push no Android Chrome.
+    - **Fuso horário do servidor travado em Brasília:** injeção de `process.env.TZ = 'America/Sao_Paulo'` na inicialização de `server/src/index.ts` e no `deploy/ecosystem.config.cjs` (PM2), garantindo que agregações diárias e cortes de meia-noite batam exatamente com o horário de São Paulo mesmo em VPS com hora padrão UTC.
 
 - [ ] **Etapa 9.7: Recuperação de senha**
   - Requer SMTP configurado; sem e-mail hoje a redefinição exige acesso ao banco. Alternativa mínima: código de recuperação de uso único gerado no painel admin.
