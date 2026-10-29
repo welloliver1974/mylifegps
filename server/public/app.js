@@ -3072,7 +3072,8 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!pt) return;
 
     const latlng = [pt.latitude, pt.longitude];
-    const speed = pt.speed ? Math.round(pt.speed * 3.6) : 0;
+    // A velocidade já é gravada em km/h pelo App Android e pelo PWA — não multiplicar de novo
+    const speed = pt.speed && pt.speed > 0 && pt.speed < 200 ? Math.round(pt.speed) : 0;
     const timeStr = new Date(pt.recordedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 
     document.getElementById('replayTime').textContent = timeStr;

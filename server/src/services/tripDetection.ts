@@ -84,23 +84,28 @@ export interface HistoricalDrivingReport {
 
 /**
  * Normaliza a velocidade informada pelo GPS/aparelho em km/h.
+ * Tanto o App Android quanto o PWA Web já enviam a velocidade convertida em km/h.
  */
 export function extractSpeedKmH(speed: number | null | undefined, calculatedKmH?: number): number {
-  if (typeof speed !== 'number' || isNaN(speed) || speed <= 0) {
-    return calculatedKmH && calculatedKmH > 0 && calculatedKmH < 220 ? Math.round(calculatedKmH) : 0;
+  // Se o sensor/aparelho já informou uma velocidade válida (> 0):
+  if (typeof speed === 'number' && !isNaN(speed) && speed > 0) {
+    // Leituras realistas são aceitas diretamente em km/h
+    if (speed < 180) {
+      return Math.round(speed);
+    }
+    // Ruídos extremos (> 180 km/h) caem para a velocidade calculada se viável
+    if (calculatedKmH !== undefined && calculatedKmH > 0 && calculatedKmH < 160) {
+      return Math.round(calculatedKmH);
+    }
+    return 0;
   }
-  // Se speed já está acima de 45 (45 m/s = 162 km/h), o aparelho certamente já enviou em km/h
-  if (speed > 45) return Math.round(speed);
 
-  // Se temos velocidade calculada pela distância/tempo:
-  if (calculatedKmH !== undefined && calculatedKmH > 0) {
-    const diffAsKmH = Math.abs(speed - calculatedKmH);
-    const diffAsMs = Math.abs(speed * 3.6 - calculatedKmH);
-    return Math.round(diffAsKmH <= diffAsMs ? speed : speed * 3.6);
+  // Se o GPS não enviou velocidade ou enviou 0, usa a calculada entre coordenadas consecutivas
+  if (calculatedKmH !== undefined && calculatedKmH > 0 && calculatedKmH < 160) {
+    return Math.round(calculatedKmH);
   }
 
-  // Por padrão no app mobile e web já é enviado em km/h
-  return Math.round(speed);
+  return 0;
 }
 
 /**

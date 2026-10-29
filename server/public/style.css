@@ -3007,13 +3007,19 @@ input[type="range"]::-moz-range-thumb {
   /* Compacta e posiciona a barra superior com safe-area */
   .top-bar {
     top: max(10px, env(safe-area-inset-top, 10px));
-    padding: 7px 10px;
+    padding: 6px 10px;
+    flex-wrap: nowrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    overflow: hidden;
   }
 
   .brand {
-    gap: 7px;
+    gap: 8px;
     min-width: 0;
-    flex: 1;
+    flex: 1 1 auto;
+    overflow: hidden;
   }
 
   .brand-icon {
@@ -3026,30 +3032,52 @@ input[type="range"]::-moz-range-thumb {
   .brand-text {
     min-width: 0;
     flex: 1;
+    overflow: hidden;
   }
 
   .circle-name-wrap {
     min-width: 0;
+    max-width: 100%;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    gap: 4px;
   }
 
   .brand-text h1 {
     font-size: 13.5px;
-    max-width: 130px;
+    max-width: 100%;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
     line-height: 1.2;
+    flex-shrink: 1;
+  }
+
+  .chevron-circle {
+    flex-shrink: 0;
   }
 
   .top-actions {
     gap: 4px;
     flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+  }
+
+  /* No mobile, o botão "Enquadrar todos" na barra superior é ocultado
+     porque já existe o FAB de centralizar (#btnRecenterFab) no mapa flutuante,
+     evitando redundância e liberando espaço vital para o nome do círculo */
+  #btnFitAll {
+    display: none !important;
   }
 
   .icon-btn {
     width: 32px;
     height: 32px;
     border-radius: 9px;
+    flex-shrink: 0;
   }
 
   .icon-btn svg {
@@ -3060,8 +3088,10 @@ input[type="range"]::-moz-range-thumb {
   .sos-top-btn {
     height: 32px;
     padding: 0 8px;
-    font-size: 10.5px;
+    font-size: 11px;
     border-radius: 9px;
+    white-space: nowrap;
+    flex-shrink: 0;
   }
 
   .bottom-sheet {

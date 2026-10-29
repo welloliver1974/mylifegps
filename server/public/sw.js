@@ -1,10 +1,12 @@
-const CACHE_NAME = 'life360-v25';
+const CACHE_NAME = 'life360-v26';
 const ASSETS = [
   '/',
   '/index.html',
-  '/style.css?v=25',
-  '/app.js?v=25',
-  '/manifest.json'
+  '/style.css?v=26',
+  '/app.js?v=26',
+  '/manifest.json',
+  '/icon-192.png',
+  '/icon-512.png'
 ];
 
 self.addEventListener('install', (event) => {
