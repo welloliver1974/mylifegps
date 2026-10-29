@@ -1,3 +1,7 @@
+// Garante que o fuso horário padrão do servidor seja o de Brasília (America/Sao_Paulo),
+// alinhando relatórios diários, cortes de viagens e logs com o celular do usuário
+process.env.TZ = process.env.TZ || 'America/Sao_Paulo';
+
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import websocket from '@fastify/websocket';
