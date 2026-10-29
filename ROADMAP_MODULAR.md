@@ -342,6 +342,19 @@
     - **Cache PWA:** atualizado para `life360-v32` (`sw.js`, `style.css?v=32` e `app.js?v=32`).
     - **Testes automatizados:** normalização e ingestão validadas via script de teste no banco real.
 
+  - [x] **Refinamento Crítico: Precisão do Cálculo de Viagens Individuais e Tempo em Movimento (CONCLUÍDO)**
+    - **Diagnóstico e Correção de Segmentação:**
+      - A quebra de viagem exigia 5 minutos (300 s) de inatividade e absorvia paradas de até 3 minutos (180 s), fundindo saídas distintas separadas por 1 ou 2 minutos em um único cartão de viagem com tempo artificialmente comprimido.
+      - Ponto de partida falso corrigido: o algoritmo puxava cegamente o ponto anterior `sorted[i - 1]` mesmo se registrado horas ou anos atrás (ex: timestamp 1970 do Epoch), o que gerava durações absurdas de 29 milhões de minutos. Agora só anexa o ponto parado anterior se registrado há menos de 60 s.
+      - Limiar de encerramento por parada estacionária ajustado para 60 s (1 min) e gap de desconexão para 120 s, permitindo absorver semáforos comuns (≤ 60 s) sem misturar deslocamentos diferentes.
+    - **Duração Líquida em Movimento e Salvaguarda Física da Velocidade Média:**
+      - Desconto do tempo parado: a duração da viagem agora calcula o tempo líquido efetivo em movimento (`movingSeconds`), eliminando o tempo ocioso estacionado no semáforo ou no embarque.
+      - Fim do piso artificial de 1 minuto: viagens curtas e deslocamentos rápidos registram durações subminuto em segundos (ex: `12 s`, `45 s`), formatadas dinamicamente no PWA (`formatTripDuration`).
+      - A velocidade média agora divide os quilômetros pelas horas reais (com base em segundos) e possui trava física: `avgSpeed = Math.min(avgSpeed, maxSpeed)`, impedindo velocidades médias matematicamente impossíveis superiores à velocidade máxima.
+      - Rótulo e indicador "Tempo em Movimento" no topo do relatório agora exibem a formatação dinâmica adequada (`formatTripDuration`), suportando segundos, minutos e formato hora/minuto (`1h 15min`).
+    - **Cache PWA:** atualizado para `life360-v33` (`sw.js`, `style.css?v=33` e `app.js?v=33`).
+    - **Testes automatizados:** bateria de testes unitários e com dados reais aprovada (`test_trip_precision_e2e.ts`).
+
   - Candidatos restantes do Bloco 10:
     - **Etapa 10.4: Inicialização automática no Boot do Android** (`RECEIVE_BOOT_COMPLETED`) — *postergado a pedido do usuário*.
     - **Etapa 10.5: Seletor de múltiplos círculos no topo** (Família / Amigos).

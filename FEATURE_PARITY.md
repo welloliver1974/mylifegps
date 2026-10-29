@@ -6,7 +6,7 @@
 
 **Legenda:** ✅ implementado e funcionando · ⚠️ parcial / simplificado · ❌ ausente · 🚫 depende de terceiro (impossível auto-hospedar)
 
-*Última auditoria: 2026-10-29 — Correção de paridade visual: anel de bateria agora só preenche com dados válidos (sem forçar 100% verde falso), suporte a escala decimal e tag de lugar posicionada na borda norte sem colidir com avatares (PWA v32). Etapa 10.3 concluída (celular ao volante). Bloco 10 em andamento.*
+*Última auditoria: 2026-10-29 — Refinamento de telemetria e paridade de viagens: segmentação precisa com corte de 60s, desconto de tempo parado da duração líquida, suporte a durações subminuto em segundos e velocidade média limitada à física veicular (PWA v33). Anel de bateria limpo e tag de lugar na borda norte (PWA v32). Etapa 10.3 concluída. Bloco 10 em andamento.*
 
 ---
 
@@ -81,13 +81,13 @@
 | Relatório de direção | ✅ | Recurso Gold liberado |
 | Velocidade máxima | ✅ | |
 | Distância percorrida | ✅ | Haversine |
-| Tempo em movimento | ✅ | Calculado com precisão pela soma da duração das viagens individuais |
+| Tempo em movimento | ✅ | Calculado com precisão pela soma do tempo efetivo em movimento das viagens individuais (descontando paradas), com formatação dinâmica (segundos, minutos e horas) (PWA v33) |
 | Eventos de excesso de velocidade | ✅ | Acima de 90 km/h, com debounce de 25 s para contar episódios e não pontos (Etapa 10.2) |
 | **Frenagem brusca no trajeto** | ✅ | Detectada por desaceleração (≤ -11 km/h/s), com marcador vermelho no mapa do replay, contador no KPI e chip no cartão da viagem (Etapa 10.2) |
 | **Aceleração brusca no trajeto** | ✅ | Detectada por aceleração (≥ +10 km/h/s), com marcador âmbar no mapa, contador no KPI e chip no cartão (Etapa 10.2) |
 | **Uso de celular ao volante** | ⚠️ parcial | Tela ativa com velocidade > 20 km/h registrada no PWA/WebView com `keepalive`, chip no cartão da viagem, card de KPI e penalidade na nota. Uso de outros apps em segundo plano exigiria permissão nativa `PACKAGE_USAGE_STATS` (Etapa 10.3) |
 | Nota de direção (Excelente/Bom/Atenção) | ✅ | Ponderada por excesso de velocidade, frenagens, arrancadas bruscas, uso de celular ao volante e pico de velocidade (Etapa 10.3) |
-| **Detalhamento por viagem individual** | ✅ | Segmentação por tempo de parada (>5 min) e deslocamento; cards individuais com horário, duração, trajeto (lugares/endereços), distância, velocidade e replay de trecho (Etapa 8.4) |
+| **Detalhamento por viagem individual** | ✅ | Segmentação por tempo de parada (>1 min), absorção de semáforo com desconto do tempo ocioso, cards com horário real de partida/chegada, duração em segundos/minutos, velocidade média realista limitada à máxima e replay de trecho (PWA v33) |
 | **Score semanal/mensal histórico** | ✅ | Agregação semanal (7 dias) e mensal (30 dias) via `GET /api/members/:id/driving-history`, gráfico SVG responsivo com alternador pontuação/km, colunas interativas de toque e tooltip, indicador de tendência (Melhorando/Estável/Em queda), tabela acessível e isolamento por círculo (Etapa 9.6) |
 
 ## Conta, Segurança e Infraestrutura

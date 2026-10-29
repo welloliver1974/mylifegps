@@ -34,6 +34,8 @@ export interface Trip {
   startTime: string;
   endTime: string;
   durationMinutes: number;
+  totalDurationSeconds?: number;
+  movingSeconds?: number;
   distanceKm: number;
   maxSpeedKmH: number;
   avgSpeedKmH: number;
@@ -123,8 +125,8 @@ export interface HistoricalDrivingReport {
  * Tanto o App Android quanto o PWA Web já enviam a velocidade convertida em km/h.
  */
 export function extractSpeedKmH(speed: number | null | undefined, calculatedKmH?: number): number {
-  // Se o sensor/aparelho já informou uma velocidade válida (> 0):
-  if (typeof speed === 'number' && !isNaN(speed) && speed > 0) {
+  // Se o sensor/aparelho já informou uma velocidade válida (inclusive 0 quando parado):
+  if (typeof speed === 'number' && !isNaN(speed) && speed >= 0) {
     // Leituras realistas são aceitas diretamente em km/h
     if (speed < 180) {
       return Math.round(speed);
@@ -136,7 +138,7 @@ export function extractSpeedKmH(speed: number | null | undefined, calculatedKmH?
     return 0;
   }
 
-  // Se o GPS não enviou velocidade ou enviou 0, usa a calculada entre coordenadas consecutivas
+  // Se o GPS não enviou velocidade (null/undefined), usa a calculada entre coordenadas consecutivas
   if (calculatedKmH !== undefined && calculatedKmH > 0 && calculatedKmH < 160) {
     return Math.round(calculatedKmH);
   }
@@ -367,8 +369,33 @@ export function segmentPointsIntoTrips(
     };
   }
 
+  // Filtra pontos com timestamp válido (posterior a 2000, eliminando epoch 1970 ou nulos)
+  const validPoints = points.filter((p) => {
+    const t = new Date(p.recordedAt).getTime();
+    return !isNaN(t) && t > 946684800000;
+  });
+
+  if (validPoints.length < 2) {
+    return {
+      trips: [],
+      summary: {
+        totalTrips: 0,
+        totalDistanceKm: 0,
+        totalDurationMinutes: 0,
+        maxSpeedKmH: 0,
+        totalSpeedEvents: 0,
+        totalHardBrakingEvents: 0,
+        totalRapidAccelEvents: 0,
+        totalPhoneUsageMinutes: 0,
+        totalPhoneUsageEpisodes: 0,
+        score: 'Excelente',
+        scoreValue: 100,
+      },
+    };
+  }
+
   // Ordena cronologicamente (mais antigo -> mais recente)
-  const sorted = [...points].sort((a, b) => new Date(a.recordedAt).getTime() - new Date(b.recordedAt).getTime());
+  const sorted = [...validPoints].sort((a, b) => new Date(a.recordedAt).getTime() - new Date(b.recordedAt).getTime());
 
   const rawTrips: TripPoint[][] = [];
   let currentTrip: TripPoint[] = [];
@@ -384,8 +411,8 @@ export function segmentPointsIntoTrips(
       const deltaSec = (ptTime - prevTime) / 1000;
 
       if (deltaSec > 0) {
-        // Se parado ou sem dados por mais de 5 minutos (300s) e já havia uma viagem em andamento, encerra a viagem anterior
-        if (deltaSec > 300 && currentTrip.length > 0) {
+        // Se sem dados ou desconectado por mais de 2 minutos (120s) e já havia uma viagem, encerra a viagem anterior
+        if (deltaSec > 120 && currentTrip.length > 0) {
           rawTrips.push(currentTrip);
           currentTrip = [];
         }
@@ -398,18 +425,23 @@ export function segmentPointsIntoTrips(
     }
 
     const rawSpeedKmH = extractSpeedKmH(pt.speed, calculatedSpeedKmH);
-    let isMoving = rawSpeedKmH > 4.5;
+    const isMoving = rawSpeedKmH > 4.5;
 
     if (isMoving) {
-      // Se está iniciando uma nova viagem, inclui o ponto de partida anterior (onde estava parado)
+      // Se está iniciando uma nova viagem, inclui o ponto de partida anterior APENAS se for recente (<= 60s)
       if (currentTrip.length === 0 && i > 0) {
-        currentTrip.push(sorted[i - 1]);
+        const prevPt = sorted[i - 1];
+        const prevPtTime = new Date(prevPt.recordedAt).getTime();
+        if ((ptTime - prevPtTime) <= 60000) {
+          currentTrip.push(prevPt);
+        }
       }
       currentTrip.push(pt);
       lastMovingTime = ptTime;
     } else {
-      // Se parou agora, mas estava em viagem há menos de 3 minutos, inclui o ponto de parada final
-      if (currentTrip.length > 0 && (ptTime - lastMovingTime) <= 180000) {
+      // Se parou agora, mas estava em viagem há menos de 1 minuto (60s), inclui o ponto de parada final
+      // Se parou por mais de 1 minuto (60s), encerra a viagem anterior
+      if (currentTrip.length > 0 && (ptTime - lastMovingTime) <= 60000) {
         currentTrip.push(pt);
       } else if (currentTrip.length > 0) {
         rawTrips.push(currentTrip);
@@ -422,7 +454,7 @@ export function segmentPointsIntoTrips(
     rawTrips.push(currentTrip);
   }
 
-  // Filtra viagens válidas (mínimo de 150m e pelo menos 3 pontos ou >1.5 minutos)
+  // Filtra viagens válidas (mínimo de 150m e pelo menos 2 pontos)
   const validTrips: Trip[] = [];
   let totalDistanceKm = 0;
   let totalDurationMinutes = 0;
@@ -441,13 +473,24 @@ export function segmentPointsIntoTrips(
     const endPt = tPoints[tPoints.length - 1];
     const startTime = new Date(startPt.recordedAt);
     const endTime = new Date(endPt.recordedAt);
-    const durationMin = Math.max(1, Math.round((endTime.getTime() - startTime.getTime()) / 60000));
+    const totalDurationSec = Math.max(1, (endTime.getTime() - startTime.getTime()) / 1000);
 
     let distKm = 0;
+    let movingSeconds = 0;
     for (let j = 1; j < tPoints.length; j++) {
       const prev = tPoints[j - 1];
       const p = tPoints[j];
-      distKm += calculateDistanceMeters(prev.latitude, prev.longitude, p.latitude, p.longitude) / 1000;
+      const dMeters = calculateDistanceMeters(prev.latitude, prev.longitude, p.latitude, p.longitude);
+      distKm += dMeters / 1000;
+
+      const dt = (new Date(p.recordedAt).getTime() - new Date(prev.recordedAt).getTime()) / 1000;
+      if (dt > 0 && dt <= 180) {
+        const segSpeed = (dMeters / dt) * 3.6;
+        const ptSpeed = extractSpeedKmH(p.speed, segSpeed);
+        if (ptSpeed > 4.5 || (dMeters > 5 && segSpeed > 4.5)) {
+          movingSeconds += dt;
+        }
+      }
     }
 
     // Critério: pelo menos 150 metros
@@ -461,7 +504,18 @@ export function segmentPointsIntoTrips(
     const rapidAccelEvents = detection.rapidAccelEvents;
     const events = detection.events;
 
-    const avgSpeed = distKm / (durationMin / 60);
+    // Tempo efetivo em movimento (se movingSeconds for 0, usa totalDurationSec como fallback)
+    const effectiveSec = movingSeconds > 0 ? movingSeconds : totalDurationSec;
+    // Duração líquida em minutos com precisão decimal (ex: 0.2 min para 12s, sem piso artificial de 1 min)
+    const durationMin = Math.max(0.1, Math.round((effectiveSec / 60) * 10) / 10);
+
+    // Velocidade média calculada com o tempo real em segundos (não o minuto arredondado)
+    const effectiveHours = (effectiveSec > 0 ? effectiveSec : totalDurationSec) / 3600;
+    let avgSpeed = effectiveHours > 0 ? distKm / effectiveHours : 0;
+    // Salvaguarda física: velocidade média nunca pode superar a velocidade máxima
+    if (maxSpeed > 0 && avgSpeed > maxSpeed) {
+      avgSpeed = maxSpeed;
+    }
 
     // Tempo de celular ao volante dentro da janela desta viagem (Etapa 10.3)
     const phoneSeconds = sumPhoneUsageSeconds(phoneUsageWindows, startTime, endTime);
@@ -483,6 +537,8 @@ export function segmentPointsIntoTrips(
       startTime: startTime.toISOString(),
       endTime: endTime.toISOString(),
       durationMinutes: durationMin,
+      totalDurationSeconds: Math.round(totalDurationSec),
+      movingSeconds: Math.round(effectiveSec),
       distanceKm: Math.round(distKm * 10) / 10,
       maxSpeedKmH: Math.round(maxSpeed),
       avgSpeedKmH: Math.round(avgSpeed),
@@ -521,11 +577,21 @@ export function segmentPointsIntoTrips(
   // Se não detectou viagens separadas mas o membro percorreu distância relevante (> 300m), cria viagem única
   if (validTrips.length === 0 && sorted.length >= 2) {
     let distTotal = 0;
+    let movingSecTotal = 0;
     for (let k = 1; k < sorted.length; k++) {
       const prev = sorted[k - 1];
       const curr = sorted[k];
       if (!prev || !curr) continue;
-      distTotal += calculateDistanceMeters(prev.latitude, prev.longitude, curr.latitude, curr.longitude) / 1000;
+      const dM = calculateDistanceMeters(prev.latitude, prev.longitude, curr.latitude, curr.longitude);
+      distTotal += dM / 1000;
+      const dt = (new Date(curr.recordedAt).getTime() - new Date(prev.recordedAt).getTime()) / 1000;
+      if (dt > 0 && dt <= 180) {
+        const segSpd = (dM / dt) * 3.6;
+        const ptSpd = extractSpeedKmH(curr.speed, segSpd);
+        if (ptSpd > 4.5 || (dM > 5 && segSpd > 4.5)) {
+          movingSecTotal += dt;
+        }
+      }
     }
 
     if (distTotal >= 0.3) {
@@ -533,10 +599,18 @@ export function segmentPointsIntoTrips(
       const endPt = sorted[sorted.length - 1];
       const startTime = new Date(startPt.recordedAt);
       const endTime = new Date(endPt.recordedAt);
-      const durMin = Math.max(1, Math.round((endTime.getTime() - startTime.getTime()) / 60000));
+      const totalSec = Math.max(1, (endTime.getTime() - startTime.getTime()) / 1000);
+      const effSec = movingSecTotal > 0 ? movingSecTotal : totalSec;
+      const durMin = Math.max(0.1, Math.round((effSec / 60) * 10) / 10);
       const startPlace = findMatchingPlace(startPt.latitude, startPt.longitude, places);
       const endPlace = findMatchingPlace(endPt.latitude, endPt.longitude, places);
       const detection = detectDrivingEvents(sorted);
+
+      const hours = (effSec > 0 ? effSec : totalSec) / 3600;
+      let avgSpeed = hours > 0 ? distTotal / hours : 0;
+      if (detection.maxSpeed > 0 && avgSpeed > detection.maxSpeed) {
+        avgSpeed = detection.maxSpeed;
+      }
 
       const phoneSeconds = sumPhoneUsageSeconds(phoneUsageWindows, startTime, endTime);
       const phoneUsageMinutes = secondsToMinutes(phoneSeconds);
@@ -553,9 +627,11 @@ export function segmentPointsIntoTrips(
         startTime: startTime.toISOString(),
         endTime: endTime.toISOString(),
         durationMinutes: durMin,
+        totalDurationSeconds: Math.round(totalSec),
+        movingSeconds: Math.round(effSec),
         distanceKm: Math.round(distTotal * 10) / 10,
         maxSpeedKmH: detection.maxSpeed,
-        avgSpeedKmH: Math.round(distTotal / (durMin / 60)),
+        avgSpeedKmH: Math.round(avgSpeed),
         speedEvents: detection.speedEvents,
         hardBrakingEvents: detection.hardBrakingEvents,
         rapidAccelEvents: detection.rapidAccelEvents,
@@ -603,7 +679,7 @@ export function segmentPointsIntoTrips(
     summary: {
       totalTrips: validTrips.length,
       totalDistanceKm: Math.round(totalDistanceKm * 10) / 10,
-      totalDurationMinutes,
+      totalDurationMinutes: Math.round(totalDurationMinutes * 10) / 10,
       maxSpeedKmH: Math.round(overallMaxSpeed),
       totalSpeedEvents,
       totalHardBrakingEvents,
@@ -826,7 +902,10 @@ export async function getHistoricalDrivingReport(
         tripsCount: summary.totalTrips,
         maxSpeedKmH: summary.maxSpeedKmH,
         avgSpeedKmH: summary.totalDurationMinutes > 0
-          ? Math.round(summary.totalDistanceKm / (summary.totalDurationMinutes / 60))
+          ? Math.min(
+              Math.round(summary.totalDistanceKm / (summary.totalDurationMinutes / 60)),
+              summary.maxSpeedKmH
+            )
           : 0,
         speedEvents: daySpeedEvents,
         hardBrakingEvents: dayHardBrakingEvents,

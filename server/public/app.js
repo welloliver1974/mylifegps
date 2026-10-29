@@ -2809,7 +2809,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         document.getElementById('dMaxSpeed').textContent = `${summary.maxSpeedKmH || 0} km/h`;
         document.getElementById('dDistance').textContent = `${(summary.totalDistanceKm || 0).toFixed(1)} km`;
-        document.getElementById('dTime').textContent = `${summary.totalDurationMinutes || 0} min`;
+        document.getElementById('dTime').textContent = formatTripDuration(summary.totalDurationMinutes || 0);
         setDrivingStatValue('dEvents', totalSpeedEvents);
         setDrivingStatValue('dHardBrakes', totalHardBrakes);
         setDrivingStatValue('dRapidAccels', totalRapidAccels);
@@ -2860,7 +2860,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       document.getElementById('dMaxSpeed').textContent = `${summary.overallMaxSpeedKmH || 0} km/h`;
       document.getElementById('dDistance').textContent = `${(summary.totalDistanceKm || 0).toFixed(1)} km`;
-      document.getElementById('dTime').textContent = `${summary.totalDurationMinutes || 0} min`;
+      document.getElementById('dTime').textContent = formatTripDuration(summary.totalDurationMinutes || 0);
       setDrivingStatValue('dEvents', summary.totalSpeedEvents || 0);
       setDrivingStatValue('dHardBrakes', summary.totalHardBrakingEvents || 0);
       setDrivingStatValue('dRapidAccels', summary.totalRapidAccelEvents || 0);
@@ -3096,9 +3096,15 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function formatTripDuration(minutes) {
-    if (minutes < 60) return `${minutes} min`;
-    const h = Math.floor(minutes / 60);
-    const m = minutes % 60;
+    if (typeof minutes !== 'number' || isNaN(minutes) || minutes <= 0) return '0 min';
+    if (minutes < 1) {
+      const sec = Math.max(1, Math.round(minutes * 60));
+      return `${sec} s`;
+    }
+    const roundedMin = Math.round(minutes);
+    if (roundedMin < 60) return `${roundedMin} min`;
+    const h = Math.floor(roundedMin / 60);
+    const m = roundedMin % 60;
     return m > 0 ? `${h}h ${m}min` : `${h}h`;
   }
 
