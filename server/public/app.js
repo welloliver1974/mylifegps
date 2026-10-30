@@ -2706,6 +2706,26 @@ document.addEventListener('DOMContentLoaded', () => {
       });
     });
 
+    // Alternância de Modo da Seção: Linha do Tempo (Life360) vs Apenas Viagens (Etapa 10.6)
+    const btnModeTimeline = document.getElementById('btnModeTimeline');
+    const btnModeTrips = document.getElementById('btnModeTrips');
+    if (btnModeTimeline && btnModeTrips) {
+      btnModeTimeline.addEventListener('click', (e) => {
+        e.preventDefault();
+        activeTimelineMode = 'timeline';
+        btnModeTimeline.classList.add('active');
+        btnModeTrips.classList.remove('active');
+        renderTripsAndTimeline();
+      });
+      btnModeTrips.addEventListener('click', (e) => {
+        e.preventDefault();
+        activeTimelineMode = 'trips';
+        btnModeTrips.classList.add('active');
+        btnModeTimeline.classList.remove('active');
+        renderTripsAndTimeline();
+      });
+    }
+
     // Alternância de Métrica no Gráfico de Evolução (Nota / Km - Etapa 9.6)
     const btnMetricScore = document.getElementById('btnMetricScore');
     const btnMetricKm = document.getElementById('btnMetricKm');
@@ -2817,8 +2837,11 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  // Guarda as viagens carregadas para uso no replay de trecho
+  // Guarda as viagens e linha do tempo carregadas para exibição e replay (Etapa 10.6)
   let memberTrips = [];
+  let memberTimeline = [];
+  let activeTimelineMode = 'timeline';
+  let stayMapMarker = null;
 
   function applyGradeElement(el, score) {
     if (!el) return;
@@ -2895,7 +2918,9 @@ document.addEventListener('DOMContentLoaded', () => {
         const data = await res.json();
         const summary = data?.summary || {};
         const trips = data?.trips || [];
+        const timeline = data?.timeline || [];
         memberTrips = trips;
+        memberTimeline = timeline;
 
         const totalHardBrakes = typeof summary.totalHardBrakingEvents === 'number'
           ? summary.totalHardBrakingEvents
@@ -2930,10 +2955,12 @@ document.addEventListener('DOMContentLoaded', () => {
         if (scoreNumEl) scoreNumEl.textContent = numScore;
         applyGradeElement(gradeEl, score);
 
-        renderTripsList(trips);
+        renderTripsAndTimeline();
       } catch (err) {
         console.error('Erro ao calcular driver report:', err);
-        renderTripsList([]);
+        memberTrips = [];
+        memberTimeline = [];
+        renderTripsAndTimeline();
       }
       return;
     }
@@ -2959,7 +2986,9 @@ document.addEventListener('DOMContentLoaded', () => {
       const summary = data?.summary || {};
       const days = data?.days || [];
       const trips = data?.recentTrips || [];
+      const timeline = data?.recentTimeline || [];
       memberTrips = trips;
+      memberTimeline = timeline;
 
       document.getElementById('dMaxSpeed').textContent = `${summary.overallMaxSpeedKmH || 0} km/h`;
       document.getElementById('dDistance').textContent = `${(summary.totalDistanceKm || 0).toFixed(1)} km`;
@@ -2999,10 +3028,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
       renderDriverEvolutionChart(days, driverChartMetric);
       renderDriverDataTable(days);
-      renderTripsList(trips);
+      renderTripsAndTimeline();
     } catch (err) {
       console.error('Erro ao carregar histórico de direção:', err);
-      renderTripsList([]);
+      memberTrips = [];
+      memberTimeline = [];
+      renderTripsAndTimeline();
     }
   }
 
@@ -3211,70 +3242,179 @@ document.addEventListener('DOMContentLoaded', () => {
     return m > 0 ? `${h}h ${m}min` : `${h}h`;
   }
 
+  function renderTripsAndTimeline() {
+    const listEl = document.getElementById('tripsList');
+    if (!listEl) return;
+    if (activeTimelineMode === 'timeline') {
+      renderTimelineList(memberTimeline);
+    } else {
+      renderTripsList(memberTrips);
+    }
+  }
+
+  // Renderiza a Linha do Tempo Contínua: viagens + períodos parados em cada local (Etapa 10.6)
+  function renderTimelineList(timeline) {
+    const listEl = document.getElementById('tripsList');
+    const countEl = document.getElementById('tripsCount');
+    if (!listEl) return;
+
+    listEl.classList.add('timeline-view');
+
+    const items = timeline || [];
+    const tripsCount = items.filter((i) => i.type === 'trip').length;
+    const staysCount = items.filter((i) => i.type === 'stay').length;
+    if (countEl) {
+      countEl.textContent = `${tripsCount} viage${tripsCount === 1 ? 'm' : 'ns'} • ${staysCount} parada${staysCount === 1 ? '' : 's'}`;
+    }
+
+    if (items.length === 0) {
+      listEl.innerHTML = '<div class="loading-state" style="padding: 10px 0; font-size: 12px;">Nenhuma atividade registrada neste período.</div>';
+      return;
+    }
+
+    // Mais recentes primeiro
+    const ordered = [...items].reverse();
+
+    listEl.innerHTML = ordered
+      .map((item) => (item.type === 'stay' ? buildStayCard(item) : buildTripCard(item)))
+      .join('');
+  }
+
+  function buildStayCard(stay) {
+    const isPlace = Boolean(stay.placeId);
+    const isCurrent = Boolean(stay.isCurrent);
+    const classes = ['stay-card'];
+    if (isPlace) classes.push('is-place');
+    if (isCurrent) classes.push('is-current');
+
+    const durationText = formatStayDuration(stay.durationMinutes);
+    const title = escapeHtml(stay.placeName || 'Local');
+    const icon = escapeHtml(stay.placeIcon || '📍');
+    const address = stay.address && stay.address !== stay.placeName
+      ? `<div class="stay-address" title="${escapeHtml(stay.address)}">${escapeHtml(stay.address)}</div>`
+      : '';
+
+    return `
+      <div class="${classes.join(' ')}" onclick="window.focusStay('${stay.id}')">
+        <div class="stay-header">
+          <div class="stay-title-wrap">
+            <span class="stay-icon">${icon}</span>
+            <span class="stay-title">${isCurrent ? 'Permanece em ' : 'Parado em '}${title}</span>
+          </div>
+          <span class="stay-duration-badge${isCurrent ? ' current' : ''}">${isCurrent ? '🟢 ' : ''}${durationText}</span>
+        </div>
+        <div class="stay-meta">
+          <span class="stay-time-range">${formatTripTime(stay.startTime)} → ${isCurrent ? 'agora' : formatTripTime(stay.endTime)}</span>
+        </div>
+        ${address}
+      </div>
+    `;
+  }
+
+  function buildTripCard(t) {
+    const brakeChip = (t.hardBrakingEvents || 0) > 0
+      ? `<span class="trip-stat-chip brake" title="${t.hardBrakingEvents} frenagem(ns) brusca(s)">🛑 ${t.hardBrakingEvents} frenage${t.hardBrakingEvents === 1 ? 'm' : 'ns'}</span>`
+      : '';
+    const accelChip = (t.rapidAccelEvents || 0) > 0
+      ? `<span class="trip-stat-chip accel" title="${t.rapidAccelEvents} arrancada(s) brusca(s)">🚀 ${t.rapidAccelEvents} arrancada${t.rapidAccelEvents === 1 ? '' : 's'}</span>`
+      : '';
+    const speedChip = (t.speedEvents || 0) > 0
+      ? `<span class="trip-stat-chip alert" title="${t.speedEvents} excesso(s) > 90 km/h">⚠️ ${t.speedEvents} excesso${t.speedEvents === 1 ? '' : 's'}</span>`
+      : '';
+    const phoneChip = (t.phoneUsageMinutes || 0) > 0
+      ? `<span class="trip-stat-chip phone" title="${t.phoneUsageMinutes} min de tela ativa em movimento (${t.phoneUsageEpisodes || 0} episódio(s))">📱 ${t.phoneUsageMinutes} min celular</span>`
+      : '';
+    const hasAnyEvent = (t.hardBrakingEvents || 0) > 0 || (t.rapidAccelEvents || 0) > 0 || (t.speedEvents || 0) > 0 || (t.phoneUsageMinutes || 0) > 0;
+    const smoothChip = !hasAnyEvent
+      ? `<span class="trip-stat-chip smooth" title="Condução suave sem manobras bruscas">🛡️ Suave</span>`
+      : '';
+
+    return `
+      <div class="trip-card" onclick="window.replayTrip('${t.id}')">
+        <div class="trip-card-header">
+          <span class="trip-time">${formatTripTime(t.startTime)} → ${formatTripTime(t.endTime)}</span>
+          <span class="trip-duration">${formatTripDuration(t.durationMinutes)}</span>
+        </div>
+        <div class="trip-route">
+          <div class="trip-route-line">
+            <span class="trip-route-dot start"></span>
+            <span class="trip-route-text">${escapeHtml(t.startLocation.label)}</span>
+          </div>
+          <div class="trip-route-line">
+            <span class="trip-route-dot end"></span>
+            <span class="trip-route-text">${escapeHtml(t.endLocation.label)}</span>
+          </div>
+        </div>
+        <div class="trip-stats-row">
+          <span class="trip-stat-chip">📏 ${t.distanceKm} km</span>
+          <span class="trip-stat-chip">⚡ máx ${t.maxSpeedKmH} km/h</span>
+          <span class="trip-stat-chip">📊 méd ${t.avgSpeedKmH} km/h</span>
+          ${brakeChip}
+          ${accelChip}
+          ${speedChip}
+          ${phoneChip}
+          ${smoothChip}
+        </div>
+      </div>
+    `;
+  }
+
+  function formatStayDuration(minutes) {
+    if (typeof minutes !== 'number' || isNaN(minutes) || minutes <= 0) return '0 min';
+    const total = Math.round(minutes);
+    if (total < 60) return `${total} min`;
+    const h = Math.floor(total / 60);
+    const m = total % 60;
+    return m > 0 ? `${h}h ${m}min` : `${h}h`;
+  }
+
+  // Centraliza o mapa no local onde o membro permaneceu parado (Etapa 10.6)
+  window.focusStay = function (stayId) {
+    const stay = memberTimeline.find((i) => i.id === stayId);
+    if (!stay) return;
+
+    if (stayMapMarker) {
+      map.removeLayer(stayMapMarker);
+      stayMapMarker = null;
+    }
+
+    stayMapMarker = L.circleMarker([stay.latitude, stay.longitude], {
+      radius: 10,
+      color: '#FFFFFF',
+      weight: 3,
+      fillColor: stay.placeColor || '#10B981',
+      fillOpacity: 0.9,
+    })
+      .addTo(map)
+      .bindTooltip(`${stay.placeIcon} ${stay.placeName} • ${formatStayDuration(stay.durationMinutes)}`, {
+        permanent: false,
+        direction: 'top',
+      })
+      .openTooltip();
+
+    map.setView([stay.latitude, stay.longitude], Math.max(map.getZoom(), 15), { animate: true });
+  };
+
   function renderTripsList(trips) {
     const listEl = document.getElementById('tripsList');
     const countEl = document.getElementById('tripsCount');
     if (!listEl) return;
 
-    countEl.textContent = `${trips.length} viagem${trips.length === 1 ? '' : 's'}`;
+    listEl.classList.remove('timeline-view');
 
-    if (!trips || trips.length === 0) {
+    const list = trips || [];
+    if (countEl) {
+      countEl.textContent = `${list.length} viagem${list.length === 1 ? '' : 's'}`;
+    }
+
+    if (list.length === 0) {
       listEl.innerHTML = '<div class="loading-state" style="padding: 10px 0; font-size: 12px;">Nenhuma viagem registrada neste período.</div>';
       return;
     }
 
     // Mais recentes primeiro
-    const ordered = [...trips].reverse();
-
-    listEl.innerHTML = ordered
-      .map((t) => {
-        const brakeChip = (t.hardBrakingEvents || 0) > 0
-          ? `<span class="trip-stat-chip brake" title="${t.hardBrakingEvents} frenagem(ns) brusca(s)">🛑 ${t.hardBrakingEvents} frenage${t.hardBrakingEvents === 1 ? 'm' : 'ns'}</span>`
-          : '';
-        const accelChip = (t.rapidAccelEvents || 0) > 0
-          ? `<span class="trip-stat-chip accel" title="${t.rapidAccelEvents} arrancada(s) brusca(s)">🚀 ${t.rapidAccelEvents} arrancada${t.rapidAccelEvents === 1 ? '' : 's'}</span>`
-          : '';
-        const speedChip = (t.speedEvents || 0) > 0
-          ? `<span class="trip-stat-chip alert" title="${t.speedEvents} excesso(s) > 90 km/h">⚠️ ${t.speedEvents} excesso${t.speedEvents === 1 ? '' : 's'}</span>`
-          : '';
-        const phoneChip = (t.phoneUsageMinutes || 0) > 0
-          ? `<span class="trip-stat-chip phone" title="${t.phoneUsageMinutes} min de tela ativa em movimento (${t.phoneUsageEpisodes || 0} episódio(s))">📱 ${t.phoneUsageMinutes} min celular</span>`
-          : '';
-        const hasAnyEvent = (t.hardBrakingEvents || 0) > 0 || (t.rapidAccelEvents || 0) > 0 || (t.speedEvents || 0) > 0 || (t.phoneUsageMinutes || 0) > 0;
-        const smoothChip = !hasAnyEvent
-          ? `<span class="trip-stat-chip smooth" title="Condução suave sem manobras bruscas">🛡️ Suave</span>`
-          : '';
-
-        return `
-          <div class="trip-card" onclick="window.replayTrip('${t.id}')">
-            <div class="trip-card-header">
-              <span class="trip-time">${formatTripTime(t.startTime)} → ${formatTripTime(t.endTime)}</span>
-              <span class="trip-duration">${formatTripDuration(t.durationMinutes)}</span>
-            </div>
-            <div class="trip-route">
-              <div class="trip-route-line">
-                <span class="trip-route-dot start"></span>
-                <span class="trip-route-text">${t.startLocation.label}</span>
-              </div>
-              <div class="trip-route-line">
-                <span class="trip-route-dot end"></span>
-                <span class="trip-route-text">${t.endLocation.label}</span>
-              </div>
-            </div>
-            <div class="trip-stats-row">
-              <span class="trip-stat-chip">📏 ${t.distanceKm} km</span>
-              <span class="trip-stat-chip">⚡ máx ${t.maxSpeedKmH} km/h</span>
-              <span class="trip-stat-chip">📊 méd ${t.avgSpeedKmH} km/h</span>
-              ${brakeChip}
-              ${accelChip}
-              ${speedChip}
-              ${phoneChip}
-              ${smoothChip}
-            </div>
-          </div>
-        `;
-      })
-      .join('');
+    const ordered = [...list].reverse();
+    listEl.innerHTML = ordered.map((t) => buildTripCard(t)).join('');
   }
 
   // Reproduz no mapa o trajeto de uma viagem específica
@@ -3283,6 +3423,11 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!trip || !trip.points || trip.points.length < 2) {
       showToast('Trecho sem pontos suficientes para reproduzir.');
       return;
+    }
+
+    if (stayMapMarker) {
+      map.removeLayer(stayMapMarker);
+      stayMapMarker = null;
     }
 
     if (historyPolyline) map.removeLayer(historyPolyline);
@@ -3380,6 +3525,10 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function clearHistoryOverlay() {
+    if (stayMapMarker) {
+      map.removeLayer(stayMapMarker);
+      stayMapMarker = null;
+    }
     if (historyPolyline) {
       map.removeLayer(historyPolyline);
       historyPolyline = null;

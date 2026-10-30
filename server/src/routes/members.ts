@@ -4,7 +4,11 @@ import fs from 'fs';
 import { fileURLToPath } from 'url';
 import { prisma } from '../db.js';
 import { calculateDistanceMeters } from '../services/geofence.js';
-import { segmentPointsIntoTrips, getHistoricalDrivingReport } from '../services/tripDetection.js';
+import {
+  segmentPointsIntoTrips,
+  buildTimeline,
+  getHistoricalDrivingReport,
+} from '../services/tripDetection.js';
 import { fetchPhoneUsageWindows } from '../services/phoneUsage.js';
 import { broadcastLocationUpdateRequest } from '../services/websocket.js';
 import { sendWeeklySummaryToUser } from '../services/weeklySummary.js';
@@ -276,7 +280,11 @@ export async function membersRoutes(fastify: FastifyInstance) {
     const phoneUsageWindows = await fetchPhoneUsageWindows(deviceIds, usageFrom, usageTo);
 
     const result = segmentPointsIntoTrips(records, places, phoneUsageWindows);
-    return reply.send(result);
+    const timeline = await buildTimeline(result.trips, records, places);
+    return reply.send({
+      ...result,
+      timeline,
+    });
   });
 
   // Retorna a nota de direção histórica com agregação semanal/mensal e evolução diária (Etapa 9.6)

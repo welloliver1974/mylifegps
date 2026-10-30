@@ -1804,6 +1804,7 @@ body, html {
   align-items: center;
   justify-content: space-between;
   margin-bottom: 9px;
+  gap: 8px;
 }
 
 .trips-section-title {
@@ -1813,13 +1814,255 @@ body, html {
   letter-spacing: 0.2px;
 }
 
+/* Seletor de Modo: Linha do Tempo vs Apenas Viagens (Etapa 10.6) */
+.timeline-mode-toggle {
+  display: inline-flex;
+  align-items: center;
+  background: rgba(0, 0, 0, 0.06);
+  padding: 2px;
+  border-radius: 9px;
+  gap: 2px;
+}
+
+.timeline-mode-btn {
+  border: none;
+  background: transparent;
+  padding: 3px 9px;
+  font-size: 10.5px;
+  font-weight: 700;
+  border-radius: 7px;
+  cursor: pointer;
+  color: var(--text-secondary);
+  transition: all 0.18s ease;
+  font-family: inherit;
+}
+
+.timeline-mode-btn.active {
+  background: #FFFFFF;
+  color: #166534;
+  font-weight: 800;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+}
+
 .trips-list {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  max-height: 250px;
+  max-height: 270px;
   overflow-y: auto;
   padding-right: 2px;
+}
+
+/* Visual da Linha do Tempo Contínua (Trilho vertical à esquerda) */
+.trips-list.timeline-view {
+  position: relative;
+  padding-left: 20px;
+}
+
+.trips-list.timeline-view::before {
+  content: '';
+  position: absolute;
+  left: 7px;
+  top: 14px;
+  bottom: 14px;
+  width: 2px;
+  background: #CBD5E1;
+  border-radius: 2px;
+}
+
+/* Marcadores no trilho vertical */
+.trips-list.timeline-view .trip-card,
+.trips-list.timeline-view .stay-card {
+  position: relative;
+}
+
+.trips-list.timeline-view .trip-card::before,
+.trips-list.timeline-view .stay-card::before {
+  content: '';
+  position: absolute;
+  left: -18px;
+  top: 14px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #94A3B8;
+  border: 2px solid #FFFFFF;
+  box-shadow: 0 0 0 1px #CBD5E1;
+  z-index: 2;
+}
+
+.trips-list.timeline-view .trip-card::before {
+  background: #3B82F6;
+  box-shadow: 0 0 0 1px #93C5FD;
+}
+
+.trips-list.timeline-view .stay-card.is-place::before {
+  background: #10B981;
+  box-shadow: 0 0 0 1px #86EFAC;
+}
+
+.trips-list.timeline-view .stay-card.is-current::before {
+  background: #10B981;
+  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.35);
+  animation: pulseStayDot 2s infinite;
+}
+
+@keyframes pulseStayDot {
+  0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.6); }
+  70% { transform: scale(1.15); box-shadow: 0 0 0 5px rgba(16, 185, 129, 0); }
+  100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+}
+
+/* Card de Permanência / Parada no Local (Etapa 10.6) */
+.stay-card {
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid #E2E8F0;
+  border-radius: 13px;
+  padding: 10px 11px;
+  cursor: pointer;
+  transition: all 0.18s ease;
+}
+
+.stay-card:hover {
+  border-color: #94A3B8;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08);
+}
+
+.stay-card.is-place {
+  border-color: #BBF7D0;
+  background: rgba(255, 255, 255, 0.95);
+}
+
+.stay-card.is-place:hover {
+  border-color: #10B981;
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.15);
+}
+
+.stay-card.is-current {
+  border-color: #10B981;
+  background: linear-gradient(180deg, rgba(236, 253, 245, 0.9) 0%, rgba(255, 255, 255, 0.95) 100%);
+  box-shadow: 0 2px 6px rgba(16, 185, 129, 0.1);
+}
+
+.stay-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 4px;
+  gap: 6px;
+}
+
+.stay-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  flex: 1;
+}
+
+.stay-icon {
+  font-size: 15px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.stay-title {
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.stay-duration-badge {
+  font-size: 10px;
+  font-weight: 800;
+  color: #475569;
+  background: #F1F5F9;
+  padding: 2px 7px;
+  border-radius: 9px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.stay-duration-badge.current {
+  color: #047857;
+  background: #D1FAE5;
+  border: 1px solid #A7F3D0;
+}
+
+.stay-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 10.5px;
+  color: var(--text-secondary);
+}
+
+.stay-time-range {
+  font-weight: 600;
+  color: #64748B;
+}
+
+.stay-address {
+  font-size: 10.5px;
+  color: var(--text-secondary);
+  margin-top: 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  opacity: 0.85;
+}
+
+[data-theme="dark"] .stay-card {
+  background: rgba(30, 41, 59, 0.85);
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+[data-theme="dark"] .stay-card.is-place {
+  border-color: rgba(16, 185, 129, 0.35);
+}
+
+[data-theme="dark"] .stay-card.is-current {
+  background: linear-gradient(180deg, rgba(16, 185, 129, 0.18) 0%, rgba(30, 41, 59, 0.9) 100%);
+  border-color: #10B981;
+}
+
+[data-theme="dark"] .stay-duration-badge {
+  background: #334155;
+  color: #E2E8F0;
+}
+
+[data-theme="dark"] .stay-duration-badge.current {
+  background: rgba(16, 185, 129, 0.25);
+  color: #34D399;
+  border-color: rgba(16, 185, 129, 0.4);
+}
+
+[data-theme="dark"] .stay-time-range,
+[data-theme="dark"] .stay-address {
+  color: #94A3B8;
+}
+
+[data-theme="dark"] .trips-list.timeline-view::before {
+  background: #475569;
+}
+
+[data-theme="dark"] .trips-list.timeline-view .trip-card::before,
+[data-theme="dark"] .trips-list.timeline-view .stay-card::before {
+  border-color: #1E293B;
+  box-shadow: 0 0 0 1px #475569;
+}
+
+[data-theme="dark"] .timeline-mode-toggle {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+[data-theme="dark"] .timeline-mode-btn.active {
+  background: #334155;
+  color: #34D399;
 }
 
 .trip-card {

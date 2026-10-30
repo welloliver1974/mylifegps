@@ -17,7 +17,7 @@
   <!-- Leaflet CSS -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
 
-  <link rel="stylesheet" href="/style.css?v=35">
+  <link rel="stylesheet" href="/style.css?v=36">
 </head>
 <body>
   <!-- Tela de Autenticação (Login / Configuração Inicial / Convite / Recuperação) -->
@@ -447,14 +447,20 @@
               </button>
             </div>
 
-            <!-- Viagens Individuais Segmentadas (Life360 Gold - Etapa 8.4) -->
+            <!-- Viagens Individuais & Linha do Tempo de Paradas (Life360 Gold/Platinum - Etapa 10.6) -->
             <div class="trips-section" id="tripsSection">
               <div class="trips-section-header">
-                <span class="trips-section-title" id="tripsSectionTitle">🛣️ Viagens Individuais</span>
-                <span class="badge-count" id="tripsCount">0</span>
+                <div class="trips-header-left" style="display: flex; align-items: center; gap: 8px;">
+                  <span class="trips-section-title" id="tripsSectionTitle">🕒 Linha do Tempo</span>
+                  <span class="badge-count" id="tripsCount">0</span>
+                </div>
+                <div class="timeline-mode-toggle" id="timelineModeToggle">
+                  <button type="button" class="timeline-mode-btn active" data-mode="timeline" id="btnModeTimeline" title="Ver linha do tempo contínua (viagens + paradas)">Linha do Tempo</button>
+                  <button type="button" class="timeline-mode-btn" data-mode="trips" id="btnModeTrips" title="Ver apenas as viagens">Apenas Viagens</button>
+                </div>
               </div>
-              <div class="trips-list" id="tripsList">
-                <div class="loading-state" style="padding: 10px 0; font-size: 12px;">Nenhuma viagem registrada.</div>
+              <div class="trips-list timeline-view" id="tripsList">
+                <div class="loading-state" style="padding: 10px 0; font-size: 12px;">Nenhuma atividade registrada neste período.</div>
               </div>
             </div>
           </div>
@@ -931,7 +937,7 @@
 
   <!-- Leaflet JS -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
-  <script src="/app.js?v=35"></script>
+  <script src="/app.js?v=36"></script>
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {

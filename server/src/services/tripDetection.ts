@@ -1,6 +1,6 @@
 import { calculateDistanceMeters } from './geofence.js';
 import { prisma } from '../db.js';
-import { roundCoord } from './geocoding.js';
+import { roundCoord, reverseGeocode } from './geocoding.js';
 import {
   PhoneUsageWindow,
   sumPhoneUsageSeconds,
@@ -112,12 +112,40 @@ export interface HistoricalDrivingSummary {
   trend: 'improving' | 'stable' | 'declining';
 }
 
+export type TimelineItemType = 'trip' | 'stay';
+
+export interface TimelineStayItem {
+  id: string;
+  type: 'stay';
+  startTime: string; // ISO
+  endTime: string;   // ISO
+  durationMinutes: number;
+  isCurrent?: boolean; // Se o membro permanece neste local no momento
+  latitude: number;
+  longitude: number;
+  placeId?: string;
+  placeName: string; // Ex: "Casa", "Trabalho" ou nome da rua/bairro
+  placeIcon: string; // Emoji correspondente: "🏡", "💼", "🎓", "📍"
+  placeColor?: string; // Cor hex da cerca cadastrada
+  address?: string; // Endereço legível completo
+  suburb?: string;
+  city?: string;
+  pointsCount: number;
+}
+
+export interface TimelineTripItem extends Trip {
+  type: 'trip';
+}
+
+export type TimelineItem = TimelineTripItem | TimelineStayItem;
+
 export interface HistoricalDrivingReport {
   userId: string;
   period: 'week' | 'month';
   summary: HistoricalDrivingSummary;
   days: DrivingDaySummary[];
   recentTrips: Trip[];
+  recentTimeline?: TimelineItem[];
 }
 
 /**
@@ -702,6 +730,291 @@ function findMatchingPlace(lat: number, lon: number, places: Array<{ id: string;
   return null;
 }
 
+export function mapPlaceIconToEmoji(icon?: string): string {
+  if (!icon) return '📍';
+  const lower = icon.toLowerCase();
+  if (lower.includes('home') || lower.includes('casa')) return '🏡';
+  if (lower.includes('work') || lower.includes('trabalho') || lower.includes('office') || lower.includes('briefcase')) return '💼';
+  if (lower.includes('school') || lower.includes('escola') || lower.includes('faculdade') || lower.includes('college')) return '🎓';
+  if (lower.includes('gym') || lower.includes('academia') || lower.includes('fitness')) return '🏋️';
+  if (lower.includes('hospital') || lower.includes('saude') || lower.includes('health') || lower.includes('doctor')) return '🏥';
+  if (lower.includes('market') || lower.includes('mercado') || lower.includes('cart') || lower.includes('shop')) return '🛒';
+  if (lower.includes('food') || lower.includes('restaurante') || lower.includes('cafe')) return '🍽️';
+  if (lower.includes('star') || lower.includes('fav')) return '⭐';
+  if (lower.includes('heart') || lower.includes('love')) return '❤️';
+  return '📍';
+}
+
+async function resolveLocationInfo(
+  lat: number,
+  lon: number,
+  places: Array<{ id: string; name: string; latitude: number; longitude: number; radiusMeters: number; icon: string; color?: string }>
+): Promise<{ name: string; icon: string; color?: string; address: string; suburb?: string; city?: string; placeId?: string }> {
+  const matchedPlace = findMatchingPlace(lat, lon, places as any);
+  if (matchedPlace) {
+    return {
+      placeId: matchedPlace.id,
+      name: matchedPlace.name,
+      icon: mapPlaceIconToEmoji(matchedPlace.icon),
+      color: (matchedPlace as any).color || '#10B981',
+      address: matchedPlace.name,
+    };
+  }
+
+  try {
+    const geo = await reverseGeocode(lat, lon);
+    const friendlyName = geo.road || geo.suburb || geo.city || `Lat ${lat.toFixed(4)}, Lon ${lon.toFixed(4)}`;
+    return {
+      name: friendlyName,
+      icon: '📍',
+      color: '#64748B',
+      address: geo.address,
+      suburb: geo.suburb,
+      city: geo.city,
+    };
+  } catch {
+    return {
+      name: `Lat ${lat.toFixed(4)}, Lon ${lon.toFixed(4)}`,
+      icon: '📍',
+      color: '#64748B',
+      address: `Lat ${lat.toFixed(4)}, Lon ${lon.toFixed(4)}`,
+    };
+  }
+}
+
+/**
+ * Constrói a Linha do Tempo Contínua (Recurso Life360 Platinum - Etapa 10.6),
+ * intercalando as viagens realizadas com os períodos em que o usuário permaneceu parado em cada local.
+ */
+export async function buildTimeline(
+  trips: Trip[],
+  points: TripPoint[],
+  places: Array<{ id: string; name: string; latitude: number; longitude: number; radiusMeters: number; icon: string; color?: string }>,
+  referenceDate: Date = new Date()
+): Promise<TimelineItem[]> {
+  const sortedTrips: TimelineTripItem[] = [...trips]
+    .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime())
+    .map((t) => ({ ...t, type: 'trip' as const }));
+
+  // Melhora legibilidade de labels de início/fim das viagens caso sejam coordenadas cruas
+  for (const t of sortedTrips) {
+    if (!t.startLocation.placeName && t.startLocation.label.startsWith('Lat ')) {
+      try {
+        const geo = await reverseGeocode(t.startLocation.latitude, t.startLocation.longitude);
+        if (geo.road || geo.suburb) {
+          t.startLocation.label = geo.road
+            ? (geo.suburb ? `${geo.road} - ${geo.suburb}` : geo.road)
+            : (geo.suburb || t.startLocation.label);
+        }
+      } catch {}
+    }
+    if (!t.endLocation.placeName && t.endLocation.label.startsWith('Lat ')) {
+      try {
+        const geo = await reverseGeocode(t.endLocation.latitude, t.endLocation.longitude);
+        if (geo.road || geo.suburb) {
+          t.endLocation.label = geo.road
+            ? (geo.suburb ? `${geo.road} - ${geo.suburb}` : geo.road)
+            : (geo.suburb || t.endLocation.label);
+        }
+      } catch {}
+    }
+  }
+
+  // Filtra pontos com timestamp válido
+  const validPoints = (points || []).filter((p) => {
+    const t = new Date(p.recordedAt).getTime();
+    return !isNaN(t) && t > 946684800000;
+  });
+
+  const sortedPoints = [...validPoints].sort(
+    (a, b) => new Date(a.recordedAt).getTime() - new Date(b.recordedAt).getTime()
+  );
+
+  const stays: TimelineStayItem[] = [];
+  let stayIdx = 1;
+
+  // CASO 1: Nenhuma viagem no período (membro permaneceu em um local o dia todo)
+  if (sortedTrips.length === 0) {
+    if (sortedPoints.length >= 2) {
+      const firstPt = sortedPoints[0];
+      const lastPt = sortedPoints[sortedPoints.length - 1];
+      const tFirst = new Date(firstPt.recordedAt).getTime();
+      const tLast = new Date(lastPt.recordedAt).getTime();
+      const durationSec = Math.max(0, (tLast - tFirst) / 1000);
+
+      // Permanência relevante (pelo menos 3 minutos)
+      if (durationSec >= 180) {
+        const avgLat = sortedPoints.reduce((acc, p) => acc + p.latitude, 0) / sortedPoints.length;
+        const avgLon = sortedPoints.reduce((acc, p) => acc + p.longitude, 0) / sortedPoints.length;
+        const info = await resolveLocationInfo(avgLat, avgLon, places);
+        const isCurrent = (referenceDate.getTime() - tLast) < 45 * 60 * 1000;
+
+        stays.push({
+          id: `stay-${stayIdx++}`,
+          type: 'stay',
+          startTime: new Date(tFirst).toISOString(),
+          endTime: new Date(tLast).toISOString(),
+          durationMinutes: Math.max(1, Math.round(durationSec / 60)),
+          isCurrent,
+          latitude: avgLat,
+          longitude: avgLon,
+          placeId: info.placeId,
+          placeName: info.name,
+          placeIcon: info.icon,
+          placeColor: info.color,
+          address: info.address,
+          suburb: info.suburb,
+          city: info.city,
+          pointsCount: sortedPoints.length,
+        });
+      }
+    }
+    return stays;
+  }
+
+  // CASO 2: Há viagens detectadas -> intercala viagens com as permanências intermediárias
+
+  // 1. Checa antes da primeira viagem
+  const firstTrip = sortedTrips[0];
+  const firstTripStartTime = new Date(firstTrip.startTime).getTime();
+  const pointsBefore = sortedPoints.filter((p) => new Date(p.recordedAt).getTime() < firstTripStartTime);
+
+  if (pointsBefore.length > 0) {
+    const tFirst = new Date(pointsBefore[0].recordedAt).getTime();
+    const gapSec = (firstTripStartTime - tFirst) / 1000;
+    if (gapSec >= 180) {
+      const lat = firstTrip.startLocation.latitude;
+      const lon = firstTrip.startLocation.longitude;
+      const info = await resolveLocationInfo(lat, lon, places);
+
+      stays.push({
+        id: `stay-${stayIdx++}`,
+        type: 'stay',
+        startTime: new Date(tFirst).toISOString(),
+        endTime: firstTrip.startTime,
+        durationMinutes: Math.max(1, Math.round(gapSec / 60)),
+        isCurrent: false,
+        latitude: lat,
+        longitude: lon,
+        placeId: info.placeId,
+        placeName: info.name,
+        placeIcon: info.icon,
+        placeColor: info.color,
+        address: info.address,
+        suburb: info.suburb,
+        city: info.city,
+        pointsCount: pointsBefore.length,
+      });
+    }
+  }
+
+  // 2. Checa entre viagens consecutivas
+  for (let i = 0; i < sortedTrips.length - 1; i++) {
+    const currentTrip = sortedTrips[i];
+    const nextTrip = sortedTrips[i + 1];
+    const curEndTime = new Date(currentTrip.endTime).getTime();
+    const nextStartTime = new Date(nextTrip.startTime).getTime();
+    const gapSec = (nextStartTime - curEndTime) / 1000;
+
+    if (gapSec >= 180) {
+      const lat = currentTrip.endLocation.latitude;
+      const lon = currentTrip.endLocation.longitude;
+      const ptsBetween = sortedPoints.filter((p) => {
+        const t = new Date(p.recordedAt).getTime();
+        return t >= curEndTime && t <= nextStartTime;
+      });
+
+      const info = await resolveLocationInfo(lat, lon, places);
+
+      stays.push({
+        id: `stay-${stayIdx++}`,
+        type: 'stay',
+        startTime: currentTrip.endTime,
+        endTime: nextTrip.startTime,
+        durationMinutes: Math.max(1, Math.round(gapSec / 60)),
+        isCurrent: false,
+        latitude: lat,
+        longitude: lon,
+        placeId: info.placeId,
+        placeName: info.name,
+        placeIcon: info.icon,
+        placeColor: info.color,
+        address: info.address,
+        suburb: info.suburb,
+        city: info.city,
+        pointsCount: ptsBetween.length,
+      });
+    }
+  }
+
+  // 3. Checa após a última viagem
+  const lastTrip = sortedTrips[sortedTrips.length - 1];
+  const lastTripEndTime = new Date(lastTrip.endTime).getTime();
+  const pointsAfter = sortedPoints.filter((p) => new Date(p.recordedAt).getTime() > lastTripEndTime);
+
+  if (pointsAfter.length > 0) {
+    const tLast = new Date(pointsAfter[pointsAfter.length - 1].recordedAt).getTime();
+    const gapSec = (tLast - lastTripEndTime) / 1000;
+    if (gapSec >= 180) {
+      const lat = lastTrip.endLocation.latitude;
+      const lon = lastTrip.endLocation.longitude;
+      const isCurrent = (referenceDate.getTime() - tLast) < 45 * 60 * 1000;
+      const info = await resolveLocationInfo(lat, lon, places);
+
+      stays.push({
+        id: `stay-${stayIdx++}`,
+        type: 'stay',
+        startTime: lastTrip.endTime,
+        endTime: new Date(tLast).toISOString(),
+        durationMinutes: Math.max(1, Math.round(gapSec / 60)),
+        isCurrent,
+        latitude: lat,
+        longitude: lon,
+        placeId: info.placeId,
+        placeName: info.name,
+        placeIcon: info.icon,
+        placeColor: info.color,
+        address: info.address,
+        suburb: info.suburb,
+        city: info.city,
+        pointsCount: pointsAfter.length,
+      });
+    }
+  } else {
+    // Viagem terminou há mais de 3 minutos hoje e o aparelho está em repouso
+    const gapSec = (referenceDate.getTime() - lastTripEndTime) / 1000;
+    if (gapSec >= 180 && gapSec < 24 * 3600) {
+      const lat = lastTrip.endLocation.latitude;
+      const lon = lastTrip.endLocation.longitude;
+      const info = await resolveLocationInfo(lat, lon, places);
+
+      stays.push({
+        id: `stay-${stayIdx++}`,
+        type: 'stay',
+        startTime: lastTrip.endTime,
+        endTime: referenceDate.toISOString(),
+        durationMinutes: Math.max(1, Math.round(gapSec / 60)),
+        isCurrent: true,
+        latitude: lat,
+        longitude: lon,
+        placeId: info.placeId,
+        placeName: info.name,
+        placeIcon: info.icon,
+        placeColor: info.color,
+        address: info.address,
+        suburb: info.suburb,
+        city: info.city,
+        pointsCount: 1,
+      });
+    }
+  }
+
+  // Combina viagens e permanências em uma linha do tempo única ordenada cronologicamente
+  const combined: TimelineItem[] = [...sortedTrips, ...stays];
+  combined.sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
+  return combined;
+}
+
 /**
  * Agrega e calcula a nota de direção histórica de um membro (Semanal ou Mensal).
  * Etapa 9.6: Nota de direção histórica com agregação diária e evolução.
@@ -792,6 +1105,7 @@ export async function getHistoricalDrivingReport(
       },
       days: emptyDays,
       recentTrips: [],
+      recentTimeline: [],
     };
   }
 
@@ -964,6 +1278,13 @@ export async function getHistoricalDrivingReport(
     .sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime())
     .slice(0, 30);
 
+  const recentTimeline = await buildTimeline(
+    recentTrips,
+    records.slice(-400),
+    places,
+    referenceDate
+  );
+
   return {
     userId,
     period,
@@ -987,5 +1308,6 @@ export async function getHistoricalDrivingReport(
     },
     days: daySummaries,
     recentTrips,
+    recentTimeline,
   };
 }
