@@ -355,10 +355,26 @@
     - **Cache PWA:** atualizado para `life360-v33` (`sw.js`, `style.css?v=33` e `app.js?v=33`).
     - **Testes automatizados:** bateria de testes unitários e com dados reais aprovada (`test_trip_precision_e2e.ts`).
 
-  - Candidatos restantes do Bloco 10:
-    - **Etapa 10.4: Inicialização automática no Boot do Android** (`RECEIVE_BOOT_COMPLETED`) — *postergado a pedido do usuário*.
-    - **Etapa 10.5: Seletor de múltiplos círculos no topo** — *descartado pelo usuário (o app é de uso estritamente pessoal/familiar em círculo único, mantendo a interface leve e direta)*.
-    - **Envio automático de e-mail opcional** (recuperação de senha e resumo semanal).
+  - [ ] **Etapa 10.4: Notificação Push de Resumo Semanal de Direção (Life360 oficial)**
+    - Agendador semanal (`server/src/services/weeklySummaryScheduler.ts`) para envio automático todo domingo à noite (ex: 20h) para os membros do círculo.
+    - Resumo consolidado de cada membro: km rodados, tempo de volante, nota de direção média, frenagens, arrancadas e uso de celular.
+    - Rota manual `POST /api/driving/send-weekly-summary` para teste e disparo imediato sem esperar domingo. Entrega híbrida (Web Push VAPID + Expo Push APK).
+
+  - [ ] **Etapa 10.5: Detecção de Curvas Bruscas por GPS (Hard Cornering)**
+    - Terceira manobra veicular do Life360 Gold (junto a frenagem e aceleração).
+    - Análise da variação angular do GPS (`heading` / $\Delta\theta$) entre pontos consecutivos com velocidade $\ge 25\text{ km/h}$ e taxa $\ge 20^\circ/\text{s}$ ou giro $\ge 35^\circ$.
+    - Evento `hard_cornering` em `DrivingEvent`, marcadores no mapa do replay (cor amarelo/âmbar), chip no cartão da viagem e reponderação na nota de direção.
+
+  - [ ] **Etapa 10.6: Linha do Tempo Contínua: Viagens + Paradas (Stay Timeline)**
+    - Replicar a linha do tempo completa do Life360 oficial, intercalando deslocamentos e períodos estáticos onde o membro permaneceu parado:
+      - *"🏡 Ficou em Casa por 4h 15min (08:30 às 12:45)"*
+      - *"🚗 Viagem de 18 min até Trabalho (12:45 às 13:03 • 8,4 km • Nota 98)"*
+      - *"💼 Permaneceu no Trabalho por 5h 20min (13:03 às 18:23)"*
+    - Associação automática com cercas cadastradas (`Place`) ou geocoding reverso (`GeocodingCache`) e interface integrada no PWA.
+
+  - Descartados / Fora de escopo pelo usuário:
+    - **Inicialização automática no Boot do Android (`RECEIVE_BOOT_COMPLETED`)**: descartado pelo usuário em 29/10/2026.
+    - **Seletor de múltiplos círculos no topo**: descartado pelo usuário (foco em círculo único familiar exclusivo).
 
 ---
 
