@@ -54,9 +54,17 @@ export async function processTelemetry(input: TelemetryInput) {
       : undefined;
   let effectiveIsCharging = input.isCharging;
 
-  if (effectiveBattery === undefined) {
+  if (effectiveBattery !== undefined) {
+    effectiveBattery = Math.max(0, Math.min(100, effectiveBattery));
+  } else {
+    // Só resgata se houver leitura recente (máximo 12h) deste mesmo aparelho
+    const twelveHoursAgo = new Date(Date.now() - 12 * 60 * 60 * 1000);
     const lastLocWithBattery = await prisma.locationRecord.findFirst({
-      where: { deviceId: device.id, battery: { not: null } },
+      where: {
+        deviceId: device.id,
+        battery: { not: null },
+        recordedAt: { gte: twelveHoursAgo },
+      },
       orderBy: { recordedAt: 'desc' },
       select: { battery: true, isCharging: true },
     });

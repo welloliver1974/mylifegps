@@ -82,11 +82,20 @@ export async function sendTelemetryToServer(location: Location.LocationObject): 
       headers['x-device-key'] = cleanKey;
     }
 
-    const response = await fetch(endpoint, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify(payload),
-    });
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000);
+
+    let response: Response;
+    try {
+      response = await fetch(endpoint, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(payload),
+        signal: controller.signal,
+      });
+    } finally {
+      clearTimeout(timeoutId);
+    }
 
     if (response.ok) {
       console.log('[BackgroundLocation] Coordenada enviada com sucesso:', location.coords.latitude, location.coords.longitude);
@@ -158,9 +167,14 @@ export async function forceImmediateLocationUpdate(): Promise<{ ok: boolean; err
       return { ok: false, error: 'Permissão de localização não concedida.' };
     }
 
-    const loc = await Location.getCurrentPositionAsync({
-      accuracy: Location.Accuracy.Highest,
-    });
+    // Tenta primeiro a última posição rápida conhecida do GPS (imediata, <50ms)
+    let loc = await Location.getLastKnownPositionAsync();
+    // Se não houver ou for mais antiga que 90 segundos, busca posição nova
+    if (!loc || Date.now() - loc.timestamp > 90000) {
+      loc = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Balanced,
+      });
+    }
 
     const res = await sendTelemetryToServer(loc);
     return { ok: res.ok, error: res.error };
@@ -189,9 +203,9 @@ export async function startLocationTracking() {
       distanceInterval: 50, // Economia máxima de bateria: só envia se andar > 50 metros
       deferredUpdatesInterval: 60000, // No máximo uma vez por minuto quando em movimento
       foregroundService: {
-        notificationTitle: 'My Life360 Ativo',
-        notificationBody: 'Compartilhando localização com o círculo familiar.',
-        notificationColor: '#762EEB',
+        notificationTitle: 'GPS Familiar Ativo',
+        notificationBody: 'Compartilhando localização e bateria com o círculo familiar.',
+        notificationColor: '#10B981',
       },
     });
   }

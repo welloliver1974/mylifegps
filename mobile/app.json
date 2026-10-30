@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "My Life360",
-    "slug": "my-life360-mobile",
+    "name": "GPS Familiar",
+    "slug": "gps-familiar-mobile",
     "owner": "welloliveiras-team",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -14,18 +14,18 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.wellington.mylife360",
+      "bundleIdentifier": "com.wellington.gpsfamiliar",
       "infoPlist": {
         "UIBackgroundModes": [
           "location",
           "fetch"
         ],
-        "NSLocationAlwaysAndWhenInUseUsageDescription": "O My Life360 precisa de acesso à localização para compartilhar sua posição com o seu círculo familiar em tempo real.",
-        "NSLocationWhenInUseUsageDescription": "O My Life360 precisa de sua localização para exibir sua posição no mapa."
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "O GPS Familiar precisa de acesso à localização para compartilhar sua posição com o seu círculo familiar em tempo real.",
+        "NSLocationWhenInUseUsageDescription": "O GPS Familiar precisa de sua localização para exibir sua posição no mapa."
       }
     },
     "android": {
-      "package": "com.wellington.mylife360",
+      "package": "com.wellington.gpsfamiliar",
       "versionCode": 1,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
@@ -59,7 +59,7 @@
       [
         "expo-location",
         {
-          "locationAlwaysAndWhenInUsePermission": "Permita o My Life360 acompanhar sua localização para sua segurança familiar 24/7.",
+          "locationAlwaysAndWhenInUsePermission": "Permita o GPS Familiar acompanhar sua localização para sua segurança familiar 24/7.",
           "isAndroidBackgroundLocationEnabled": true,
           "isAndroidForegroundServiceEnabled": true
         }

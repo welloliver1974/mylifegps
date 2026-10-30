@@ -6,6 +6,11 @@ import {
   pruneAccessLogs,
   auditConfig,
 } from '../services/audit.js';
+import {
+  sendWeeklySummaryToAllMembers,
+  sendWeeklySummaryToUser,
+  getWeeklySummaryStatus,
+} from '../services/weeklySummary.js';
 
 /**
  * Só o administrador do círculo pode disparar backup, ver logs e mexer em aparelhos.
@@ -91,5 +96,48 @@ export async function adminRoutes(fastify: FastifyInstance) {
     if (!requireAdmin(request, reply)) return;
     const removed = await pruneAccessLogs();
     return reply.send({ success: true, removed });
+  });
+
+  // ---- Resumo Semanal Push de Direção (Life360 Weekly Summary - Etapa 10.4) ----
+
+  fastify.get('/api/admin/driving/weekly-summary-status', async (request, reply) => {
+    if (!requireAdmin(request, reply)) return;
+    const status = getWeeklySummaryStatus();
+    return reply.send(status);
+  });
+
+  fastify.post('/api/admin/driving/send-weekly-summary', async (request, reply) => {
+    if (!requireAdmin(request, reply)) return;
+    const { userId, force = true, skipIfNoTrips = false } = (request.body as any) || {};
+
+    try {
+      if (userId) {
+        const result = await sendWeeklySummaryToUser(userId, { force, skipIfNoTrips });
+        return reply.send({
+          success: result.success,
+          pushedCount: result.pushedCount,
+          summary: result.summary,
+          message: result.message,
+        });
+      }
+
+      const result = await sendWeeklySummaryToAllMembers({
+        force,
+        skipIfNoTrips,
+        runType: 'manual',
+      });
+
+      return reply.send({
+        success: true,
+        week: result.week,
+        totalUsers: result.totalUsers,
+        notifiedCount: result.notifiedCount,
+        results: result.results,
+        message: `Resumo semanal disparado para ${result.notifiedCount}/${result.totalUsers} membros.`,
+      });
+    } catch (err: any) {
+      fastify.log.error(err);
+      return reply.status(500).send({ error: err?.message || 'Falha ao disparar resumo semanal' });
+    }
   });
 }

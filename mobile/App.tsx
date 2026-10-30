@@ -14,12 +14,15 @@ import {
   StatusBar as RNStatusBar,
   PanResponder,
   Animated,
+  AppState,
   Vibration,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { WebView } from 'react-native-webview';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Location from 'expo-location';
+import * as Battery from 'expo-battery';
+import * as Notifications from 'expo-notifications';
 import {
   startLocationTracking,
   stopLocationTracking,
@@ -96,8 +99,61 @@ export default function App() {
 
   useEffect(() => {
     loadSettings();
+
+    // Sincroniza bateria e posição imediatamente ao retornar para primeiro plano
+    const appStateSub = AppState.addEventListener('change', (nextState) => {
+      if (nextState === 'active') {
+        forceImmediateLocationUpdate().catch(() => {});
+      }
+    });
+
+    // Monitora mudanças no nível ou estado da bateria (ex: plugar no carregador) mesmo parado
+    let battSub: Battery.Subscription | null = null;
+    let stateSub: Battery.Subscription | null = null;
+    try {
+      battSub = Battery.addBatteryLevelListener(() => {
+        forceImmediateLocationUpdate().catch(() => {});
+      });
+      stateSub = Battery.addBatteryStateListener(() => {
+        forceImmediateLocationUpdate().catch(() => {});
+      });
+    } catch {}
+
+    // Heartbeat suave em primeiro plano a cada 90s para manter status vivo na tela
+    const heartbeatInterval = setInterval(() => {
+      if (AppState.currentState === 'active') {
+        forceImmediateLocationUpdate().catch(() => {});
+      }
+    }, 90000);
+
+    // Navega a WebView para o destino da notificação ao clicar nela (ex: Resumo Semanal)
+    const notifResponseSub = Notifications.addNotificationResponseReceivedListener((response) => {
+      const data = response?.notification?.request?.content?.data;
+      if (data?.url && webViewRef.current) {
+        const target = String(data.url);
+        const script = `
+          try {
+            const dest = '${target}';
+            if (dest.startsWith('http')) {
+              window.location.href = dest;
+            } else {
+              const u = new URL(dest, window.location.origin);
+              window.location.href = u.href;
+            }
+          } catch (_e) {}
+          true;
+        `;
+        webViewRef.current.injectJavaScript(script);
+      }
+    });
+
     return () => {
       stopCrashMonitoring();
+      appStateSub.remove();
+      battSub?.remove();
+      stateSub?.remove();
+      notifResponseSub.remove();
+      clearInterval(heartbeatInterval);
       if (countdownTimerRef.current) {
         clearInterval(countdownTimerRef.current);
       }
@@ -233,12 +289,13 @@ export default function App() {
       const savedKey = await AsyncStorage.getItem('device_api_key');
       const savedSync = await AsyncStorage.getItem('last_sync');
 
-      if (savedUrl) {
-        setServerUrl(savedUrl);
-      } else {
-        setServerUrl(DEFAULT_SERVER_URL);
+      let effectiveUrl = savedUrl;
+      if (!effectiveUrl || effectiveUrl.includes('life360.housecloud.tec.br') || effectiveUrl.includes('mylife360')) {
+        effectiveUrl = DEFAULT_SERVER_URL;
         await AsyncStorage.setItem('server_url', DEFAULT_SERVER_URL);
       }
+      setServerUrl(effectiveUrl);
+
       if (savedDevice) setDeviceId(savedDevice);
       if (savedKey) setDeviceApiKey(savedKey);
       if (savedSync) setLastSync(savedSync);
@@ -258,8 +315,11 @@ export default function App() {
       if (!savedDevice || !savedKey) {
         setShowConfig(true);
       } else {
+        // Envia telemetria inicial imediata (bateria + posição atual) para a VPS
+        forceImmediateLocationUpdate().catch(() => {});
+
         // Registra para notificações push nativas no Android
-        registerForNativePushAsync(savedUrl || DEFAULT_SERVER_URL, savedDevice, savedKey).catch((err) => {
+        registerForNativePushAsync(effectiveUrl, savedDevice, savedKey).catch((err) => {
           console.warn('[NativePush] Registro em segundo plano:', err);
         });
       }
@@ -325,7 +385,7 @@ export default function App() {
         setIsTracking(true);
         Alert.alert(
           'Rastreamento Ativado',
-          'Seu celular está transmitindo coordenadas em segundo plano com economia de bateria (My Life360).'
+          'Seu celular está transmitindo coordenadas em segundo plano com economia de bateria (GPS Familiar).'
         );
       } else {
         await stopLocationTracking();
@@ -342,7 +402,7 @@ export default function App() {
     return (
       <View style={styles.centerContainer}>
         <ActivityIndicator size="large" color="#762EEB" />
-        <Text style={styles.loadingText}>Iniciando My Life360...</Text>
+        <Text style={styles.loadingText}>Iniciando GPS Familiar...</Text>
       </View>
     );
   }
@@ -370,7 +430,7 @@ export default function App() {
               <Text style={styles.loadingText}>Conectando ao círculo familiar...</Text>
             </View>
           )}
-          applicationNameForUserAgent="MyLife360App/1.0"
+          applicationNameForUserAgent="GPSFamiliarApp/1.0"
           onError={() => {
             Alert.alert(
               'Falha de Conexão',
@@ -385,7 +445,7 @@ export default function App() {
                 await forceImmediateLocationUpdate();
               } else if (msg && msg.type === 'TEST_NOTIFICATION') {
                 Alert.alert(
-                  msg.title || '🔔 My Life360',
+                  msg.title || '🔔 GPS Familiar',
                   msg.body || 'O rastreamento em segundo plano e alertas nativos estão ativos neste aparelho!'
                 );
                 try {

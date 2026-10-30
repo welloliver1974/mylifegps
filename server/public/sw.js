@@ -1,9 +1,9 @@
-const CACHE_NAME = 'life360-v33';
+const CACHE_NAME = 'gps-familiar-v35';
 const ASSETS = [
   '/',
   '/index.html',
-  '/style.css?v=33',
-  '/app.js?v=33',
+  '/style.css?v=35',
+  '/app.js?v=35',
   '/manifest.json',
   '/icon-192.png',
   '/icon-512.png'
@@ -74,7 +74,7 @@ self.addEventListener('push', (event) => {
     icon: data.icon || '/icon-192.png',
     badge: data.badge || '/icon-192.png',
     vibrate: isSos ? [300, 150, 300, 150, 500] : [150, 100, 150],
-    tag: data.tag || 'life360-notification',
+    tag: data.tag || 'gps-notification',
     renotify: true,
     requireInteraction: isSos, // Notificação de SOS permanece na tela até o usuário clicar
     data: data.data || { url: '/' },
@@ -83,7 +83,7 @@ self.addEventListener('push', (event) => {
   event.waitUntil(self.registration.showNotification(data.title || 'GPS Familiar', options));
 });
 
-// Ao clicar na notificação, foca ou abre a janela do app
+// Ao clicar na notificação, foca ou abre a janela do app no link de destino
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
   const targetUrl = (event.notification.data && event.notification.data.url) || '/';
@@ -92,6 +92,11 @@ self.addEventListener('notificationclick', (event) => {
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
       for (const client of clientList) {
         if (client.url.includes(self.location.origin) && 'focus' in client) {
+          if ('navigate' in client && targetUrl) {
+            try {
+              client.navigate(targetUrl);
+            } catch (_e) {}
+          }
           return client.focus();
         }
       }

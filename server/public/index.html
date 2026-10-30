@@ -17,7 +17,7 @@
   <!-- Leaflet CSS -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
 
-  <link rel="stylesheet" href="/style.css?v=33">
+  <link rel="stylesheet" href="/style.css?v=35">
 </head>
 <body>
   <!-- Tela de Autenticação (Login / Configuração Inicial / Convite / Recuperação) -->
@@ -440,6 +440,11 @@
                   <tbody id="driverTableBody"></tbody>
                 </table>
               </div>
+
+              <!-- Disparo sob demanda de notificação semanal (Etapa 10.4) -->
+              <button type="button" class="btn small secondary" id="btnSendMyWeeklySummaryPush" style="margin: 12px 0 4px; width: 100%; display: flex; align-items: center; justify-content: center; gap: 6px; font-weight: 700; border-radius: 10px;">
+                📲 Enviar Notificação do Resumo no meu Celular
+              </button>
             </div>
 
             <!-- Viagens Individuais Segmentadas (Life360 Gold - Etapa 8.4) -->
@@ -810,6 +815,7 @@
         <div class="admin-tabs">
           <button type="button" class="admin-tab-btn active" id="tabBtnBackups" data-tab="backups">💾 Backups do Banco</button>
           <button type="button" class="admin-tab-btn" id="tabBtnLogs" data-tab="logs">📜 Auditoria de Acessos</button>
+          <button type="button" class="admin-tab-btn" id="tabBtnWeeklySummary" data-tab="weekly">🚗 Resumo Semanal</button>
         </div>
 
         <!-- Aba 1: Backups -->
@@ -861,6 +867,30 @@
             <div class="loading-state">Carregando registros de auditoria...</div>
           </div>
         </div>
+
+        <!-- Aba 3: Resumo Semanal Push (Etapa 10.4) -->
+        <div class="admin-tab-pane" id="adminPaneWeekly" style="display: none;">
+          <div class="admin-info-card">
+            <div class="admin-info-row">
+              <span><strong>Frequência:</strong> Segunda-feira às 08:00</span>
+              <span><strong>Canais:</strong> Web Push (VAPID) + Expo Push (APK)</span>
+              <span><strong>Status:</strong> <span class="badge-online" id="weeklySchedulerBadge">🟢 Ativo</span></span>
+            </div>
+            <div class="admin-info-row" style="margin-top: 8px;">
+              <span><strong>Semana Atual:</strong> <span id="weeklyCurrentWeek">--</span></span>
+              <span><strong>Último Envio:</strong> <span id="weeklyLastRunAt">--</span></span>
+            </div>
+            <div class="admin-backup-actions" style="margin-top: 12px; display: flex; gap: 8px; flex-wrap: wrap;">
+              <button type="button" class="btn small primary" id="btnSendWeeklySummaryAll">🚗 Enviar Resumo para Todos Agora (Teste)</button>
+              <button type="button" class="btn small secondary" id="btnRefreshWeeklyStatus">↻ Atualizar Status</button>
+            </div>
+          </div>
+
+          <h4 style="margin: 14px 0 8px; font-size: 13px; font-weight: 800; color: var(--text-primary);">Último Envio por Membro</h4>
+          <div class="weekly-members-list" id="weeklyMembersList">
+            <div class="loading-state">Nenhum envio recente registrado.</div>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -901,7 +931,7 @@
 
   <!-- Leaflet JS -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
-  <script src="/app.js?v=33"></script>
+  <script src="/app.js?v=35"></script>
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {

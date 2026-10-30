@@ -1,8 +1,14 @@
-// My Life360 Web / PWA App Core (Estilo Life360 Oficial + Todos os Recursos Premium Desbloqueados)
+// GPS Familiar Web / PWA App Core (Interface Fluida + Todos os Recursos Premium)
 document.addEventListener('DOMContentLoaded', () => {
   let map;
   let currentTileLayer = null;
   let cartoKey = '';
+
+  // PNG 1x1 transparente: usado como errorTileUrl para que um tile que falhou
+  // não pinte um quadrado cinza sobre o mapa enquanto é re-tentado.
+  const TRANSPARENT_TILE =
+    'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
+
   let currentLayerType = localStorage.getItem('life360_map_layer') || 'voyager';
   // Se o mapa foi alterado para 'dark' anteriormente pelo tema, restaura para o padrão Voyager (Life360 Clean)
   if (currentLayerType === 'dark') {
@@ -443,18 +449,33 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     currentTileLayer = L.tileLayer(cfg.url, {
-      maxZoom: cfg.maxZoom,
-      subdomains: cfg.subdomains,
+      maxZoom: cfg.maxZoom || 19,
+      subdomains: cfg.subdomains || 'abcd',
       attribution: cfg.attribution,
+      // Mantém uma margem maior de tiles já baixados ao redor da viewport:
+      // ao arrastar/afastar o mapa os quadrados cinzas não aparecem.
+      keepBuffer: 8,
+      updateWhenIdle: false,
+      updateWhenZooming: false,
+      updateInterval: 120,
+      crossOrigin: true,
+      // Um pixel transparente evita o quadrado cinza padrão do Leaflet quando
+      // um tile específico falha; o tile real é re-tentado logo em seguida.
+      errorTileUrl: TRANSPARENT_TILE,
     }).addTo(map);
 
-    let fallbackTriggered = false;
-    currentTileLayer.on('tileerror', () => {
-      if (!fallbackTriggered && cfg.url.includes('cartocdn.com')) {
-        fallbackTriggered = true;
-        console.warn('Tiles CARTO indisponíveis, alternando para OpenStreetMap...');
-        currentTileLayer.setUrl('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png');
-      }
+    // Rede instável: re-tenta o tile que falhou antes de desistir dele
+    currentTileLayer.on('tileerror', (e) => {
+      const tile = e.tile;
+      if (!tile || tile.dataset.retried === '1') return;
+      tile.dataset.retried = '1';
+      setTimeout(() => {
+        if (currentTileLayer && map.hasLayer(currentTileLayer) && tile.src) {
+          const src = tile.src;
+          tile.src = '';
+          tile.src = src;
+        }
+      }, 1200);
     });
 
     document.querySelectorAll('.layer-card').forEach((card) => {
@@ -491,6 +512,33 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       switchBaseLayer(currentLayerType);
+
+      // Comportamento dinâmico de zoom para evitar sobreposição de cards no zoom out
+      function updateMapZoomClasses() {
+        if (!map) return;
+        const z = map.getZoom();
+        const container = map.getContainer();
+        container.classList.toggle('zoom-overview', z <= 11);
+        container.classList.toggle('zoom-mid', z > 11 && z < 14);
+        container.classList.toggle('zoom-detail', z >= 14);
+      }
+
+      map.on('zoomend', updateMapZoomClasses);
+      updateMapZoomClasses();
+
+      // Invalidação de tamanho automática para eliminar quadrados cinzas ao redimensionar ou alternar abas
+      window.addEventListener('resize', () => {
+        if (map) {
+          try { map.invalidateSize(); } catch (_e) {}
+        }
+      });
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible' && map) {
+          setTimeout(() => {
+            try { map.invalidateSize(); } catch (_e) {}
+          }, 100);
+        }
+      });
 
       map.on('click', (e) => {
         const latInput = document.getElementById('placeLat');
@@ -1807,6 +1855,28 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
+  let initialUrlHandled = false;
+  function checkUrlNavigation() {
+    if (initialUrlHandled) return;
+    try {
+      const urlParams = new URLSearchParams(window.location.search);
+      const action = urlParams.get('action');
+      if (action === 'driver-report') {
+        const userId = urlParams.get('userId');
+        const period = urlParams.get('period') || 'week';
+        const targetMember = (userId && membersData.find((m) => m.id === userId)) || membersData[0];
+        if (targetMember) {
+          initialUrlHandled = true;
+          selectMember(targetMember.id, period);
+          setTimeout(() => {
+            const card = document.getElementById('driverReportCard') || document.getElementById('driverScoreNum');
+            if (card) card.scrollIntoView({ behavior: 'smooth' });
+          }, 600);
+        }
+      }
+    } catch (_e) {}
+  }
+
   // 7. Carrega Membros Iniciais da API
   async function loadMembers() {
     try {
@@ -1817,6 +1887,7 @@ document.addEventListener('DOMContentLoaded', () => {
       membersData.forEach((m) => renderMemberMarker(m.id));
       fitAllMembers();
       renderChatTabs();
+      checkUrlNavigation();
     } catch (err) {
       console.error('Erro ao buscar membros:', err);
     }
@@ -2171,17 +2242,23 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // 14. Seleciona Membro e Abre Painel de Detalhes
-  function selectMember(userId) {
+  function selectMember(userId, initialPeriod = 'today') {
     selectedMemberId = userId;
     const member = membersData.find((m) => m.id === userId);
     if (!member) return;
 
-    // Ao abrir um membro, o relatório volta para o período "Hoje" (Etapa 9.6)
-    driverReportPeriod = 'today';
+    // Descola o painel se estiver recolhido
+    const sheet = document.getElementById('bottomSheet');
+    if (sheet) {
+      sheet.classList.remove('peek-mobile', 'collapsed-desktop');
+    }
+
+    // Configura o período solicitado (padrão 'today' ou 'week' vindo de notificação push)
+    driverReportPeriod = initialPeriod;
     driverChartMetric = 'score';
     currentHistoricalReport = null;
     document.querySelectorAll('.driver-period-btn').forEach((b) => {
-      b.classList.toggle('active', b.dataset.period === 'today');
+      b.classList.toggle('active', b.dataset.period === initialPeriod);
     });
     const metricScoreBtn = document.getElementById('btnMetricScore');
     const metricKmBtn = document.getElementById('btnMetricKm');
@@ -2662,6 +2739,32 @@ document.addEventListener('DOMContentLoaded', () => {
         const isHidden = tableWrap.style.display === 'none';
         tableWrap.style.display = isHidden ? 'block' : 'none';
         btnToggleTable.textContent = isHidden ? '✕ Ocultar Tabela' : '📋 Ver Tabela';
+      });
+    }
+
+    // Disparo sob demanda de notificação semanal para o membro selecionado
+    const btnSendMyWeeklyPush = document.getElementById('btnSendMyWeeklySummaryPush');
+    if (btnSendMyWeeklyPush) {
+      btnSendMyWeeklyPush.addEventListener('click', async () => {
+        if (!selectedMemberId) return;
+        btnSendMyWeeklyPush.disabled = true;
+        btnSendMyWeeklyPush.textContent = 'Enviando notificação...';
+        try {
+          const res = await apiFetch(`/api/members/${selectedMemberId}/driving/send-weekly-summary`, {
+            method: 'POST',
+          });
+          const data = await res.json();
+          if (res.ok) {
+            showToast(data.message || '📲 Notificação enviada para o seu celular!');
+          } else {
+            showToast(data.error || 'Erro ao enviar notificação.');
+          }
+        } catch {
+          showToast('Falha de conexão com o servidor.');
+        } finally {
+          btnSendMyWeeklyPush.disabled = false;
+          btnSendMyWeeklyPush.textContent = '📲 Enviar Notificação do Resumo no meu Celular';
+        }
       });
     }
   }
@@ -4006,7 +4109,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!toggleBtn) return;
 
     // 1. Se estiver rodando dentro do App Android (APK com WebView nativo)
-    const isNativeApp = !!(window.ReactNativeWebView || /MyLife360App/i.test(navigator.userAgent));
+    const isNativeApp = !!(window.ReactNativeWebView || /MyLife360App|GPSFamiliarApp/i.test(navigator.userAgent));
     if (isNativeApp) {
       toggleBtn.classList.add('push-active');
       toggleBtn.textContent = '🟢 Notificações Nativas do App Ativas';
@@ -4052,7 +4155,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   async function togglePushNotifications() {
     const toggleBtn = document.getElementById('btnTogglePushNotifications');
-    const isNativeApp = !!(window.ReactNativeWebView || /MyLife360App/i.test(navigator.userAgent));
+    const isNativeApp = !!(window.ReactNativeWebView || /MyLife360App|GPSFamiliarApp/i.test(navigator.userAgent));
 
     if (isNativeApp) {
       showToast('🟢 O GPS gerencia o rastreamento e alertas nativamente pelo Android!');
@@ -4509,40 +4612,112 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
+  async function loadWeeklySummaryAdmin() {
+    const listEl = document.getElementById('weeklyMembersList');
+    const badgeEl = document.getElementById('weeklySchedulerBadge');
+    const weekEl = document.getElementById('weeklyCurrentWeek');
+    const lastRunEl = document.getElementById('weeklyLastRunAt');
+    if (!listEl) return;
+
+    try {
+      const res = await apiFetch('/api/admin/driving/weekly-summary-status');
+      if (!res.ok) {
+        listEl.innerHTML = '<div class="loading-state">Erro ao carregar status (requer perfil admin).</div>';
+        return;
+      }
+      const data = await res.json();
+
+      if (badgeEl) {
+        badgeEl.textContent = data.schedulerActive ? '🟢 Ativo' : '⏸️ Pausado';
+        badgeEl.style.color = data.schedulerActive ? '#166534' : 'var(--text-secondary)';
+      }
+      if (weekEl) {
+        weekEl.textContent = data.currentWeek || '--';
+      }
+      if (lastRunEl) {
+        lastRunEl.textContent = data.lastRunAt
+          ? new Date(data.lastRunAt).toLocaleString('pt-BR')
+          : 'Nenhum envio registrado';
+      }
+
+      const results = data.lastResults || [];
+      if (results.length === 0) {
+        listEl.innerHTML = `
+          <div class="loading-state" style="padding: 16px; text-align: center;">
+            <p style="margin: 0; font-size: 13px; color: var(--text-secondary);">
+              Nenhum disparo registrado ainda.<br>
+              O envio automático ocorre toda <strong>segunda-feira às 08:00</strong> ou você pode disparar um teste agora no botão acima.
+            </p>
+          </div>
+        `;
+        return;
+      }
+
+      listEl.innerHTML = results
+        .map((r) => {
+          const pushBadge = r.pushedCount > 0
+            ? `<span class="badge-online">📲 ${r.pushedCount} push</span>`
+            : `<span style="font-size: 11px; font-weight: 800; color: var(--text-secondary); opacity: 0.7;">Sem aparelhos</span>`;
+          return `
+            <div class="weekly-member-row" style="display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; background: var(--bg-secondary); border-radius: 10px; margin-bottom: 8px; border: 1px solid var(--border-color);">
+              <div style="display: flex; flex-direction: column; gap: 2px;">
+                <strong style="font-size: 13px; color: var(--text-primary);">${escapeHtml(r.userName)}</strong>
+                <span style="font-size: 11px; color: var(--text-secondary);">
+                  ${r.trips} viagem(ns) • ${r.distanceKm.toFixed(1)} km • Nota ${r.score}/100
+                </span>
+              </div>
+              <div>${pushBadge}</div>
+            </div>
+          `;
+        })
+        .join('');
+    } catch (err) {
+      console.error(err);
+      listEl.innerHTML = '<div class="loading-state">Falha ao obter status do resumo semanal.</div>';
+    }
+  }
+
   function setupAdminModal() {
     const modal = document.getElementById('adminModal');
     const openBtn = document.getElementById('btnOpenAdminModal');
     const closeBtn = document.getElementById('btnCloseAdminModal');
     const tabBackups = document.getElementById('tabBtnBackups');
     const tabLogs = document.getElementById('tabBtnLogs');
+    const tabWeekly = document.getElementById('tabBtnWeeklySummary');
     const paneBackups = document.getElementById('adminPaneBackups');
     const paneLogs = document.getElementById('adminPaneLogs');
+    const paneWeekly = document.getElementById('adminPaneWeekly');
     const btnCreateBackup = document.getElementById('btnCreateBackupNow');
     const btnPruneBackups = document.getElementById('btnPruneBackups');
     const chkOnlyErrors = document.getElementById('chkLogsOnlyErrors');
     const btnRefreshLogs = document.getElementById('btnRefreshLogs');
+    const btnSendWeeklyAll = document.getElementById('btnSendWeeklySummaryAll');
+    const btnRefreshWeekly = document.getElementById('btnRefreshWeeklyStatus');
 
     if (!modal) return;
 
     function switchAdminTab(tab) {
+      if (tabBackups) tabBackups.classList.toggle('active', tab === 'backups');
+      if (tabLogs) tabLogs.classList.toggle('active', tab === 'logs');
+      if (tabWeekly) tabWeekly.classList.toggle('active', tab === 'weekly');
+
+      if (paneBackups) paneBackups.style.display = tab === 'backups' ? 'block' : 'none';
+      if (paneLogs) paneLogs.style.display = tab === 'logs' ? 'block' : 'none';
+      if (paneWeekly) paneWeekly.style.display = tab === 'weekly' ? 'block' : 'none';
+
       if (tab === 'backups') {
-        tabBackups.classList.add('active');
-        tabLogs.classList.remove('active');
-        paneBackups.style.display = 'block';
-        paneLogs.style.display = 'none';
         loadBackups();
-      } else {
-        tabLogs.classList.add('active');
-        tabBackups.classList.remove('active');
-        paneLogs.style.display = 'block';
-        paneBackups.style.display = 'none';
+      } else if (tab === 'logs') {
         loadAuditSummary();
         loadAuditLogs(chkOnlyErrors?.checked || false);
+      } else if (tab === 'weekly') {
+        loadWeeklySummaryAdmin();
       }
     }
 
     if (tabBackups) tabBackups.addEventListener('click', () => switchAdminTab('backups'));
     if (tabLogs) tabLogs.addEventListener('click', () => switchAdminTab('logs'));
+    if (tabWeekly) tabWeekly.addEventListener('click', () => switchAdminTab('weekly'));
 
     if (openBtn) {
       openBtn.addEventListener('click', () => {
@@ -4612,6 +4787,39 @@ document.addEventListener('DOMContentLoaded', () => {
         loadAuditSummary();
         loadAuditLogs(chkOnlyErrors?.checked || false);
         showToast('Logs atualizados.');
+      });
+    }
+
+    if (btnSendWeeklyAll) {
+      btnSendWeeklyAll.addEventListener('click', async () => {
+        btnSendWeeklyAll.disabled = true;
+        btnSendWeeklyAll.textContent = 'Enviando notificações push...';
+        try {
+          const res = await apiFetch('/api/admin/driving/send-weekly-summary', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ force: true }),
+          });
+          const data = await res.json();
+          if (res.ok) {
+            showToast(data.message || 'Resumo semanal disparado!');
+            loadWeeklySummaryAdmin();
+          } else {
+            showToast(data.error || 'Erro ao disparar resumo.');
+          }
+        } catch {
+          showToast('Falha na comunicação com o servidor.');
+        } finally {
+          btnSendWeeklyAll.disabled = false;
+          btnSendWeeklyAll.textContent = '🚗 Enviar Resumo para Todos Agora (Teste)';
+        }
+      });
+    }
+
+    if (btnRefreshWeekly) {
+      btnRefreshWeekly.addEventListener('click', () => {
+        loadWeeklySummaryAdmin();
+        showToast('Status atualizado.');
       });
     }
   }

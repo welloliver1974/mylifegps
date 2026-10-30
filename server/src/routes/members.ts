@@ -7,6 +7,7 @@ import { calculateDistanceMeters } from '../services/geofence.js';
 import { segmentPointsIntoTrips, getHistoricalDrivingReport } from '../services/tripDetection.js';
 import { fetchPhoneUsageWindows } from '../services/phoneUsage.js';
 import { broadcastLocationUpdateRequest } from '../services/websocket.js';
+import { sendWeeklySummaryToUser } from '../services/weeklySummary.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -75,18 +76,15 @@ export async function membersRoutes(fastify: FastifyInstance) {
         }
       }
 
-      // Se o ponto mais recente veio sem bateria, resgata a última bateria conhecida do aparelho
-      if (latestLocation && (latestLocation.battery === null || latestLocation.battery === undefined)) {
-        for (const device of u.devices) {
-          const locWithBatt = device.locations.find((l: any) => l.battery !== null && l.battery !== undefined);
-          if (locWithBatt) {
-            latestLocation = {
-              ...latestLocation,
-              battery: locWithBatt.battery,
-              isCharging: latestLocation.isCharging || locWithBatt.isCharging,
-            };
-            break;
-          }
+      // Se o ponto mais recente veio sem bateria, resgata a última bateria conhecida DESTE aparelho ativo
+      if (latestLocation && (latestLocation.battery === null || latestLocation.battery === undefined) && activeDevice) {
+        const locWithBatt = activeDevice.locations.find((l: any) => l.battery !== null && l.battery !== undefined);
+        if (locWithBatt) {
+          latestLocation = {
+            ...latestLocation,
+            battery: locWithBatt.battery,
+            isCharging: latestLocation.isCharging || locWithBatt.isCharging,
+          };
         }
       }
 
@@ -308,6 +306,24 @@ export async function membersRoutes(fastify: FastifyInstance) {
 
     const report = await getHistoricalDrivingReport(userId, validPeriod, refDate);
     return reply.send(report);
+  });
+
+  // Disparo manual do resumo semanal de direção para um membro específico (teste ou sob demanda)
+  fastify.post('/api/members/:userId/driving/send-weekly-summary', async (request, reply) => {
+    const authUser = (request as any).authUser || (request as any).user;
+    const { userId } = request.params as { userId: string };
+
+    if (authUser && authUser.id !== userId && authUser.role !== 'admin') {
+      return reply.status(403).send({ error: 'Você só pode disparar o resumo semanal para seu próprio usuário.' });
+    }
+
+    try {
+      const res = await sendWeeklySummaryToUser(userId, { force: true });
+      return reply.send(res);
+    } catch (err: any) {
+      fastify.log.error(err);
+      return reply.status(500).send({ error: err?.message || 'Falha ao enviar resumo semanal' });
+    }
   });
 
   // Cadastro de novo membro

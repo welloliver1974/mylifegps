@@ -27,6 +27,7 @@ import { circleRoutes } from './routes/circle.js';
 import { recordAccess, pruneAccessLogs } from './services/audit.js';
 import { startBackupScheduler } from './services/backup.js';
 import { ensureDefaultCircle } from './services/circle.js';
+import { startWeeklySummaryScheduler } from './services/weeklySummary.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -251,6 +252,7 @@ async function bootstrap() {
     }
 
     startBackupScheduler();
+    startWeeklySummaryScheduler();
 
     // Limpa o log de acessos antigo na subida e uma vez por dia
     pruneAccessLogs().catch((err) => console.error('[Audit] Falha ao limpar logs antigos:', err));
