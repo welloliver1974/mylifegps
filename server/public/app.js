@@ -4055,7 +4055,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const isNativeApp = !!(window.ReactNativeWebView || /MyLife360App/i.test(navigator.userAgent));
 
     if (isNativeApp) {
-      showToast('🟢 O My Life360 gerencia o rastreamento e alertas nativamente pelo Android!');
+      showToast('🟢 O GPS gerencia o rastreamento e alertas nativamente pelo Android!');
       return;
     }
 
@@ -4135,7 +4135,7 @@ document.addEventListener('DOMContentLoaded', () => {
       window.ReactNativeWebView.postMessage(
         JSON.stringify({
           type: 'TEST_NOTIFICATION',
-          title: '🔔 Notificação My Life360',
+          title: '🔔 Notificação GPS Familiar',
           body: 'O rastreamento em segundo plano e alertas nativos estão 100% operacionais neste aparelho!',
         })
       );
@@ -4650,7 +4650,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const targetName = document.getElementById('resetTargetName')?.textContent?.trim() || 'Membro';
         const code = document.getElementById('resetDisplayCode')?.textContent?.trim() || '';
         const appUrl = window.location.origin;
-        const msg = `Oi ${targetName}! Seu código de recuperação de senha no My Life360 é: *${code}*.\n\nEle é válido por 30 minutos.\nAcesse ${appUrl} e clique em "Esqueci minha senha" para cadastrar sua nova senha.`;
+        const msg = `Oi ${targetName}! Seu código de recuperação de senha no GPS Familiar é: *${code}*.\n\nEle é válido por 30 minutos.\nAcesse ${appUrl} e clique em "Esqueci minha senha" para cadastrar sua nova senha.`;
 
         try {
           await navigator.clipboard.writeText(msg);

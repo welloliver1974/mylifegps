@@ -1,6 +1,6 @@
 {
-  "name": "My Life360",
-  "short_name": "Life360",
+  "name": "GPS Familiar",
+  "short_name": "GPS",
   "description": "Rastreamento e segurança familiar privada em tempo real",
   "start_url": "/",
   "display": "standalone",

@@ -42,7 +42,7 @@ import {
 } from './src/services/crashDetection';
 import { registerForNativePushAsync } from './src/services/nativePush';
 
-const DEFAULT_SERVER_URL = 'https://life360.housecloud.tec.br';
+const DEFAULT_SERVER_URL = 'https://gps.housecloud.tec.br';
 
 export default function App() {
   const webViewRef = useRef<WebView>(null);
@@ -442,7 +442,7 @@ export default function App() {
                 style={styles.input}
                 value={serverUrl}
                 onChangeText={setServerUrl}
-                placeholder="https://life360.housecloud.tec.br"
+                placeholder="https://gps.housecloud.tec.br"
                 placeholderTextColor="#64748B"
                 autoCapitalize="none"
               />

@@ -53,7 +53,7 @@ self.addEventListener('fetch', (event) => {
 // Recebe notificações Web Push (VAPID) mesmo com navegador fechado
 self.addEventListener('push', (event) => {
   let data = {
-    title: 'My Life360',
+    title: 'GPS Familiar',
     body: 'Novo alerta da família',
     icon: '/icon-192.png',
     badge: '/icon-192.png',
@@ -80,7 +80,7 @@ self.addEventListener('push', (event) => {
     data: data.data || { url: '/' },
   };
 
-  event.waitUntil(self.registration.showNotification(data.title || 'My Life360', options));
+  event.waitUntil(self.registration.showNotification(data.title || 'GPS Familiar', options));
 });
 
 // Ao clicar na notificação, foca ou abre a janela do app
