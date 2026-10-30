@@ -355,6 +355,18 @@
     - **Cache PWA:** atualizado para `life360-v33` (`sw.js`, `style.css?v=33` e `app.js?v=33`).
     - **Testes automatizados:** bateria de testes unitários e com dados reais aprovada (`test_trip_precision_e2e.ts`).
 
+  - [x] **Rebranding & Proteção de Domínio (Migração para GPS Familiar / gps.housecloud.tec.br) (CONCLUÍDO em 30/10/2026)**
+    - **Contexto e Mitigação Cloudflare Trust & Safety:**
+      - Subdomínio `life360.housecloud.tec.br` sinalizado por marca registrada (Doppel Inc. / Life360 SOC).
+      - Resolução no painel Cloudflare via contestação *"I have removed the content"*, descontinuando a rota antiga no túnel.
+    - **Rebranding Completo da Aplicação:**
+      - Desvinculação total da marca comercial: interface web e PWA renomeadas para **GPS Familiar** (`GPS` no manifest).
+      - Textos, modais de login, convites, títulos de Web Push e badges limpos de referências nominais.
+    - **Infraestrutura e Deploy:**
+      - Novo subdomínio oficial ativo no Cloudflare Tunnel: **`https://gps.housecloud.tec.br`** (HTTP 200 OK verificado).
+      - App mobile (`mobile/App.tsx` e `mobile/README.md`) atualizado com o novo endpoint padrão.
+      - Documentação técnica (`OBSIDIAN_MY_LIFE360.md`, `FEATURE_PARITY.md`, scripts de deploy) atualizada e commitada.
+
   - [ ] **Etapa 10.4: Notificação Push de Resumo Semanal de Direção (Life360 oficial)**
     - Agendador semanal (`server/src/services/weeklySummaryScheduler.ts`) para envio automático todo domingo à noite (ex: 20h) para os membros do círculo.
     - Resumo consolidado de cada membro: km rodados, tempo de volante, nota de direção média, frenagens, arrancadas e uso de celular.

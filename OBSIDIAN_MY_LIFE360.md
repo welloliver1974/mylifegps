@@ -180,8 +180,8 @@ npm run reset-password email@exemplo.com NovaSenha123
 ```
 
 ### URLs e Acessos:
-- **Painel Web Oficial:** `https://life360.housecloud.tec.br`
-- **Health Check da API:** `https://life360.housecloud.tec.br/health`
+- **Painel Web Oficial:** `https://gps.housecloud.tec.br`
+- **Health Check da API:** `https://gps.housecloud.tec.br/health`
 - **Repositório GitHub:** `https://github.com/welloliver1974/mylifegps.git` (branch `main`)
 
 ---
@@ -197,7 +197,7 @@ npm run reset-password email@exemplo.com NovaSenha123
 2. **No Aplicativo Mobile (APK):**
    - Instale o arquivo `.apk` gerado pelo EAS.
    - Abra o app e clique no botão de engrenagem flutuante ⚙️.
-   - Digite o Servidor: `https://life360.housecloud.tec.br`
+   - Digite o Servidor: `https://gps.housecloud.tec.br`
    - Cole a Chave do Aparelho: `l360_...`
    - Clique em **"📡 Testar Envio de Coordenada"** para confirmar o sinal verde.
    - Ative a chave **"Rastreamento em Segundo Plano"**.

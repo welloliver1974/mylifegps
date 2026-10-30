@@ -99,7 +99,7 @@
 | Mapa funciona offline (cache de assets) | ⚠️ | Assets em cache; tiles dependem de rede |
 | **Autenticação / login** | ✅ | E-mail + senha (bcrypt), sessões revogáveis de 30 dias, `/api/*` e `/ws` protegidos |
 | **Permissões por papel (admin/membro)** | ✅ | `role` no `User`; rotas `/api/admin/*` (backup e auditoria) devolvem 403 para membros comuns. Ainda não há papéis intermediários além de admin/membro |
-| **HTTPS / túnel seguro** | ✅ | Cloudflare Tunnel em produção (`life360.housecloud.tec.br`) sem portas públicas abertas |
+| **HTTPS / túnel seguro** | ✅ | Cloudflare Tunnel em produção (`gps.housecloud.tec.br`) sem portas públicas abertas |
 | **Backup automático do banco** | ✅ | WAL checkpoint + cópia com fallback `VACUUM INTO`, verificação de cabeçalho, retenção de 14 dias, agendador de 24 h e botão de backup manual no painel (Etapa 8.9) |
 | **Notificações push (Híbrido)** | ✅ | Web Push W3C (VAPID) no navegador/PWA + Expo Push Service nativo com canais Android de alta prioridade no APK móvel (Etapa 10.1) |
 | **Auditoria / log de acessos** | ✅ | Modelo `AccessLog` + hook `onResponse`: usuário, método, rota, status, IP, user-agent e duração; retenção de 30 dias; visualizador com resumo de 24 h e filtro de erros (Etapa 8.9) |

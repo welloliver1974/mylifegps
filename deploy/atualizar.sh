@@ -177,7 +177,7 @@ if [ "$HEALTH_RES" != "FAIL" ]; then
   echo "${B}${G}  ✨ MY LIFE360 ATUALIZADO COM SUCESSO EM ${ELAPSED}s!${N}"
   echo "${B}${G}══════════════════════════════════════════════════════════════${N}"
   echo "  📌 Versão ativa: ${B}${CURRENT_COMMIT}${N} ($COMMIT_MSG)"
-  echo "  🌐 URL:          ${B}https://life360.housecloud.tec.br${N}"
+  echo "  🌐 URL:          ${B}https://gps.housecloud.tec.br${N}"
   echo "  🩺 Health check: ${G}ONLINE (status: ok)${N}"
   echo ""
   echo "  Dica: você pode rodar a qualquer momento digitando apenas:"

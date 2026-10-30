@@ -43,7 +43,7 @@ O EAS irá perguntar se deseja configurar o projeto na sua conta Expo (basta dar
 
 Após abrir o app no celular:
 
-1. Acesse o painel web no computador: `https://life360.housecloud.tec.br`
+1. Acesse o painel web no computador: `https://gps.housecloud.tec.br`
 2. No menu superior ou rodapé, clique no botão **📱 Dispositivos & Chaves GPS**.
 3. Adicione um novo dispositivo:
    - **Identificador:** Exemplo: `celular-wellington`
@@ -51,7 +51,7 @@ Após abrir o app no celular:
    - Copie a **Chave de Telemetria** gerada (exemplo: `l360_...`).
 4. No aplicativo móvel instalado no celular:
    - O app abrirá automaticamente a tela de configuração (ícone ⚙️).
-   - **URL:** Já vem preenchida com `https://life360.housecloud.tec.br`.
+   - **URL:** Já vem preenchida com `https://gps.housecloud.tec.br`.
    - **Identificador:** Digite o mesmo nome cadastrado (ex: `celular-wellington`).
    - **Chave de Telemetria:** Cole a chave `l360_...`.
    - Toque em **📡 Testar Envio de Coordenada Agora** para confirmar a comunicação com a VPS.
