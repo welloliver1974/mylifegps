@@ -1654,6 +1654,7 @@ document.addEventListener('DOMContentLoaded', () => {
           handleIncomingLocationUpdateRequest(msg.data);
         } else if (msg.type === 'GEOFENCE_ALERT') {
           showToast(msg.alert.message);
+          loadAlerts();
         } else if (msg.type === 'SOS_ALERT') {
           triggerSosEmergencyOverlay(msg.alert);
           loadSosHistory();
@@ -1873,6 +1874,16 @@ document.addEventListener('DOMContentLoaded', () => {
             if (card) card.scrollIntoView({ behavior: 'smooth' });
           }, 600);
         }
+      } else if (action === 'place') {
+        const placeId = urlParams.get('placeId');
+        if (placeId && placesData && placesData.length > 0) {
+          const place = placesData.find((p) => p.id === placeId);
+          if (place) {
+            initialUrlHandled = true;
+            window.zoomToPlace(place.latitude, place.longitude);
+            showToast(`📍 Visualizando lugar: ${place.name}`);
+          }
+        }
       }
     } catch (_e) {}
   }
@@ -1901,6 +1912,7 @@ document.addEventListener('DOMContentLoaded', () => {
       renderPlaces();
       renderPlacesChips();
       loadAlerts();
+      checkUrlNavigation();
     } catch (err) {
       console.error('Erro ao buscar lugares:', err);
     }
@@ -2003,6 +2015,9 @@ document.addEventListener('DOMContentLoaded', () => {
     document.querySelectorAll('.icon-chip').forEach((chip) => {
       chip.classList.toggle('active', chip.dataset.icon === (place.icon || 'home'));
     });
+
+    const testSec = document.getElementById('placeTestSection');
+    if (testSec) testSec.style.display = 'block';
 
     placeModal.style.display = 'flex';
   };
@@ -2898,7 +2913,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (evolutionContainer) evolutionContainer.style.display = 'none';
       if (trendPill) trendPill.style.display = 'none';
       if (periodLabel) periodLabel.textContent = dateStr ? `Data: ${dateStr}` : 'Período de Hoje';
-      if (tripsTitle) tripsTitle.textContent = '🛣️ Viagens Individuais';
+      updateTripsSectionTitle();
 
       // "Hoje" = janela do dia local do aparelho (não UTC), para não virar o dia às 21h em UTC-3
       let fromIso;
@@ -2973,9 +2988,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (chartSubtitle) {
       chartSubtitle.textContent = driverReportPeriod === 'week' ? 'Últimos 7 dias (dia a dia)' : 'Últimos 30 dias (dia a dia)';
     }
-    if (tripsTitle) {
-      tripsTitle.textContent = driverReportPeriod === 'week' ? '🛣️ Viagens Recentes da Semana' : '🛣️ Viagens Recentes do Mês';
-    }
+    updateTripsSectionTitle();
 
     try {
       const res = await apiFetch(`/api/members/${userId}/driving-history?period=${driverReportPeriod}`);
@@ -3226,7 +3239,25 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function formatTripTime(iso) {
     const d = new Date(iso);
-    return d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+    if (isNaN(d.getTime())) return '--:--';
+    const now = new Date();
+    const isToday =
+      d.getDate() === now.getDate() &&
+      d.getMonth() === now.getMonth() &&
+      d.getFullYear() === now.getFullYear();
+    const timeStr = d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+    if (isToday) return timeStr;
+
+    const yesterday = new Date(now);
+    yesterday.setDate(now.getDate() - 1);
+    const isYesterday =
+      d.getDate() === yesterday.getDate() &&
+      d.getMonth() === yesterday.getMonth() &&
+      d.getFullYear() === yesterday.getFullYear();
+    if (isYesterday) return `Ontem ${timeStr}`;
+
+    const dayStr = d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+    return `${dayStr} ${timeStr}`;
   }
 
   function formatTripDuration(minutes) {
@@ -3242,9 +3273,23 @@ document.addEventListener('DOMContentLoaded', () => {
     return m > 0 ? `${h}h ${m}min` : `${h}h`;
   }
 
+  function updateTripsSectionTitle() {
+    const tripsTitle = document.getElementById('tripsSectionTitle');
+    if (!tripsTitle) return;
+    const isTimeline = activeTimelineMode === 'timeline';
+    if (driverReportPeriod === 'today') {
+      tripsTitle.textContent = isTimeline ? '🕒 Linha do Tempo de Hoje' : '🛣️ Viagens de Hoje';
+    } else if (driverReportPeriod === 'week') {
+      tripsTitle.textContent = isTimeline ? '🕒 Linha do Tempo da Semana' : '🛣️ Viagens da Semana';
+    } else {
+      tripsTitle.textContent = isTimeline ? '🕒 Linha do Tempo do Mês' : '🛣️ Viagens do Mês';
+    }
+  }
+
   function renderTripsAndTimeline() {
     const listEl = document.getElementById('tripsList');
     if (!listEl) return;
+    updateTripsSectionTitle();
     if (activeTimelineMode === 'timeline') {
       renderTimelineList(memberTimeline);
     } else {
@@ -3378,21 +3423,49 @@ document.addEventListener('DOMContentLoaded', () => {
       stayMapMarker = null;
     }
 
+    const durationText = formatStayDuration(stay.durationMinutes);
+    const timeRange = `${formatTripTime(stay.startTime)} → ${stay.isCurrent ? 'agora' : formatTripTime(stay.endTime)}`;
+    const addressHtml = stay.address
+      ? `<div style="font-size:11px;color:#64748B;margin-top:4px;line-height:1.3;">${escapeHtml(stay.address)}</div>`
+      : '';
+    const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${stay.latitude},${stay.longitude}`;
+
+    const popupHtml = `
+      <div style="font-family:'Plus Jakarta Sans',sans-serif;min-width:180px;padding:2px;">
+        <div style="display:flex;align-items:center;gap:6px;font-weight:700;font-size:14px;color:#1E293B;">
+          <span>${escapeHtml(stay.placeIcon || '📍')}</span>
+          <span>${escapeHtml(stay.placeName || 'Local')}</span>
+        </div>
+        <div style="display:inline-block;margin-top:5px;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:700;background:#ECFDF5;color:#059669;border:1px solid #A7F3D0;">
+          ⏱️ ${stay.isCurrent ? 'Permanece há ' : 'Ficou por '}${durationText}
+        </div>
+        <div style="font-size:11px;color:#475569;margin-top:5px;font-weight:500;">
+          🕒 ${timeRange}
+        </div>
+        ${addressHtml}
+        <div style="margin-top:8px;padding-top:6px;border-top:1px solid #E2E8F0;text-align:right;">
+          <a href="${mapsUrl}" target="_blank" rel="noopener noreferrer" style="font-size:11px;color:#3B82F6;text-decoration:none;font-weight:600;">
+            🗺️ Abrir no Maps ↗
+          </a>
+        </div>
+      </div>
+    `;
+
     stayMapMarker = L.circleMarker([stay.latitude, stay.longitude], {
-      radius: 10,
+      radius: 12,
       color: '#FFFFFF',
       weight: 3,
       fillColor: stay.placeColor || '#10B981',
-      fillOpacity: 0.9,
+      fillOpacity: 0.95,
     })
       .addTo(map)
-      .bindTooltip(`${stay.placeIcon} ${stay.placeName} • ${formatStayDuration(stay.durationMinutes)}`, {
-        permanent: false,
-        direction: 'top',
-      })
-      .openTooltip();
+      .bindPopup(popupHtml, { maxWidth: 260 })
+      .openPopup();
 
-    map.setView([stay.latitude, stay.longitude], Math.max(map.getZoom(), 15), { animate: true });
+    map.flyTo([stay.latitude, stay.longitude], Math.max(map.getZoom(), 16), {
+      animate: true,
+      duration: 1.0,
+    });
   };
 
   function renderTripsList(trips) {
@@ -4154,6 +4227,8 @@ document.addEventListener('DOMContentLoaded', () => {
     document.querySelectorAll('.icon-chip').forEach((c) => {
       c.classList.toggle('active', c.dataset.icon === 'home');
     });
+    const testSec = document.getElementById('placeTestSection');
+    if (testSec) testSec.style.display = 'none';
     placeModal.style.display = 'flex';
   }
 
@@ -4166,6 +4241,39 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('btnCancelPlace').addEventListener('click', () => {
     placeModal.style.display = 'none';
   });
+
+  // Disparo de teste de notificação push de lugar (Chegada ou Saída)
+  async function triggerPlaceTestPush(eventType) {
+    const placeId = document.getElementById('placeId').value;
+    if (!placeId) {
+      showToast('Salve o lugar antes de disparar o teste.');
+      return;
+    }
+    const isEnter = eventType === 'ENTER';
+    try {
+      showToast(`Disparando teste de ${isEnter ? 'Chegada' : 'Saída'} no celular...`);
+      const res = await apiFetch(`/api/places/${placeId}/test-notification`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ eventType }),
+      });
+      if (!res.ok) throw new Error('Falha no envio');
+      const data = await res.json();
+      showToast(data.message || 'Notificação enviada!');
+    } catch (err) {
+      console.error(err);
+      showToast('Erro ao disparar teste de notificação.');
+    }
+  }
+
+  const btnTestEnterPush = document.getElementById('btnTestEnterPush');
+  const btnTestExitPush = document.getElementById('btnTestExitPush');
+  if (btnTestEnterPush) {
+    btnTestEnterPush.addEventListener('click', () => triggerPlaceTestPush('ENTER'));
+  }
+  if (btnTestExitPush) {
+    btnTestExitPush.addEventListener('click', () => triggerPlaceTestPush('EXIT'));
+  }
 
   document.getElementById('placeForm').addEventListener('submit', async (e) => {
     e.preventDefault();

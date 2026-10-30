@@ -1,5 +1,6 @@
 import { FastifyInstance } from 'fastify';
 import { prisma } from '../db.js';
+import { sendGeofenceTestPush } from '../services/geofence.js';
 
 export async function placesRoutes(fastify: FastifyInstance) {
   // Lista todas as cercas cadastradas (Casa, Trabalho, Escola)
@@ -128,5 +129,24 @@ export async function placesRoutes(fastify: FastifyInstance) {
     const { id } = request.params as { id: string };
     await prisma.place.delete({ where: { id } });
     return reply.send({ success: true });
+  });
+
+  // Disparo manual de teste de notificação push de lugar (Chegada ou Saída)
+  fastify.post('/api/places/:id/test-notification', async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const { eventType = 'ENTER' } = (request.body as any) || {};
+    const authUser = (request as any).authUser || (request as any).user;
+
+    const place = await prisma.place.findUnique({ where: { id } });
+    if (!place) {
+      return reply.status(404).send({ error: 'Lugar não encontrado' });
+    }
+
+    const userName = authUser?.name || 'Wellington';
+    const userId = authUser?.id;
+    const validEventType = eventType === 'EXIT' ? 'EXIT' : 'ENTER';
+
+    const result = await sendGeofenceTestPush(place, userName, validEventType, userId);
+    return reply.send(result);
   });
 }

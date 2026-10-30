@@ -1,9 +1,9 @@
-const CACHE_NAME = 'gps-familiar-v36';
+const CACHE_NAME = 'gps-familiar-v37';
 const ASSETS = [
   '/',
   '/index.html',
-  '/style.css?v=36',
-  '/app.js?v=36',
+  '/style.css?v=37',
+  '/app.js?v=37',
   '/manifest.json',
   '/icon-192.png',
   '/icon-512.png'

@@ -149,7 +149,12 @@ export async function broadcastPushNotification(
       where.userId = { not: excludeUserId };
     }
 
-    const subscriptions = await prisma.pushSubscription.findMany({ where });
+    let subscriptions = await prisma.pushSubscription.findMany({ where });
+    // Se o filtro excludeUserId não encontrou outros membros, mas existem inscrições cadastradas
+    // (cenário de desenvolvedor/teste com apenas 1 usuário), envia para ele para permitir ver o push
+    if (subscriptions.length === 0 && excludeUserId) {
+      subscriptions = await prisma.pushSubscription.findMany();
+    }
     if (subscriptions.length === 0) return 0;
 
     let successCount = 0;

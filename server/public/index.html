@@ -17,7 +17,7 @@
   <!-- Leaflet CSS -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
 
-  <link rel="stylesheet" href="/style.css?v=36">
+  <link rel="stylesheet" href="/style.css?v=37">
 </head>
 <body>
   <!-- Tela de Autenticação (Login / Configuração Inicial / Convite / Recuperação) -->
@@ -663,6 +663,13 @@
             <label for="placeRadius">Raio (Metros): <span id="radiusVal">100m</span></label>
             <input type="range" id="placeRadius" min="50" max="1000" step="25" value="100">
           </div>
+          <div class="place-test-section" id="placeTestSection" style="display: none; margin-top: 14px; padding-top: 12px; border-top: 1px dashed var(--border-color);">
+            <label style="font-size: 12px; font-weight: 600; color: var(--text-secondary); margin-bottom: 8px; display: block;">🧪 Testar Alerta Push no Celular</label>
+            <div style="display: flex; gap: 8px;">
+              <button type="button" class="btn small secondary" id="btnTestEnterPush" style="flex: 1;" title="Simula que você acabou de chegar neste lugar">🟢 Chegada</button>
+              <button type="button" class="btn small secondary" id="btnTestExitPush" style="flex: 1;" title="Simula que você acabou de sair deste lugar">🚗 Saída</button>
+            </div>
+          </div>
           <div class="modal-actions">
             <button type="button" class="btn secondary" id="btnCancelPlace">Cancelar</button>
             <button type="submit" class="btn primary" id="btnSavePlace">Salvar Lugar</button>
@@ -937,7 +944,7 @@
 
   <!-- Leaflet JS -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
-  <script src="/app.js?v=36"></script>
+  <script src="/app.js?v=37"></script>
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
